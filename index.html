@@ -9,41 +9,43 @@
 </head>
 <body>
 <div class="textstyle1">
-<script type="text/javascript">(function() {
+<script type="text/javascript">// ============================================================
+// 完整脚本：文章列表 + OAuth 登录控制
+// 依赖：无第三方库，纯原生 JS
+// ============================================================
+
+(function() {
   'use strict';
 
   // ---------- 配置 ----------
   const API_URL = 'https://api.blacknet.cc.cd';
+  const OAUTH_BASE = 'https://oauth.blacknet.cc.cd';
   const CONTAINER = document.getElementById('main');
 
-  // 确保父容器居中
-  if (CONTAINER) {
-    CONTAINER.style.textAlign = 'center';
-  }
+  // ---------- DOM 元素 ----------
+  const loginBtn = document.getElementById('login');
+  const logoutBtn = document.getElementById('logout');
 
   // ---------- 辅助函数 ----------
 
-  // 1. 提取第一张图片 URL
+  // 提取第一张图片 URL
   function extractFirstImage(markdown) {
     const match = markdown.match(/!\[.*?\]\((.*?)\)/);
     return match ? match[1] : null;
   }
 
-  // 2. 从第一行提取纯文本简介（去除 Markdown 标记）
+  // 提取第一行纯文本（去除 Markdown）
   function getFirstLinePlainText(markdown) {
-    // 取第一行（按换行符分割，取第一个非空行）
     const lines = markdown.split('\n');
-    let firstLine = lines.find(line => line.trim() !== '') || '';
-    // 去除 Markdown 标记：图片、链接、标题、粗体斜体、代码块等
-    let text = firstLine
-      .replace(/!\[.*?\]\(.*?\)/g, '')        // 图片
-      .replace(/\[.*?\]\(.*?\)/g, '$1')       // 链接只留文字
-      .replace(/[#*`>_\-]/g, '')              // 标题、列表、粗斜体、引用等
-      .trim();
-    return text || '无简介';
+    const firstLine = lines.find(line => line.trim() !== '') || '';
+    return firstLine
+      .replace(/!\[.*?\]\(.*?\)/g, '')
+      .replace(/\[.*?\]\(.*?\)/g, '$1')
+      .replace(/[#*`>_\-]/g, '')
+      .trim() || '无简介';
   }
 
-  // 3. 格式化日期
+  // 格式化日期
   function formatDate(dateStr) {
     const date = new Date(dateStr);
     return date.toLocaleDateString('zh-CN', {
@@ -51,10 +53,29 @@
     });
   }
 
-  // 4. 获取点赞数
-  function getThumbsUp(reactionGroups) {
-    const group = reactionGroups.find(g => g.content === 'THUMBS_UP');
-    return group ? group.users.totalCount : 0;
+  // 表情映射
+  const EMOJI_MAP = {
+    'THUMBS_UP': '👍',
+    'THUMBS_DOWN': '👎',
+    'LAUGH': '😄',
+    'HOORAY': '🎉',
+    'CONFUSED': '😕',
+    'HEART': '❤️',
+    'ROCKET': '🚀',
+    'EYES': '👀'
+  };
+
+  // 生成表情 HTML（只显示数量 > 0 的）
+  function renderReactions(reactionGroups) {
+    let html = '';
+    reactionGroups.forEach(group => {
+      const count = group.users.totalCount;
+      if (count > 0) {
+        const emoji = EMOJI_MAP[group.content] || group.content;
+        html += `<span style="font-size:12pt; margin-left:4px;">${emoji} ${count}</span>`;
+      }
+    });
+    return html;
   }
 
   // ---------- 生成卡片 HTML ----------
@@ -65,73 +86,76 @@
     const avatar = post.author.avatarUrl;
     const createdAt = formatDate(post.createdAt);
     const commentsCount = post.comments.totalCount;
-    const thumbsUp = getThumbsUp(post.reactionGroups);
-    const imageUrl = extractFirstImage(post.body) || 'rc_images/pole.jpg'; // 默认占位
-    const summary = getFirstLinePlainText(post.body); // 使用第一行纯文本作为简介
+    const thumbsUp = post.reactionGroups.find(g => g.content === 'THUMBS_UP')?.users.totalCount || 0;
+    const imageUrl = extractFirstImage(post.body) || 'rc_images/pole.jpg';
+    const summary = getFirstLinePlainText(post.body);
+    const reactionsHtml = renderReactions(post.reactionGroups);
 
     return `
       <div style="box-sizing: border-box; vertical-align: top; border-radius: 15px; position:relative; display: inline-block; margin:10px; width:80%; min-height:320px; max-width:1000px; background-color:#FFFFFF; border: 1px solid #404040; text-align:left;">
-        <div style="margin: 10px; display: block; " id="item_padding" >
+        <div style="margin: 10px; display: block;">
           <div style="text-align:left;">
-            <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000; "><br/></span>
-            <span style="font-size:26pt; font-family:Arial, Helvetica, sans-serif; color:#444444; font-weight:bold; ">${title}<br/><br/></span>
-            <div style="vertical-align: top; position:relative; display: inline-block; width:100%; min-height:150px; background:none; " id="item_infomation">
-              <div style="margin: 10px; display: block; " id="item_infomation_padding" >
+            <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000;"><br/></span>
+            <span style="font-size:26pt; font-family:Arial, Helvetica, sans-serif; color:#444444; font-weight:bold;">${title}<br/><br/></span>
+            <div style="vertical-align: top; position:relative; display: inline-block; width:100%; min-height:150px; background:none;">
+              <div style="margin: 10px; display: block;">
                 <div style="text-align:left;">
-                  <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000; line-height: 1.5; ">${summary}</span>
+                  <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000; line-height: 1.5;">${summary}</span>
                 </div>
                 <div style="text-align:right;">
-                  <img src="${imageUrl}" style="vertical-align: bottom; position:relative; display: inline-block; height:150px; background:none; " id="item_pic" alt="" title="" />
+                  <img src="${imageUrl}" style="vertical-align: bottom; position:relative; display: inline-block; height:150px; background:none;" alt="" />
                 </div>
                 <div style="text-align:left;">
-                  <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000; line-height: 1.5; "><br/><br/><br/></span>
+                  <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000; line-height: 1.5;"><br/><br/><br/></span>
                   <a href="/blog.html?id=${id}" style="text-decoration:none">
-                    <div style="vertical-align: bottom; border-radius: 5px; position:relative; display: inline-block; width:150px; height:40px; background-color:#B1782E; box-shadow: 7px 7px 4px -5px rgba(0, 0, 0, 0.784314); " id="item_open">
-                      <div style="display: table; width: 100%; height: 100%;">
-                        <div style="display: table-cell; vertical-align: middle;">
-                          <div style="text-align:center;">
-                            <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; ">立刻查看</span>
-                          </div>
+                    <div style="vertical-align: bottom; border-radius: 5px; position:relative; display: inline-block; width:150px; height:40px; background-color:#B1782E; box-shadow: 7px 7px 4px -5px rgba(0,0,0,0.784314);">
+                      <div style="display: table; width:100%; height:100%;">
+                        <div style="display: table-cell; vertical-align: middle; text-align:center;">
+                          <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF;">立刻查看</span>
                         </div>
                       </div>
                     </div>
                   </a>
-                  <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000; line-height: 1.5; "><br/></span>
+                  <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000; line-height: 1.5;"><br/></span>
                 </div>
-                <div style="clear:both"></div>
+                <div style="clear:both;"></div>
               </div>
             </div>
-            <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000; "><br/></span>
-            <div style="vertical-align: top; position:relative; display: inline-block; width:100%; min-height:50px; background:none; " id="item_author">
-              <div style="margin: 10px; display: block; " id="item_author_padding" >
+            <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000;"><br/></span>
+            <div style="vertical-align: top; position:relative; display: inline-block; width:100%; min-height:50px; background:none;">
+              <div style="margin: 10px; display: block;">
                 <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                  <img src="${avatar}" style="width:32px; height:32px; border-radius:50%;" alt="avatar" />
-                  <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000;">${author}</span>
+                  <a href="https://github.com/${author}" target="_blank" style="display:flex; align-items:center; gap:8px; text-decoration:none; color:inherit;">
+                    <img src="${avatar}" style="width:32px; height:32px; border-radius:50%;" alt="avatar" />
+                    <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000;">${author}</span>
+                  </a>
                   <span style="font-size:10pt; color:#888;">${createdAt}</span>
                   <span style="font-size:10pt; color:#888;">👍 ${thumbsUp}</span>
                   <span style="font-size:10pt; color:#888;">💬 ${commentsCount}</span>
+                  ${reactionsHtml}
                 </div>
               </div>
             </div>
           </div>
-          <div style="clear:both"></div>
+          <div style="clear:both;"></div>
         </div>
       </div>
     `;
   }
 
-  // ---------- 加载数据并渲染 ----------
+  // ---------- 加载并渲染文章 ----------
   async function loadPosts() {
     try {
       const res = await fetch(`${API_URL}/?first=10`);
-      if (!res.ok) throw new Error('Network response was not ok');
+      if (!res.ok) throw new Error(`HTTP error ${res.status}`);
       const data = await res.json();
       const posts = data.nodes || [];
 
-      // 清空容器
+      // 清空容器并确保居中
       CONTAINER.innerHTML = '';
+      CONTAINER.style.textAlign = 'center';
 
-      // 生成卡片并追加
+      // 渲染每篇文章
       posts.forEach((post, index) => {
         CONTAINER.innerHTML += createCard(post, index);
       });
@@ -141,11 +165,93 @@
     }
   }
 
+  // ---------- OAuth 登录控制 ----------
+  function setLoggedIn() {
+    if (loginBtn) loginBtn.style.display = 'none';
+    if (logoutBtn) logoutBtn.style.display = 'inline-block';
+  }
+
+  function setLoggedOut() {
+    if (loginBtn) loginBtn.style.display = 'inline-block';
+    if (logoutBtn) logoutBtn.style.display = 'none';
+  }
+
+  // 默认显示未登录
+  setLoggedOut();
+
+  function login() {
+    window.location.href = `${OAUTH_BASE}/login`;
+  }
+
+  async function logout() {
+    try {
+      const res = await fetch(`${OAUTH_BASE}/logout`, { credentials: 'include' });
+      if (res.ok) {
+        setLoggedOut();
+        // 可选刷新页面
+        // window.location.reload();
+      } else {
+        console.error('登出失败:', res.status);
+      }
+    } catch (e) {
+      console.error('登出请求异常:', e);
+    }
+  }
+
+  async function checkLoginStatus() {
+    try {
+      const res = await fetch(`${OAUTH_BASE}/me`, { credentials: 'include' });
+      if (res.ok) {
+        setLoggedIn();
+      } else {
+        setLoggedOut();
+      }
+    } catch (e) {
+      console.error('状态检查失败:', e);
+      setLoggedOut();
+    }
+  }
+
+  function handleOAuthCallback() {
+    const hash = window.location.hash;
+    if (hash && hash.startsWith('#user=')) {
+      setLoggedIn();
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      return true;
+    }
+    return false;
+  }
+
+  // ---------- 绑定事件 ----------
+  if (loginBtn) loginBtn.addEventListener('click', login);
+  if (logoutBtn) logoutBtn.addEventListener('click', logout);
+
   // ---------- 初始化 ----------
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', loadPosts);
-  } else {
+  function init() {
+    // 1. 确保主容器居中
+    if (CONTAINER) {
+      CONTAINER.style.textAlign = 'center';
+    }
+
+    // 2. 处理 OAuth 回调
+    const handled = handleOAuthCallback();
+
+    // 3. 检查登录状态（如果已通过 hash 登录，仍可再检查一次确保 cookie 有效，但为减少请求，若已处理则不调用 /me）
+    if (!handled) {
+      checkLoginStatus();
+    } else {
+      // 已登录，但仍可验证（可选）
+      // checkLoginStatus();
+    }
+
+    // 4. 加载文章列表
     loadPosts();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
   }
 })();</script><div id="container_7446523"><div class="textstyle2"><div id="userbox"><div class="textstyle2"><input name="Button2" type="button" value="&#30331;&#20986;" title=""  id="logout" >
 </div>
@@ -185,141 +291,7 @@
 </select>
   </div>
 <div class="textstyle1">
-<div id="main"><div class="textstyle1"><script type="text/javascript">(function() {
-  'use strict';
-
-  // ---------- 配置 ----------
-  const API_URL = 'https://api.blacknet.cc.cd';  // 你的 API Worker 地址
-  const CONTAINER = document.getElementById('main');
-
-  // ---------- 辅助函数 ----------
-
-  // 1. 从 Markdown 正文中提取第一张图片 URL
-  function extractFirstImage(markdown) {
-    const match = markdown.match(/!\[.*?\]\((.*?)\)/);
-    return match ? match[1] : null;
-  }
-
-  // 2. 提取纯文本摘要（去除 Markdown 标记）
-  function getPlainText(markdown, maxLen = 150) {
-    let text = markdown
-      .replace(/!\[.*?\]\(.*?\)/g, '')      // 去除图片
-      .replace(/\[.*?\]\(.*?\)/g, '$1')     // 链接只保留文字
-      .replace(/[#*`>_\-]/g, '')            // 去除常见标记
-      .trim();
-    if (text.length > maxLen) {
-      text = text.slice(0, maxLen) + '...';
-    }
-    return text;
-  }
-
-  // 3. 格式化日期
-  function formatDate(dateStr) {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('zh-CN', {
-      year: 'numeric', month: 'long', day: 'numeric'
-    });
-  }
-
-  // 4. 获取点赞数（THUMBS_UP）
-  function getThumbsUp(reactionGroups) {
-    const group = reactionGroups.find(g => g.content === 'THUMBS_UP');
-    return group ? group.users.totalCount : 0;
-  }
-
-  // ---------- 生成卡片 HTML ----------
-  function createCard(post, index) {
-    const id = post.id;
-    const title = post.title || '无标题';
-    const author = post.author.login;
-    const avatar = post.author.avatarUrl;
-    const createdAt = formatDate(post.createdAt);
-    const commentsCount = post.comments.totalCount;
-    const thumbsUp = getThumbsUp(post.reactionGroups);
-    const imageUrl = extractFirstImage(post.body) || 'rc_images/pole.jpg'; // 默认占位
-    const summary = getPlainText(post.body, 200);
-
-    // 注意：id 属性使用 item-{index}，保证唯一性，但不影响样式
-    return `
-      <div style="box-sizing: border-box; vertical-align: top; border-radius: 15px; position:relative; display: inline-block; margin:10px; width:80%; min-height:320px; max-width:1000px; background-color:#FFFFFF; border: 1px solid #404040; " id="item-${index}">
-        <div style="margin: 10px; display: block; " id="item_padding" >
-          <div style="text-align:left;">
-            <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000; "><br/></span>
-            <span style="font-size:26pt; font-family:Arial, Helvetica, sans-serif; color:#444444; font-weight:bold; ">${title}<br/><br/></span>
-            <div style="vertical-align: top; position:relative; display: inline-block; width:100%; min-height:150px; background:none; " id="item_infomation">
-              <div style="margin: 10px; display: block; " id="item_infomation_padding" >
-                <div style="text-align:left;">
-                  <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000; line-height: 1.5; ">${summary}</span>
-                </div>
-                <div style="text-align:right;">
-                  <img src="${imageUrl}" style="vertical-align: bottom; position:relative; display: inline-block; height:150px; background:none; " id="item_pic" alt="" title="" />
-                </div>
-                <div style="text-align:left;">
-                  <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000; line-height: 1.5; "><br/><br/><br/></span>
-                  <a href="/blog.html?id=${id}" style="text-decoration:none">
-                    <div style="vertical-align: bottom; border-radius: 5px; position:relative; display: inline-block; width:150px; height:40px; background-color:#B1782E; box-shadow: 7px 7px 4px -5px rgba(0, 0, 0, 0.784314); " id="item_open">
-                      <div style="display: table; width: 100%; height: 100%;">
-                        <div style="display: table-cell; vertical-align: middle;">
-                          <div style="text-align:center;">
-                            <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; ">立刻查看</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </a>
-                  <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000; line-height: 1.5; "><br/></span>
-                </div>
-                <div style="clear:both"></div>
-              </div>
-            </div>
-            <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000; "><br/></span>
-            <div style="vertical-align: top; position:relative; display: inline-block; width:100%; min-height:50px; background:none; " id="item_author">
-              <div style="margin: 10px; display: block; " id="item_author_padding" >
-                <div style="display:flex; align-items:center; gap:8px;">
-                  <img src="${avatar}" style="width:32px; height:32px; border-radius:50%;" alt="avatar" />
-                  <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000;">${author}</span>
-                  <span style="font-size:10pt; color:#888;">${createdAt}</span>
-                  <span style="font-size:10pt; color:#888;">👍 ${thumbsUp}</span>
-                  <span style="font-size:10pt; color:#888;">💬 ${commentsCount}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div style="clear:both"></div>
-        </div>
-      </div>
-    `;
-  }
-
-  // ---------- 加载数据并渲染 ----------
-  async function loadPosts() {
-    try {
-      const res = await fetch(`${API_URL}/?first=10`);
-      if (!res.ok) throw new Error('Network response was not ok');
-      const data = await res.json();
-      const posts = data.nodes || [];
-
-      // 清空容器
-      CONTAINER.innerHTML = '';
-
-      // 生成卡片并追加
-      posts.forEach((post, index) => {
-        CONTAINER.innerHTML += createCard(post, index);
-      });
-    } catch (error) {
-      console.error('加载文章失败:', error);
-      CONTAINER.innerHTML = '<p style="text-align:center;padding:20px;">加载失败，请稍后重试。</p>';
-    }
-  }
-
-  // ---------- 初始化 ----------
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', loadPosts);
-  } else {
-    loadPosts();
-  }
-})();</script></div>
-<div class="textstyle3"><div id="item1"><div id="item1_padding" ><div class="textstyle1"><span class="textstyle4"><br/></span><span class="textstyle10">Title<br/><br/></span><div id="item1_infomation"><div id="item1_infomation_padding" ><div class="textstyle1"><span class="textstyle11">information</span></div>
+<div id="main"><div class="textstyle3"><div id="item1"><div id="item1_padding" ><div class="textstyle1"><span class="textstyle4"><br/></span><span class="textstyle10">Title<br/><br/></span><div id="item1_infomation"><div id="item1_infomation_padding" ><div class="textstyle1"><span class="textstyle11">information</span></div>
 <div class="textstyle2"><img src="rc_images/pole.jpg" id="item1_pic" alt="" title="" /></div>
 <div class="textstyle1"><span class="textstyle11"><br/><br/><br/></span><a href="/blog.html?discussion=1" style="text-decoration:none"><div id="item1_open"><div class="vcenterstyle1"><div class="vcenterstyle2"><div class="textstyle1"></div>
 <div class="textstyle3">  <span class="textstyle12">&#31435;&#21051;&#26597;&#30475;</span>
