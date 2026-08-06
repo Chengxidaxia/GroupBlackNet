@@ -5,36 +5,169 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta name="generator" content="RocketCake">
 	<title></title>
-	<link rel="stylesheet" type="text/css" href="index_html.css?h=f30cc9f8">
+	<link rel="stylesheet" type="text/css" href="index_html.css?h=2ed7318e">
 </head>
 <body>
 <div class="textstyle1">
 <script type="text/javascript">// ============================================================
-// 完整脚本：文章列表 + OAuth 登录控制
-// 依赖：无第三方库，纯原生 JS
+// oauth.js - GitHub OAuth 登录/登出控制
+// 依赖：无，纯原生 JS
 // ============================================================
 
 (function() {
   'use strict';
 
-  // ---------- 配置 ----------
-  const API_URL = 'https://api.blacknet.cc.cd';
   const OAUTH_BASE = 'https://oauth.blacknet.cc.cd';
-  const CONTAINER = document.getElementById('main');
 
-  // ---------- DOM 元素 ----------
   const loginBtn = document.getElementById('login');
   const logoutBtn = document.getElementById('logout');
 
+  // 如果按钮不存在，静默退出（不影响其他功能）
+  if (!loginBtn || !logoutBtn) {
+    console.warn('oauth.js: 未找到 id="login" 或 id="logout" 的元素');
+    return;
+  }
+
+  // ---------- UI 切换 ----------
+  function setLoggedIn() {
+    loginBtn.style.display = 'none';
+    logoutBtn.style.display = 'inline-block';
+  }
+
+  function setLoggedOut() {
+    loginBtn.style.display = 'inline-block';
+    logoutBtn.style.display = 'none';
+  }
+
+  // 初始状态：未登录
+  setLoggedOut();
+
+  // ---------- 登录 ----------
+  function login() {
+    window.location.href = `${OAUTH_BASE}/login`;
+  }
+
+  // ---------- 登出 ----------
+  async function logout() {
+    try {
+      const res = await fetch(`${OAUTH_BASE}/logout`, { credentials: 'include' });
+      if (res.ok) {
+        setLoggedOut();
+        // 可选：刷新页面
+        // window.location.reload();
+      } else {
+        console.error('oauth.js: 登出失败', res.status);
+      }
+    } catch (e) {
+      console.error('oauth.js: 登出异常', e);
+    }
+  }
+
+  // ---------- 检查登录状态 ----------
+  async function checkLoginStatus() {
+    try {
+      const res = await fetch(`${OAUTH_BASE}/me`, { credentials: 'include' });
+      if (res.ok) {
+        setLoggedIn();
+      } else {
+        setLoggedOut();
+      }
+    } catch (e) {
+      console.error('oauth.js: 状态检查失败', e);
+      setLoggedOut();
+    }
+  }
+
+  // ---------- 处理回调（URL hash） ----------
+  function handleCallback() {
+    const hash = window.location.hash;
+    if (hash && hash.startsWith('#user=')) {
+      setLoggedIn();
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      return true;
+    }
+    return false;
+  }
+
+  // ---------- 绑定事件 ----------
+  loginBtn.addEventListener('click', login);
+  logoutBtn.addEventListener('click', logout);
+
+  // ---------- 初始化 ----------
+  function init() {
+    const handled = handleCallback();
+    if (!handled) {
+      checkLoginStatus();
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();</script><div id="container_7446523"><div class="textstyle2"><div id="userbox"><div class="textstyle2"><input name="Button2" type="button" value="&#30331;&#20986;" title=""  id="logout" >
+</div>
+</div><div id="container_74cc30ce"><div class="textstyle2"><input name="Button1" type="button" value="&#30331;&#24405;" title=""  id="login" >
+</div>
+</div></div>
+</div>  </div>
+<div class="textstyle3">
+<div id="container_6847f1d0"><div class="textstyle3"><div id="container_6cf5d1d2"><div id="container_6cf5d1d2_padding" ><div class="textstyle3"><span class="textstyle4"><br/></span><div id="container_118931d5"><div id="container_118931d5_padding" ><div class="textstyle1"><div id="container_74337d4f"><div id="container_74337d4f_padding" ><div class="textstyle1"><span class="textstyle5"><br/>&#32676;&#26263;&#32593;</span><span class="textstyle6"><br/><br/>&#36825;&#37324;&#26159;&#32676;&#26723;&#26696;,&#25910;&#24405;&#20102;&#32676;&#20869;&#30340;&#29454;&#22855;&#28040;&#24687;</span><span class="textstyle7"><br/><br/></span>  <a href="contact.html" style="text-decoration:none"><div id="button_4a2f61ca">
+    <div class="vcenterstyle1"><div class="vcenterstyle2">      <div class="textstyle1">
+        </div>
+      <div class="textstyle3">
+        <span class="textstyle8">&#32852;&#31995;&#25105;&#20204;</span>
+        </div>
+      </div></div>
+    </div></a>
+  <span class="textstyle9">   </span>
+  <a href="about.html" style="text-decoration:none"><div id="button_212cc296">
+    <div class="vcenterstyle1"><div class="vcenterstyle2">      <div class="textstyle1">
+        </div>
+      <div class="textstyle3">
+        <span class="textstyle8">&#20851;&#20110;</span>
+        </div>
+      </div></div>
+    </div></a>
+</div>
+<div class="textstyle3">  <span class="textstyle9"><br/><br/></span>
+</div>
+<div style="clear:both"></div></div></div></div>
+<div style="clear:both"></div></div></div></div>
+<div style="clear:both"></div></div></div></div>
+</div>  </div>
+<div class="textstyle2">
+<select name="ComboBox1" title="&#25490;&#24207;&#26041;&#24335;"  id="sort" >
+<option value="CREATE_AT" selected="selected">&#21019;&#24314;&#26102;&#38388;</option>
+<option value="UPDATED_AT">&#20462;&#25913;&#26102;&#38388;</option>
+</select>
+  </div>
+<div class="textstyle1">
+<div id="main"><div class="textstyle1"><div id="jscript_5f88a5e0"><script type="text/javascript">// ============================================================
+// main.js - 文章列表加载与卡片渲染
+// 依赖：无，纯原生 JS
+// ============================================================
+
+(function() {
+  'use strict';
+
+  const API_URL = 'https://api.blacknet.cc.cd';
+  const CONTAINER = document.getElementById('main');
+
+  // 如果没有容器则退出
+  if (!CONTAINER) {
+    console.warn('main.js: 未找到 id="main" 的容器');
+    return;
+  }
+
   // ---------- 辅助函数 ----------
 
-  // 提取第一张图片 URL
   function extractFirstImage(markdown) {
     const match = markdown.match(/!\[.*?\]\((.*?)\)/);
     return match ? match[1] : null;
   }
 
-  // 提取第一行纯文本（去除 Markdown）
   function getFirstLinePlainText(markdown) {
     const lines = markdown.split('\n');
     const firstLine = lines.find(line => line.trim() !== '') || '';
@@ -45,7 +178,6 @@
       .trim() || '无简介';
   }
 
-  // 格式化日期
   function formatDate(dateStr) {
     const date = new Date(dateStr);
     return date.toLocaleDateString('zh-CN', {
@@ -53,7 +185,6 @@
     });
   }
 
-  // 表情映射
   const EMOJI_MAP = {
     'THUMBS_UP': '👍',
     'THUMBS_DOWN': '👎',
@@ -65,7 +196,6 @@
     'EYES': '👀'
   };
 
-  // 生成表情 HTML（只显示数量 > 0 的）
   function renderReactions(reactionGroups) {
     let html = '';
     reactionGroups.forEach(group => {
@@ -78,8 +208,8 @@
     return html;
   }
 
-  // ---------- 生成卡片 HTML ----------
-  function createCard(post, index) {
+  // ---------- 生成卡片 ----------
+  function createCard(post) {
     const id = post.id;
     const title = post.title || '无标题';
     const author = post.author.login;
@@ -143,7 +273,7 @@
     `;
   }
 
-  // ---------- 加载并渲染文章 ----------
+  // ---------- 加载数据 ----------
   async function loadPosts() {
     try {
       const res = await fetch(`${API_URL}/?first=10`);
@@ -151,147 +281,27 @@
       const data = await res.json();
       const posts = data.nodes || [];
 
-      // 清空容器并确保居中
       CONTAINER.innerHTML = '';
       CONTAINER.style.textAlign = 'center';
 
-      // 渲染每篇文章
-      posts.forEach((post, index) => {
-        CONTAINER.innerHTML += createCard(post, index);
+      posts.forEach(post => {
+        CONTAINER.innerHTML += createCard(post);
       });
     } catch (error) {
-      console.error('加载文章失败:', error);
+      console.error('main.js: 加载失败', error);
       CONTAINER.innerHTML = '<p style="text-align:center;padding:20px;">加载失败，请稍后重试。</p>';
     }
   }
 
-  // ---------- OAuth 登录控制 ----------
-  function setLoggedIn() {
-    if (loginBtn) loginBtn.style.display = 'none';
-    if (logoutBtn) logoutBtn.style.display = 'inline-block';
-  }
-
-  function setLoggedOut() {
-    if (loginBtn) loginBtn.style.display = 'inline-block';
-    if (logoutBtn) logoutBtn.style.display = 'none';
-  }
-
-  // 默认显示未登录
-  setLoggedOut();
-
-  function login() {
-    window.location.href = `${OAUTH_BASE}/login`;
-  }
-
-  async function logout() {
-    try {
-      const res = await fetch(`${OAUTH_BASE}/logout`, { credentials: 'include' });
-      if (res.ok) {
-        setLoggedOut();
-        // 可选刷新页面
-        // window.location.reload();
-      } else {
-        console.error('登出失败:', res.status);
-      }
-    } catch (e) {
-      console.error('登出请求异常:', e);
-    }
-  }
-
-  async function checkLoginStatus() {
-    try {
-      const res = await fetch(`${OAUTH_BASE}/me`, { credentials: 'include' });
-      if (res.ok) {
-        setLoggedIn();
-      } else {
-        setLoggedOut();
-      }
-    } catch (e) {
-      console.error('状态检查失败:', e);
-      setLoggedOut();
-    }
-  }
-
-  function handleOAuthCallback() {
-    const hash = window.location.hash;
-    if (hash && hash.startsWith('#user=')) {
-      setLoggedIn();
-      window.history.replaceState(null, '', window.location.pathname + window.location.search);
-      return true;
-    }
-    return false;
-  }
-
-  // ---------- 绑定事件 ----------
-  if (loginBtn) loginBtn.addEventListener('click', login);
-  if (logoutBtn) logoutBtn.addEventListener('click', logout);
-
-  // ---------- 初始化 ----------
-  function init() {
-    // 1. 确保主容器居中
-    if (CONTAINER) {
-      CONTAINER.style.textAlign = 'center';
-    }
-
-    // 2. 处理 OAuth 回调
-    const handled = handleOAuthCallback();
-
-    // 3. 检查登录状态（如果已通过 hash 登录，仍可再检查一次确保 cookie 有效，但为减少请求，若已处理则不调用 /me）
-    if (!handled) {
-      checkLoginStatus();
-    } else {
-      // 已登录，但仍可验证（可选）
-      // checkLoginStatus();
-    }
-
-    // 4. 加载文章列表
+  // ---------- 启动 ----------
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', loadPosts);
+  } else {
     loadPosts();
   }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
-})();</script><div id="container_7446523"><div class="textstyle2"><div id="userbox"><div class="textstyle2"><input name="Button2" type="button" value="&#30331;&#20986;" title=""  id="logout" >
+})();</script></div>
 </div>
-</div><div id="container_74cc30ce"><div class="textstyle2"><input name="Button1" type="button" value="&#30331;&#24405;" title=""  id="login" >
-</div>
-</div></div>
-</div>  </div>
-<div class="textstyle3">
-<div id="container_6847f1d0"><div class="textstyle3"><div id="container_6cf5d1d2"><div id="container_6cf5d1d2_padding" ><div class="textstyle3"><span class="textstyle4"><br/></span><div id="container_118931d5"><div id="container_118931d5_padding" ><div class="textstyle1"><div id="container_74337d4f"><div id="container_74337d4f_padding" ><div class="textstyle1"><span class="textstyle5"><br/>&#32676;&#26263;&#32593;</span><span class="textstyle6"><br/><br/>&#36825;&#37324;&#26159;&#32676;&#26723;&#26696;,&#25910;&#24405;&#20102;&#32676;&#20869;&#30340;&#29454;&#22855;&#28040;&#24687;</span><span class="textstyle7"><br/><br/></span>  <a href="contact.html" style="text-decoration:none"><div id="button_4a2f61ca">
-    <div class="vcenterstyle1"><div class="vcenterstyle2">      <div class="textstyle1">
-        </div>
-      <div class="textstyle3">
-        <span class="textstyle8">&#32852;&#31995;&#25105;&#20204;</span>
-        </div>
-      </div></div>
-    </div></a>
-  <span class="textstyle9">   </span>
-  <a href="about.html" style="text-decoration:none"><div id="button_212cc296">
-    <div class="vcenterstyle1"><div class="vcenterstyle2">      <div class="textstyle1">
-        </div>
-      <div class="textstyle3">
-        <span class="textstyle8">&#20851;&#20110;</span>
-        </div>
-      </div></div>
-    </div></a>
-</div>
-<div class="textstyle3">  <span class="textstyle9"><br/><br/></span>
-</div>
-<div style="clear:both"></div></div></div></div>
-<div style="clear:both"></div></div></div></div>
-<div style="clear:both"></div></div></div></div>
-</div>  </div>
-<div class="textstyle2">
-<select name="ComboBox1" title="&#25490;&#24207;&#26041;&#24335;"  id="sort" >
-<option value="CREATE_AT" selected="selected">&#21019;&#24314;&#26102;&#38388;</option>
-<option value="UPDATED_AT">&#20462;&#25913;&#26102;&#38388;</option>
-</select>
-  </div>
-<div class="textstyle1">
-<div id="main"><div class="textstyle3"><div id="item1"><div id="item1_padding" ><div class="textstyle1"><span class="textstyle4"><br/></span><span class="textstyle10">Title<br/><br/></span><div id="item1_infomation"><div id="item1_infomation_padding" ><div class="textstyle1"><span class="textstyle11">information</span></div>
+<div class="textstyle3"><div id="item1"><div id="item1_padding" ><div class="textstyle1"><span class="textstyle4"><br/></span><span class="textstyle10">Title<br/><br/></span><div id="item1_infomation"><div id="item1_infomation_padding" ><div class="textstyle1"><span class="textstyle11">information</span></div>
 <div class="textstyle2"><img src="rc_images/pole.jpg" id="item1_pic" alt="" title="" /></div>
 <div class="textstyle1"><span class="textstyle11"><br/><br/><br/></span><a href="/blog.html?discussion=1" style="text-decoration:none"><div id="item1_open"><div class="vcenterstyle1"><div class="vcenterstyle2"><div class="textstyle1"></div>
 <div class="textstyle3">  <span class="textstyle12">&#31435;&#21051;&#26597;&#30475;</span>
