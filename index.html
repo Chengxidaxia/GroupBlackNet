@@ -5,7 +5,7 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta name="generator" content="RocketCake">
 	<title></title>
-	<link rel="stylesheet" type="text/css" href="index_html.css?h=2ed7318e">
+	<link rel="stylesheet" type="text/css" href="index_html.css?h=f30cc9f8">
 </head>
 <body>
 <div class="textstyle1">
@@ -144,9 +144,8 @@
 </select>
   </div>
 <div class="textstyle1">
-<div id="main"><div class="textstyle1"><div id="jscript_5f88a5e0"><script type="text/javascript">// ============================================================
-// main.js - 文章列表加载与卡片渲染
-// 依赖：无，纯原生 JS
+<div id="main"><div class="textstyle1"><script type="text/javascript">// ============================================================
+// main.js - 文章列表加载与卡片渲染（使用 number 作为 d 参数）
 // ============================================================
 
 (function() {
@@ -155,7 +154,6 @@
   const API_URL = 'https://api.blacknet.cc.cd';
   const CONTAINER = document.getElementById('main');
 
-  // 如果没有容器则退出
   if (!CONTAINER) {
     console.warn('main.js: 未找到 id="main" 的容器');
     return;
@@ -210,16 +208,18 @@
 
   // ---------- 生成卡片 ----------
   function createCard(post) {
-    const id = post.id;
+    const number = post.number;           // 讨论编号
     const title = post.title || '无标题';
     const author = post.author.login;
     const avatar = post.author.avatarUrl;
     const createdAt = formatDate(post.createdAt);
     const commentsCount = post.comments.totalCount;
-    const thumbsUp = post.reactionGroups.find(g => g.content === 'THUMBS_UP')?.users.totalCount || 0;
     const imageUrl = extractFirstImage(post.body) || 'rc_images/pole.jpg';
     const summary = getFirstLinePlainText(post.body);
     const reactionsHtml = renderReactions(post.reactionGroups);
+
+    // 链接使用 ?d=编号
+    const detailLink = `/blog.html?d=${number}`;
 
     return `
       <div style="box-sizing: border-box; vertical-align: top; border-radius: 15px; position:relative; display: inline-block; margin:10px; width:80%; min-height:320px; max-width:1000px; background-color:#FFFFFF; border: 1px solid #404040; text-align:left;">
@@ -237,7 +237,7 @@
                 </div>
                 <div style="text-align:left;">
                   <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000; line-height: 1.5;"><br/><br/><br/></span>
-                  <a href="/blog.html?id=${id}" style="text-decoration:none">
+                  <a href="${detailLink}" style="text-decoration:none">
                     <div style="vertical-align: bottom; border-radius: 5px; position:relative; display: inline-block; width:150px; height:40px; background-color:#B1782E; box-shadow: 7px 7px 4px -5px rgba(0,0,0,0.784314);">
                       <div style="display: table; width:100%; height:100%;">
                         <div style="display: table-cell; vertical-align: middle; text-align:center;">
@@ -260,7 +260,6 @@
                     <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000;">${author}</span>
                   </a>
                   <span style="font-size:10pt; color:#888;">${createdAt}</span>
-                  <span style="font-size:10pt; color:#888;">👍 ${thumbsUp}</span>
                   <span style="font-size:10pt; color:#888;">💬 ${commentsCount}</span>
                   ${reactionsHtml}
                 </div>
@@ -300,7 +299,6 @@
     loadPosts();
   }
 })();</script></div>
-</div>
 <div class="textstyle3"><div id="item1"><div id="item1_padding" ><div class="textstyle1"><span class="textstyle4"><br/></span><span class="textstyle10">Title<br/><br/></span><div id="item1_infomation"><div id="item1_infomation_padding" ><div class="textstyle1"><span class="textstyle11">information</span></div>
 <div class="textstyle2"><img src="rc_images/pole.jpg" id="item1_pic" alt="" title="" /></div>
 <div class="textstyle1"><span class="textstyle11"><br/><br/><br/></span><a href="/blog.html?discussion=1" style="text-decoration:none"><div id="item1_open"><div class="vcenterstyle1"><div class="vcenterstyle2"><div class="textstyle1"></div>
