@@ -4,8 +4,8 @@
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta name="generator" content="RocketCake">
-	<title></title>
-	<link rel="stylesheet" type="text/css" href="index_html.css?h=d47654fd">
+<link rel="icon" href="raw.githubusercontent.com/Chengxidaxia/GroupBlackNet/refs/heads/main/favicon.ico" type="image/png">	<title></title>
+	<link rel="stylesheet" type="text/css" href="index_html.css?h=98d5cae2">
 </head>
 <body>
 <div class="textstyle1">
@@ -108,8 +108,8 @@
   }
 })();</script><script type="text/javascript">// ============================================================
 // main.js - 文章列表加载、排序、分页
-// 依赖：页面中必须有 id="sort" 和 id="UP" 的元素
-// 分页控件自动创建在顶部和底部
+// 控件 ID：sort（下拉框）、UP（复选框）
+// 分页控件自动创建在 #main 顶部和底部
 // ============================================================
 
 (function() {
@@ -118,8 +118,6 @@
   // ---------- 配置 ----------
   const API_URL = 'https://api.blacknet.cc.cd';
   const PAGE_SIZE = 20;
-
-  // ---------- 控件 ID 配置（与页面实际 ID 一致） ----------
   const SORT_SELECT_ID = 'sort';
   const ASC_CHECK_ID = 'UP';
 
@@ -273,9 +271,23 @@
     return sorted;
   }
 
-  // ---------- 渲染 ----------
+  // ---------- 渲染卡片 ----------
   function renderCards() {
-    if (!cardsContainer) return;
+    if (!cardsContainer) {
+      console.warn('renderCards: cardsContainer 未初始化');
+      return;
+    }
+
+    // 如果数据为空，显示提示
+    if (!allPosts || allPosts.length === 0) {
+      cardsContainer.innerHTML = '<p style="text-align:center;padding:20px;">暂无文章</p>';
+      // 隐藏分页
+      const topEl = document.getElementById('pagination-top');
+      const bottomEl = document.getElementById('pagination-bottom');
+      if (topEl) topEl.innerHTML = '';
+      if (bottomEl) bottomEl.innerHTML = '';
+      return;
+    }
 
     const sorted = sortPosts(allPosts, currentSort, isAscending);
     totalPages = Math.ceil(sorted.length / PAGE_SIZE) || 1;
@@ -286,13 +298,10 @@
     const pagePosts = sorted.slice(start, end);
 
     cardsContainer.innerHTML = '';
-    if (pagePosts.length === 0) {
-      cardsContainer.innerHTML = '<p style="text-align:center;padding:20px;">暂无文章</p>';
-    } else {
-      pagePosts.forEach(post => {
-        cardsContainer.innerHTML += createCard(post);
-      });
-    }
+    pagePosts.forEach(post => {
+      cardsContainer.innerHTML += createCard(post);
+    });
+
     renderPagination();
   }
 
@@ -337,16 +346,22 @@
 
   // ---------- 加载数据 ----------
   async function fetchAllPosts() {
+    // 显示加载中
+    if (cardsContainer) {
+      cardsContainer.innerHTML = '<p style="text-align:center;padding:20px;">加载中...</p>';
+    }
+
     try {
       const res = await fetch(`${API_URL}/?first=100`);
       if (!res.ok) throw new Error(`HTTP error ${res.status}`);
       const data = await res.json();
       allPosts = data.nodes || [];
+      console.log(`✅ 成功获取 ${allPosts.length} 篇文章`);
     } catch (error) {
-      console.error('main.js: 加载失败', error);
+      console.error('❌ 加载失败:', error);
       allPosts = [];
       if (cardsContainer) {
-        cardsContainer.innerHTML = '<p style="text-align:center;padding:20px;">加载失败，请稍后重试。</p>';
+        cardsContainer.innerHTML = '<p style="text-align:center;padding:20px;color:red;">加载失败，请稍后重试。</p>';
       }
     }
   }
@@ -355,24 +370,24 @@
   function readControls() {
     if (sortSelect) {
       currentSort = sortSelect.value;
+      console.log(`排序方式: ${currentSort}`);
     } else {
-      console.warn('main.js: 未找到排序下拉框 (id="sort")，使用默认值 Default');
+      console.warn('⚠️ 未找到 id="sort" 的下拉框');
     }
     if (ascCheck) {
       isAscending = ascCheck.checked;
+      console.log(`升序: ${isAscending}`);
     } else {
-      console.warn('main.js: 未找到升降序控件 (id="UP")，使用默认值 false');
+      console.warn('⚠️ 未找到 id="UP" 的复选框');
     }
   }
 
-  // ---------- 构建页面结构（只添加分页容器） ----------
+  // ---------- 构建 #main 结构 ----------
   function buildStructure() {
-    // 清空 main（保留原有的排序控件，它们位于 main 外部，这里只清空内部的卡片区域）
-    // 注意：如果排序控件在 main 内部，会被清空，因此我们需要将排序控件移到 main 外部，或者只清空卡片容器。
-    // 根据用户描述，排序控件在界面上，但不在 main 内部，所以我们可以安全清空 main。
+    // 清空 main（控件在外部，安全）
     CONTAINER.innerHTML = '';
 
-    // 顶部控件区域（只放分页）
+    // 顶部区域（分页）
     const topControls = document.createElement('div');
     topControls.style.cssText = 'text-align:center; padding:10px 0;';
     const topPagination = document.createElement('div');
@@ -386,7 +401,7 @@
     cardsContainer.style.cssText = 'text-align:center;';
     CONTAINER.appendChild(cardsContainer);
 
-    // 底部控件区域
+    // 底部区域（分页）
     const bottomControls = document.createElement('div');
     bottomControls.style.cssText = 'text-align:center; padding:10px 0;';
     const bottomPagination = document.createElement('div');
@@ -401,6 +416,7 @@
       sortSelect.addEventListener('change', function() {
         currentSort = this.value;
         currentPage = 1;
+        console.log(`排序切换为: ${currentSort}`);
         renderCards();
       });
     }
@@ -408,6 +424,7 @@
       ascCheck.addEventListener('change', function() {
         isAscending = this.checked;
         currentPage = 1;
+        console.log(`升序切换为: ${isAscending}`);
         renderCards();
       });
     }
@@ -415,31 +432,34 @@
 
   // ---------- 初始化 ----------
   async function init() {
+    console.log('🚀 main.js 初始化...');
     readControls();
     buildStructure();
-    bindControls(); // 绑定事件（如果之前未绑定）
+    bindControls();
     await fetchAllPosts();
     currentPage = 1;
     renderCards();
+    console.log('✅ 初始化完成');
   }
 
+  // 启动
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
   } else {
     init();
   }
-})();</script><div id="container_7446523"><div class="textstyle2"><div id="userbox"><div class="textstyle2"><input name="Button2" type="button" value="&#30331;&#20986;" title=""  id="logout" >
+})();</script><div id="container_7446523"><div class="textstyle2"><div id="userbox"><div class="textstyle2"><input name="Button2" type="button" value="登出" title=""  id="logout" >
 </div>
-</div><div id="container_74cc30ce"><div class="textstyle2"><input name="Button1" type="button" value="&#30331;&#24405;" title=""  id="login" >
+</div><div id="container_74cc30ce"><div class="textstyle2"><input name="Button1" type="button" value="登录" title=""  id="login" >
 </div>
 </div></div>
 </div>  </div>
 <div class="textstyle3">
-<div id="container_6847f1d0"><div class="textstyle3"><div id="container_6cf5d1d2"><div id="container_6cf5d1d2_padding" ><div class="textstyle3"><span class="textstyle4"><br/></span><div id="container_118931d5"><div id="container_118931d5_padding" ><div class="textstyle1"><div id="container_74337d4f"><div id="container_74337d4f_padding" ><div class="textstyle1"><span class="textstyle5"><br/>&#32676;&#26263;&#32593;</span><span class="textstyle6"><br/><br/>&#36825;&#37324;&#26159;&#32676;&#26723;&#26696;,&#25910;&#24405;&#20102;&#32676;&#20869;&#30340;&#29454;&#22855;&#28040;&#24687;</span><span class="textstyle7"><br/><br/></span>  <a href="contact.html" style="text-decoration:none"><div id="button_4a2f61ca">
+<div id="container_6847f1d0"><div class="textstyle3"><div id="container_6cf5d1d2"><div id="container_6cf5d1d2_padding" ><div class="textstyle3"><span class="textstyle4"><br/></span><div id="container_118931d5"><div id="container_118931d5_padding" ><div class="textstyle1"><div id="container_74337d4f"><div id="container_74337d4f_padding" ><div class="textstyle1"><span class="textstyle5"><br/>群暗网</span><span class="textstyle6"><br/><br/>这里是群档案,收录了群内的猎奇消息</span><span class="textstyle7"><br/><br/></span>  <a href="contact.html" style="text-decoration:none"><div id="button_4a2f61ca">
     <div class="vcenterstyle1"><div class="vcenterstyle2">      <div class="textstyle1">
         </div>
       <div class="textstyle3">
-        <span class="textstyle8">&#32852;&#31995;&#25105;&#20204;</span>
+        <span class="textstyle8">联系我们</span>
         </div>
       </div></div>
     </div></a>
@@ -448,7 +468,7 @@
     <div class="vcenterstyle1"><div class="vcenterstyle2">      <div class="textstyle1">
         </div>
       <div class="textstyle3">
-        <span class="textstyle8">&#20851;&#20110;</span>
+        <span class="textstyle8">关于</span>
         </div>
       </div></div>
     </div></a>
@@ -460,18 +480,18 @@
 <div style="clear:both"></div></div></div></div>
 </div>  </div>
 <div class="textstyle2">
-<select name="ComboBox1" title="&#25490;&#24207;&#26041;&#24335;"  id="sort" >
-<option value="Default" selected="selected">&#40664;&#35748;</option>
-<option value="CREATE_AT">&#21019;&#24314;&#26102;&#38388;</option>
-<option value="UPDATED_AT">&#20462;&#25913;&#26102;&#38388;</option>
-<option value="UP_AT">&#28857;&#36190;&#37327;</option>
+<select name="ComboBox1" title="排序方式"  id="sort" >
+<option value="Default" selected="selected">默认</option>
+<option value="CREATE_AT">创建时间</option>
+<option value="UPDATED_AT">修改时间</option>
+<option value="UP_AT">点赞量</option>
 </select>
-<input name="RadioButton1" type="radio" value="" title="" checked="checked"  id="UP" >
-<span class="textstyle10">&#21319;&#24207;</span>  </div>
+<input name="CheckBox1" type="checkbox" value="" title="" checked="checked"  id="checkbox_5a940f7f" >
+<span class="textstyle10">升序</span>  </div>
 <div class="textstyle1">
 <div id="main"></div><span class="textstyle4"><br/></span><div id="container_147dd5a4"><div class="textstyle1"><div id="container_2a63c6c8"><div id="container_2a63c6c8_padding" ><div class="textstyle1">  <div id="text_7bfc192b">
     <div class="textstyle1">
-      <span class="textstyle4">&#38382;&#39064;&#21453;&#39304;: </span>
+      <span class="textstyle4">问题反馈: </span>
       <span class="textstyle4"><a href="mailto:chengxidaxia@outlook.com" target="_blank">chengxidaxia@outlook.com</a></span>
       </div>
     </div>
