@@ -1,14 +1,56 @@
-<div style="vertical-align: top; position:relative; display: inline-block; width:100%; min-height:75px; background:none; " id="container_7446523">
-  <div style="text-align:right;">
-    <div style="vertical-align: top; position:relative; display: inline-block; width:80%; min-height:50px; min-width:150px; background:none; " id="userbox">
-      <div style="text-align:right;">
-<input name="Button2" type="button" value="登出" title=""  style="vertical-align: bottom; position:relative; display: inline-block; width:100px; height:50px; font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000; " id="logout" >
-        </div>
-      </div>
-    <div style="vertical-align: top; position:relative; display: inline-block; width:20%; min-height:50px; min-width:100px; background:none; " id="loginbox">
-      <div style="text-align:right;">
-<input name="Button1" type="button" value="登录" title=""  style="vertical-align: bottom; position:relative; display: inline-block; width:100px; height:50px; font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000; " id="login" >
-        </div>
-      </div>
-    </div>
+<!-- ============================================================
+     公共头部：标题、导航、登录/用户信息
+     依赖：oauth.js 会操作 #user-info、#login-area 等元素
+     ============================================================ -->
+<div id="header" style="
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  padding: 10px 20px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #ddd;
+  font-family: Arial, Helvetica, sans-serif;
+">
+  <!-- 左侧：网站标题 + 导航 -->
+  <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
+    <span style="font-size: 24pt; font-weight: bold; color: #333;">群档案</span>
+    <nav style="display: flex; gap: 10px; font-size: 12pt;">
+      <a href="index.html" style="text-decoration: none; color: #333;">主页</a>
+      <a href="contact.html" style="text-decoration: none; color: #333;">联系</a>
+      <a href="about.html" style="text-decoration: none; color: #333;">关于</a>
+    </nav>
   </div>
+
+  <!-- 右侧：登录 / 用户信息 -->
+  <div style="display: flex; align-items: center; gap: 10px;">
+
+    <!-- ====== 登录区域（未登录时显示） ====== -->
+    <div id="login-area" style="display: flex; align-items: center; gap: 8px;">
+      <label style="display: flex; align-items: center; gap: 4px; font-size: 12pt;">
+        <input type="checkbox" id="remember"> 记住我
+      </label>
+      <button id="login" style="
+        width: 100px; height: 40px;
+        font-size: 12pt; cursor: pointer;
+        background: #2da44e; color: white;
+        border: none; border-radius: 6px;
+      ">登录</button>
+    </div>
+
+    <!-- ====== 用户信息区域（登录后显示） ====== -->
+    <div id="user-area" style="display: none; align-items: center; gap: 8px;">
+      <a id="user-link" href="#" target="_blank" style="display: flex; align-items: center; gap: 6px; text-decoration: none; color: #333;">
+        <img id="user-avatar" src="" alt="avatar" style="width: 32px; height: 32px; border-radius: 50%;">
+        <span id="username" style="font-size: 12pt;"></span>
+      </a>
+      <button id="logout" style="
+        width: 100px; height: 40px;
+        font-size: 12pt; cursor: pointer;
+        background: #dc3545; color: white;
+        border: none; border-radius: 6px;
+      ">登出</button>
+    </div>
+
+  </div>
+</div>
