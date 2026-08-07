@@ -1,6 +1,6 @@
 // ============================================================
-// main.js - 文章列表加载、排序、分页（支持 JSON 简介）
-// 依赖：marked.js（CDN），如果未加载则使用纯文本 fallback
+// main.js - 文章列表加载、排序、分页（完整稳定版）
+// 依赖：marked.js（可选），如未加载则使用纯文本 fallback
 // ============================================================
 
 (function() {
@@ -12,91 +12,79 @@
   const SORT_SELECT_ID = 'sort';
   const ASC_CHECK_ID = 'UP';
 
-  // ---------- 辅助函数 ----------
+  // ---------- 模块级变量 ----------
+  let allPosts = [];
+  let currentPage = 1;
+  let totalPages = 1;
+  let currentSort = 'Default';
+  let isAscending = false;
+  let cardsContainer = null;
+  let sortSelect = null;
+  let ascCheck = null;
+  const CONTAINER = document.getElementById('main');
 
-  // 安全 Base64 解码（支持 UTF-8）
+  // ---------- 辅助函数 ----------
   function base64Decode(str) {
     try {
       return decodeURIComponent(escape(atob(str)));
     } catch (e) {
-      return atob(str); // fallback
+      return atob(str);
     }
   }
 
-  // 提取正文中第一张图片（支持 ![]() 和 <img>）
   function extractFirstImage(markdown) {
-    // 1. 匹配 ![]()
+    if (!markdown) return null;
     const mdMatch = markdown.match(/!\[.*?\]\((.*?)\)/);
-    if (mdMatch) return mdMatch[1];
-    // 2. 匹配 <img src="...">
+    if (mdMatch && mdMatch[1]) return mdMatch[1];
     const imgMatch = markdown.match(/<img[^>]+src=["']([^"']+)["']/i);
-    if (imgMatch) return imgMatch[1];
+    if (imgMatch && imgMatch[1]) return imgMatch[1];
+    const urlMatch = markdown.match(/(https?:\/\/[^\s]+\.(?:png|jpg|jpeg|gif|svg|webp))/i);
+    if (urlMatch && urlMatch[1]) return urlMatch[1];
     return null;
   }
 
-  // 渲染 Markdown 为 HTML（支持 marked 或 fallback）
   function renderMarkdown(text) {
     if (typeof marked !== 'undefined' && typeof marked.parse === 'function') {
       return marked.parse(text);
     }
-    // fallback：简单的换行和实体转义
     return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
   }
 
-  // 解析第一行，返回 { summaryHtml, iconUrl }
   function parseFirstLine(body) {
-    // 取第一行（非空）
     const lines = body.split('\n');
     const firstLine = lines.find(line => line.trim() !== '') || '';
-
-    // 默认值
     let summaryHtml = '';
     let iconUrl = null;
 
-    // 尝试解析 JSON
     try {
       const data = JSON.parse(firstLine);
-      // 是 JSON
-      if (data && typeof data === 'object') {
-        // info 段：Base64 解码 -> Markdown -> HTML
-        if (data.info) {
-          const decoded = base64Decode(data.info);
-          summaryHtml = renderMarkdown(decoded);
-        }
-        // icon 段：Base64 解码 -> 图片 URL
-        if (data.icon) {
-          const decodedIcon = base64Decode(data.icon);
-          // 如果解码后看起来像 URL，直接使用
-          if (decodedIcon && /^https?:\/\//.test(decodedIcon)) {
-            iconUrl = decodedIcon;
-          }
+      if (data.info) {
+        const decoded = base64Decode(data.info);
+        summaryHtml = renderMarkdown(decoded);
+      }
+      if (data.icon) {
+        const decodedIcon = base64Decode(data.icon);
+        if (decodedIcon && /^https?:\/\//.test(decodedIcon)) {
+          iconUrl = decodedIcon;
         }
       }
     } catch (e) {
-      // 不是 JSON，使用原第一行（去除 Markdown 标记）
-      const plain = firstLine
+      summaryHtml = firstLine
         .replace(/!\[.*?\]\(.*?\)/g, '')
         .replace(/\[.*?\]\(.*?\)/g, '$1')
         .replace(/[#*`>_\-]/g, '')
         .trim() || '无简介';
-      summaryHtml = plain;
-      // 图标：尝试从正文提取第一张图片，否则默认
-      iconUrl = extractFirstImage(body) || 'rc_images/pole.jpg';
     }
 
-    // 如果 JSON 解析后没有 info 或 icon，使用回退
+    if (!iconUrl) {
+      iconUrl = extractFirstImage(body) || 'rc_images/pole.jpg';
+    }
     if (!summaryHtml) {
       summaryHtml = '无简介';
     }
-    if (!iconUrl) {
-      // 尝试从正文提取第一张图片
-      iconUrl = extractFirstImage(body) || 'rc_images/pole.jpg';
-    }
-
     return { summaryHtml, iconUrl };
   }
 
-  // ---------- 其余辅助函数（日期、表情等保持不变） ----------
   function formatDate(dateStr) {
     const date = new Date(dateStr);
     return date.toLocaleString('zh-CN', {
@@ -143,8 +131,6 @@
     const commentsCount = post.comments.totalCount;
     const reactionsHtml = renderReactions(post.reactionGroups);
     const detailLink = `/blog.html?d=${number}`;
-
-    // 解析第一行
     const { summaryHtml, iconUrl } = parseFirstLine(post.body);
 
     return `
@@ -159,7 +145,7 @@
                   <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000; line-height: 1.5;">${summaryHtml}</span>
                 </div>
                 <div style="text-align:right;">
-                  <img src="${iconUrl}" style="vertical-align: bottom; position:relative; display: inline-block; height:150px; background:none;" alt="" />
+                  <img src="${iconUrl}" style="vertical-align: bottom; position:relative; display: inline-block; height:150px; background:none;" alt="" onerror="this.src='rc_images/pole.jpg'" />
                 </div>
                 <div style="text-align:left;">
                   <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000; line-height: 1.5;"><br/><br/><br/></span>
@@ -198,22 +184,189 @@
     `;
   }
 
-  // ---------- 排序、分页、数据加载等逻辑（完全保持不变） ----------
-  // 由于篇幅，以下直接复用之前最终版的代码，仅需将 createCard 替换为上述版本。
-  // 但为了完整性，此处列出全部函数（实际已在 final 中提供，这里从略）
+  // ---------- 排序 ----------
+  function sortPosts(posts, sortType, ascending) {
+    if (sortType === 'Default') return posts.slice();
+    const sorted = posts.slice();
+    if (sortType === 'CREATE_AT') {
+      sorted.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    } else if (sortType === 'UPDATED_AT') {
+      sorted.sort((a, b) => new Date(a.updatedAt) - new Date(b.updatedAt));
+    } else if (sortType === 'UP_AT') {
+      sorted.sort((a, b) => getThumbsUp(a) - getThumbsUp(b));
+    }
+    if (!ascending) sorted.reverse();
+    return sorted;
+  }
 
-  // 注意：为了简洁，下面的排序/分页函数代码略，实际部署时请使用之前已验证的完整 main.js，
-  // 仅需要将 createCard 替换为上方的版本，并将 getFirstLinePlainText 和 extractFirstImage 替换为 parseFirstLine。
+  // ---------- 渲染 ----------
+  function renderCards() {
+    if (!cardsContainer) return;
+    if (!allPosts || allPosts.length === 0) {
+      cardsContainer.innerHTML = '<p style="text-align:center;padding:20px;">暂无文章</p>';
+      const topEl = document.getElementById('pagination-top');
+      const bottomEl = document.getElementById('pagination-bottom');
+      if (topEl) topEl.innerHTML = '';
+      if (bottomEl) bottomEl.innerHTML = '';
+      return;
+    }
 
-  // 以下是占位，实际使用时应包含完整逻辑：
-  function sortPosts(posts, sortType, ascending) { /* 同之前 */ }
-  function renderCards() { /* 同之前，调用 createCard */ }
-  function renderPagination() { /* 同之前 */ }
-  function createPaginationButtons(container) { /* 同之前 */ }
-  async function fetchAllPosts() { /* 同之前 */ }
-  function readControls() { /* 同之前 */ }
-  function buildStructure() { /* 同之前 */ }
-  function bindControls() { /* 同之前 */ }
-  async function initMain() { /* 同之前，但需要加载 marked 库 */ }
-  // ...
+    const sorted = sortPosts(allPosts, currentSort, isAscending);
+    totalPages = Math.ceil(sorted.length / PAGE_SIZE) || 1;
+    if (currentPage > totalPages) currentPage = totalPages;
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const end = Math.min(start + PAGE_SIZE, sorted.length);
+    const pagePosts = sorted.slice(start, end);
+
+    cardsContainer.innerHTML = '';
+    pagePosts.forEach(post => {
+      cardsContainer.innerHTML += createCard(post);
+    });
+    renderPagination();
+  }
+
+  // ---------- 分页 ----------
+  function renderPagination() {
+    const topEl = document.getElementById('pagination-top');
+    const bottomEl = document.getElementById('pagination-bottom');
+    if (topEl) createPaginationButtons(topEl);
+    if (bottomEl) createPaginationButtons(bottomEl);
+  }
+
+  function createPaginationButtons(container) {
+    container.innerHTML = '';
+    if (totalPages <= 1) return;
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'text-align:center; padding:10px 0;';
+    for (let i = 1; i <= totalPages; i++) {
+      const btn = document.createElement('button');
+      btn.textContent = i;
+      btn.style.cssText = `
+        margin: 0 4px;
+        padding: 4px 10px;
+        border: 1px solid #ccc;
+        background: ${i === currentPage ? '#B1782E' : '#fff'};
+        color: ${i === currentPage ? '#fff' : '#333'};
+        cursor: pointer;
+        border-radius: 4px;
+        font-size: 12pt;
+      `;
+      btn.addEventListener('click', (function(page) {
+        return function() {
+          currentPage = page;
+          renderCards();
+        };
+      })(i));
+      wrapper.appendChild(btn);
+    }
+    container.appendChild(wrapper);
+  }
+
+  // ---------- 加载数据 ----------
+  async function fetchAllPosts() {
+    if (cardsContainer) {
+      cardsContainer.innerHTML = '<p style="text-align:center;padding:20px;">加载中...</p>';
+    }
+    try {
+      const res = await fetch(`${API_URL}/?first=20`);
+      if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+      const data = await res.json();
+      allPosts = data.nodes || [];
+      console.log(`✅ 成功获取 ${allPosts.length} 篇文章`);
+    } catch (error) {
+      console.error('❌ 加载失败:', error);
+      allPosts = [];
+      if (cardsContainer) {
+        cardsContainer.innerHTML = '<p style="text-align:center;padding:20px;color:red;">加载失败，请稍后重试。</p>';
+      }
+    }
+  }
+
+  // ---------- 读取控件 ----------
+  function readControls() {
+    sortSelect = document.getElementById(SORT_SELECT_ID);
+    ascCheck = document.getElementById(ASC_CHECK_ID);
+    if (sortSelect) {
+      currentSort = sortSelect.value;
+    } else {
+      console.warn('⚠️ 未找到 id="sort" 的下拉框');
+    }
+    if (ascCheck) {
+      isAscending = ascCheck.checked;
+    } else {
+      console.warn('⚠️ 未找到 id="UP" 的复选框');
+    }
+  }
+
+  // ---------- 构建 #main ----------
+  function buildStructure() {
+    if (!CONTAINER) return;
+    CONTAINER.innerHTML = '';
+    const topControls = document.createElement('div');
+    topControls.style.cssText = 'text-align:center; padding:10px 0;';
+    const topPagination = document.createElement('div');
+    topPagination.id = 'pagination-top';
+    topControls.appendChild(topPagination);
+    CONTAINER.appendChild(topControls);
+
+    cardsContainer = document.createElement('div');
+    cardsContainer.id = 'cards-container';
+    cardsContainer.style.cssText = 'text-align:center;';
+    CONTAINER.appendChild(cardsContainer);
+
+    const bottomControls = document.createElement('div');
+    bottomControls.style.cssText = 'text-align:center; padding:10px 0;';
+    const bottomPagination = document.createElement('div');
+    bottomPagination.id = 'pagination-bottom';
+    bottomControls.appendChild(bottomPagination);
+    CONTAINER.appendChild(bottomControls);
+  }
+
+  // ---------- 绑定控件 ----------
+  function bindControls() {
+    if (sortSelect) {
+      sortSelect.addEventListener('change', function() {
+        currentSort = this.value;
+        currentPage = 1;
+        renderCards();
+      });
+    }
+    if (ascCheck) {
+      ascCheck.addEventListener('change', function() {
+        isAscending = this.checked;
+        currentPage = 1;
+        renderCards();
+      });
+    }
+  }
+
+  // ---------- 主初始化 ----------
+  async function initMain() {
+    if (!CONTAINER) {
+      console.warn('main.js: 未找到 id="main" 的容器');
+      return;
+    }
+    readControls();
+    buildStructure();
+    bindControls();
+    await fetchAllPosts();
+    currentPage = 1;
+    renderCards();
+  }
+
+  // ---------- 等待公共部分加载 ----------
+  function start() {
+    if (window.commonsLoaded) {
+      initMain();
+    } else {
+      document.addEventListener('commonsLoaded', initMain);
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start);
+  } else {
+    start();
+  }
+
 })();
