@@ -10,33 +10,27 @@ a:hover { color:#B2B3B4; }
 #button_212cc296:hover span { color:#AFAFAF; }
 body { background-color:#C0C0C0; padding:0;  margin: 0; }
 .textstyle1 { text-align:left; }
-#container_7446523 { vertical-align: top; position:relative; display: inline-block; width:100%; min-height:75px; background:none;  }
-.textstyle2 { text-align:right; }
-#userbox { vertical-align: top; position:relative; display: inline-block; width:80%; min-height:50px; min-width:150px; background:none;  }
-#logout { vertical-align: bottom; position:relative; display: inline-block; width:100px; height:50px; font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000;  }
-#container_74cc30ce { vertical-align: top; position:relative; display: inline-block; width:20%; min-height:50px; min-width:100px; background:none;  }
-#login { vertical-align: bottom; position:relative; display: inline-block; width:100px; height:50px; font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000;  }
-.textstyle3 { text-align:center; }
+#header-placeholder { vertical-align: bottom; position:relative; display: inline-block; width:100%;  }
+.textstyle2 { text-align:center; }
 #container_6847f1d0 { vertical-align: top; position:relative; display: inline-block; width:100%; min-height:354px; background-color:#2D2913;  }
 #container_6cf5d1d2 { vertical-align: top; position:relative; display: inline-block; width:100%; min-height:360px; max-width:1600px; background-color:#FFFFFF; background-image: url(rc_images/landscapenoe.jpg); background-position:center center; background-size:cover;  }
 #container_6cf5d1d2_padding { margin: 10px; display: block;  }
-.textstyle4 { font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000;  }
+.textstyle3 { font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000;  }
 #container_118931d5 { vertical-align: top; position:relative; display: inline-block; width:85%; min-height:184px; max-width:1000px; background:none;  }
 #container_118931d5_padding { margin: 10px; display: block;  }
 #container_74337d4f { vertical-align: top; position:relative; display: inline-block; width:100%; min-height:291px; background:none;  }
 #container_74337d4f_padding { margin: 10px; display: block;  }
-.textstyle5 { font-size:26pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; font-weight:bold;  }
-.textstyle6 { font-size:14pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; font-weight:bold;  }
-.textstyle7 { font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; font-weight:bold; line-height: 1.5;  }
+.textstyle4 { font-size:26pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; font-weight:bold;  }
+.textstyle5 { font-size:14pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; font-weight:bold;  }
+.textstyle6 { font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; font-weight:bold; line-height: 1.5;  }
 .vcenterstyle1 { display: table; width: 100%; height: 100%; }
 .vcenterstyle2 { display: table-cell; vertical-align: middle; }
-.textstyle8 { font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; font-weight:bold;  }
-.textstyle9 { font-size:14pt; font-family:Arial, Helvetica, sans-serif; color:#000000;  }
+.textstyle7 { font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; font-weight:bold;  }
+.textstyle8 { font-size:14pt; font-family:Arial, Helvetica, sans-serif; color:#000000;  }
+.textstyle9 { text-align:right; }
 #sort { box-sizing: border-box; vertical-align: bottom; position:relative; display: inline-block; width:120px; height:25px; background-color:#FFFFFF; border: 1px solid #A0A0A0; font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000;  }
-#checkbox_5a940f7f { vertical-align: bottom; position:relative; display: inline-block; width:20px; height:20px;  }
+#UP { vertical-align: bottom; position:relative; display: inline-block; width:20px; height:20px;  }
 .textstyle10 { font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#3F3F3F;  }
 #main { vertical-align: top; position:relative; display: inline-block; width:100%; min-height:150px; background-color:#D5B48A;  }
+#footer-placeholder { vertical-align: bottom; position:relative; display: inline-block; width:100%;  }
 #container_147dd5a4 { vertical-align: top; position:relative; display: inline-block; width:100%; min-height:150px; background:none;  }
-#container_2a63c6c8 { vertical-align: top; position:relative; display: inline-block; width:100%; min-height:50px; background-color:#FFFFFF;  }
-#container_2a63c6c8_padding { margin: 10px; display: block;  }
-#text_7bfc192b { vertical-align: bottom; position:relative; display: inline-block; background:none;  }
