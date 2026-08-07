@@ -1,4 +1,3 @@
-<script type="text/javascript">
 // ============================================================
 // main.js - 文章列表加载、排序、分页
 // 等待公共部分加载完成后才初始化（但实际不依赖公共部分，仅依赖 #main 容器）
@@ -324,4 +323,3 @@
     document.addEventListener('commonsLoaded', initMain);
   }
 })();
-</script>
