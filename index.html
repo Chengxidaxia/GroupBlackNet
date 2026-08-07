@@ -5,7 +5,7 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta name="generator" content="RocketCake">
 	<title></title>
-	<link rel="stylesheet" type="text/css" href="index_html.css?h=f30cc9f8">
+	<link rel="stylesheet" type="text/css" href="index_html.css?h=d47654fd">
 </head>
 <body>
 <div class="textstyle1">
@@ -106,58 +106,40 @@
   } else {
     init();
   }
-})();</script><div id="container_7446523"><div class="textstyle2"><div id="userbox"><div class="textstyle2"><input name="Button2" type="button" value="&#30331;&#20986;" title=""  id="logout" >
-</div>
-</div><div id="container_74cc30ce"><div class="textstyle2"><input name="Button1" type="button" value="&#30331;&#24405;" title=""  id="login" >
-</div>
-</div></div>
-</div>  </div>
-<div class="textstyle3">
-<div id="container_6847f1d0"><div class="textstyle3"><div id="container_6cf5d1d2"><div id="container_6cf5d1d2_padding" ><div class="textstyle3"><span class="textstyle4"><br/></span><div id="container_118931d5"><div id="container_118931d5_padding" ><div class="textstyle1"><div id="container_74337d4f"><div id="container_74337d4f_padding" ><div class="textstyle1"><span class="textstyle5"><br/>&#32676;&#26263;&#32593;</span><span class="textstyle6"><br/><br/>&#36825;&#37324;&#26159;&#32676;&#26723;&#26696;,&#25910;&#24405;&#20102;&#32676;&#20869;&#30340;&#29454;&#22855;&#28040;&#24687;</span><span class="textstyle7"><br/><br/></span>  <a href="contact.html" style="text-decoration:none"><div id="button_4a2f61ca">
-    <div class="vcenterstyle1"><div class="vcenterstyle2">      <div class="textstyle1">
-        </div>
-      <div class="textstyle3">
-        <span class="textstyle8">&#32852;&#31995;&#25105;&#20204;</span>
-        </div>
-      </div></div>
-    </div></a>
-  <span class="textstyle9">   </span>
-  <a href="about.html" style="text-decoration:none"><div id="button_212cc296">
-    <div class="vcenterstyle1"><div class="vcenterstyle2">      <div class="textstyle1">
-        </div>
-      <div class="textstyle3">
-        <span class="textstyle8">&#20851;&#20110;</span>
-        </div>
-      </div></div>
-    </div></a>
-</div>
-<div class="textstyle3">  <span class="textstyle9"><br/><br/></span>
-</div>
-<div style="clear:both"></div></div></div></div>
-<div style="clear:both"></div></div></div></div>
-<div style="clear:both"></div></div></div></div>
-</div>  </div>
-<div class="textstyle2">
-<select name="ComboBox1" title="&#25490;&#24207;&#26041;&#24335;"  id="sort" >
-<option value="CREATE_AT" selected="selected">&#21019;&#24314;&#26102;&#38388;</option>
-<option value="UPDATED_AT">&#20462;&#25913;&#26102;&#38388;</option>
-</select>
-  </div>
-<div class="textstyle1">
-<div id="main"><div class="textstyle1"><script type="text/javascript">// ============================================================
-// main.js - 文章列表加载与卡片渲染（使用 number 作为 d 参数）
+})();</script><script type="text/javascript">// ============================================================
+// main.js - 文章列表加载、排序、分页
+// 依赖：页面中必须有 id="sort" 和 id="UP" 的元素
+// 分页控件自动创建在顶部和底部
 // ============================================================
 
 (function() {
   'use strict';
 
+  // ---------- 配置 ----------
   const API_URL = 'https://api.blacknet.cc.cd';
-  const CONTAINER = document.getElementById('main');
+  const PAGE_SIZE = 20;
 
+  // ---------- 控件 ID 配置（与页面实际 ID 一致） ----------
+  const SORT_SELECT_ID = 'sort';
+  const ASC_CHECK_ID = 'UP';
+
+  const CONTAINER = document.getElementById('main');
   if (!CONTAINER) {
     console.warn('main.js: 未找到 id="main" 的容器');
     return;
   }
+
+  // ---------- 全局状态 ----------
+  let allPosts = [];
+  let currentPage = 1;
+  let totalPages = 1;
+  let currentSort = 'Default';
+  let isAscending = false;
+
+  // DOM 引用
+  let cardsContainer = null;
+  let sortSelect = document.getElementById(SORT_SELECT_ID);
+  let ascCheck = document.getElementById(ASC_CHECK_ID);
 
   // ---------- 辅助函数 ----------
 
@@ -178,8 +160,9 @@
 
   function formatDate(dateStr) {
     const date = new Date(dateStr);
-    return date.toLocaleDateString('zh-CN', {
-      year: 'numeric', month: 'long', day: 'numeric'
+    return date.toLocaleString('zh-CN', {
+      year: 'numeric', month: 'long', day: 'numeric',
+      hour: '2-digit', minute: '2-digit'
     });
   }
 
@@ -206,9 +189,14 @@
     return html;
   }
 
+  function getThumbsUp(post) {
+    const group = post.reactionGroups.find(g => g.content === 'THUMBS_UP');
+    return group ? group.users.totalCount : 0;
+  }
+
   // ---------- 生成卡片 ----------
   function createCard(post) {
-    const number = post.number;           // 讨论编号
+    const number = post.number;
     const title = post.title || '无标题';
     const author = post.author.login;
     const avatar = post.author.avatarUrl;
@@ -217,8 +205,6 @@
     const imageUrl = extractFirstImage(post.body) || 'rc_images/pole.jpg';
     const summary = getFirstLinePlainText(post.body);
     const reactionsHtml = renderReactions(post.reactionGroups);
-
-    // 链接使用 ?d=编号
     const detailLink = `/blog.html?d=${number}`;
 
     return `
@@ -272,42 +258,218 @@
     `;
   }
 
+  // ---------- 排序 ----------
+  function sortPosts(posts, sortType, ascending) {
+    if (sortType === 'Default') return posts.slice();
+    const sorted = posts.slice();
+    if (sortType === 'CREATE_AT') {
+      sorted.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    } else if (sortType === 'UPDATED_AT') {
+      sorted.sort((a, b) => new Date(a.updatedAt) - new Date(b.updatedAt));
+    } else if (sortType === 'UP_AT') {
+      sorted.sort((a, b) => getThumbsUp(a) - getThumbsUp(b));
+    }
+    if (!ascending) sorted.reverse();
+    return sorted;
+  }
+
+  // ---------- 渲染 ----------
+  function renderCards() {
+    if (!cardsContainer) return;
+
+    const sorted = sortPosts(allPosts, currentSort, isAscending);
+    totalPages = Math.ceil(sorted.length / PAGE_SIZE) || 1;
+    if (currentPage > totalPages) currentPage = totalPages;
+
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const end = Math.min(start + PAGE_SIZE, sorted.length);
+    const pagePosts = sorted.slice(start, end);
+
+    cardsContainer.innerHTML = '';
+    if (pagePosts.length === 0) {
+      cardsContainer.innerHTML = '<p style="text-align:center;padding:20px;">暂无文章</p>';
+    } else {
+      pagePosts.forEach(post => {
+        cardsContainer.innerHTML += createCard(post);
+      });
+    }
+    renderPagination();
+  }
+
+  // ---------- 分页控件 ----------
+  function renderPagination() {
+    const topEl = document.getElementById('pagination-top');
+    const bottomEl = document.getElementById('pagination-bottom');
+    if (topEl) createPaginationButtons(topEl);
+    if (bottomEl) createPaginationButtons(bottomEl);
+  }
+
+  function createPaginationButtons(container) {
+    container.innerHTML = '';
+    if (totalPages <= 1) return;
+
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'text-align:center; padding:10px 0;';
+
+    for (let i = 1; i <= totalPages; i++) {
+      const btn = document.createElement('button');
+      btn.textContent = i;
+      btn.style.cssText = `
+        margin: 0 4px;
+        padding: 4px 10px;
+        border: 1px solid #ccc;
+        background: ${i === currentPage ? '#B1782E' : '#fff'};
+        color: ${i === currentPage ? '#fff' : '#333'};
+        cursor: pointer;
+        border-radius: 4px;
+        font-size: 12pt;
+      `;
+      btn.addEventListener('click', (function(page) {
+        return function() {
+          currentPage = page;
+          renderCards();
+        };
+      })(i));
+      wrapper.appendChild(btn);
+    }
+    container.appendChild(wrapper);
+  }
+
   // ---------- 加载数据 ----------
-  async function loadPosts() {
+  async function fetchAllPosts() {
     try {
-      const res = await fetch(`${API_URL}/?first=10`);
+      const res = await fetch(`${API_URL}/?first=100`);
       if (!res.ok) throw new Error(`HTTP error ${res.status}`);
       const data = await res.json();
-      const posts = data.nodes || [];
-
-      CONTAINER.innerHTML = '';
-      CONTAINER.style.textAlign = 'center';
-
-      posts.forEach(post => {
-        CONTAINER.innerHTML += createCard(post);
-      });
+      allPosts = data.nodes || [];
     } catch (error) {
       console.error('main.js: 加载失败', error);
-      CONTAINER.innerHTML = '<p style="text-align:center;padding:20px;">加载失败，请稍后重试。</p>';
+      allPosts = [];
+      if (cardsContainer) {
+        cardsContainer.innerHTML = '<p style="text-align:center;padding:20px;">加载失败，请稍后重试。</p>';
+      }
     }
   }
 
-  // ---------- 启动 ----------
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', loadPosts);
-  } else {
-    loadPosts();
+  // ---------- 从控件读取状态 ----------
+  function readControls() {
+    if (sortSelect) {
+      currentSort = sortSelect.value;
+    } else {
+      console.warn('main.js: 未找到排序下拉框 (id="sort")，使用默认值 Default');
+    }
+    if (ascCheck) {
+      isAscending = ascCheck.checked;
+    } else {
+      console.warn('main.js: 未找到升降序控件 (id="UP")，使用默认值 false');
+    }
   }
-})();</script></div>
-<div class="textstyle3"><div id="item1"><div id="item1_padding" ><div class="textstyle1"><span class="textstyle4"><br/></span><span class="textstyle10">Title<br/><br/></span><div id="item1_infomation"><div id="item1_infomation_padding" ><div class="textstyle1"><span class="textstyle11">information</span></div>
-<div class="textstyle2"><img src="rc_images/pole.jpg" id="item1_pic" alt="" title="" /></div>
-<div class="textstyle1"><span class="textstyle11"><br/><br/><br/></span><a href="/blog.html?discussion=1" style="text-decoration:none"><div id="item1_open"><div class="vcenterstyle1"><div class="vcenterstyle2"><div class="textstyle1"></div>
-<div class="textstyle3">  <span class="textstyle12">&#31435;&#21051;&#26597;&#30475;</span>
+
+  // ---------- 构建页面结构（只添加分页容器） ----------
+  function buildStructure() {
+    // 清空 main（保留原有的排序控件，它们位于 main 外部，这里只清空内部的卡片区域）
+    // 注意：如果排序控件在 main 内部，会被清空，因此我们需要将排序控件移到 main 外部，或者只清空卡片容器。
+    // 根据用户描述，排序控件在界面上，但不在 main 内部，所以我们可以安全清空 main。
+    CONTAINER.innerHTML = '';
+
+    // 顶部控件区域（只放分页）
+    const topControls = document.createElement('div');
+    topControls.style.cssText = 'text-align:center; padding:10px 0;';
+    const topPagination = document.createElement('div');
+    topPagination.id = 'pagination-top';
+    topControls.appendChild(topPagination);
+    CONTAINER.appendChild(topControls);
+
+    // 卡片容器
+    cardsContainer = document.createElement('div');
+    cardsContainer.id = 'cards-container';
+    cardsContainer.style.cssText = 'text-align:center;';
+    CONTAINER.appendChild(cardsContainer);
+
+    // 底部控件区域
+    const bottomControls = document.createElement('div');
+    bottomControls.style.cssText = 'text-align:center; padding:10px 0;';
+    const bottomPagination = document.createElement('div');
+    bottomPagination.id = 'pagination-bottom';
+    bottomControls.appendChild(bottomPagination);
+    CONTAINER.appendChild(bottomControls);
+  }
+
+  // ---------- 绑定控件事件 ----------
+  function bindControls() {
+    if (sortSelect) {
+      sortSelect.addEventListener('change', function() {
+        currentSort = this.value;
+        currentPage = 1;
+        renderCards();
+      });
+    }
+    if (ascCheck) {
+      ascCheck.addEventListener('change', function() {
+        isAscending = this.checked;
+        currentPage = 1;
+        renderCards();
+      });
+    }
+  }
+
+  // ---------- 初始化 ----------
+  async function init() {
+    readControls();
+    buildStructure();
+    bindControls(); // 绑定事件（如果之前未绑定）
+    await fetchAllPosts();
+    currentPage = 1;
+    renderCards();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();</script><div id="container_7446523"><div class="textstyle2"><div id="userbox"><div class="textstyle2"><input name="Button2" type="button" value="&#30331;&#20986;" title=""  id="logout" >
 </div>
-</div></div></div></a><span class="textstyle11"><br/></span></div>
-<div style="clear:both"></div></div></div><span class="textstyle4"><br/></span><div id="item1_author"><div id="item1_author_padding" ></div></div></div>
+</div><div id="container_74cc30ce"><div class="textstyle2"><input name="Button1" type="button" value="&#30331;&#24405;" title=""  id="login" >
+</div>
+</div></div>
+</div>  </div>
+<div class="textstyle3">
+<div id="container_6847f1d0"><div class="textstyle3"><div id="container_6cf5d1d2"><div id="container_6cf5d1d2_padding" ><div class="textstyle3"><span class="textstyle4"><br/></span><div id="container_118931d5"><div id="container_118931d5_padding" ><div class="textstyle1"><div id="container_74337d4f"><div id="container_74337d4f_padding" ><div class="textstyle1"><span class="textstyle5"><br/>&#32676;&#26263;&#32593;</span><span class="textstyle6"><br/><br/>&#36825;&#37324;&#26159;&#32676;&#26723;&#26696;,&#25910;&#24405;&#20102;&#32676;&#20869;&#30340;&#29454;&#22855;&#28040;&#24687;</span><span class="textstyle7"><br/><br/></span>  <a href="contact.html" style="text-decoration:none"><div id="button_4a2f61ca">
+    <div class="vcenterstyle1"><div class="vcenterstyle2">      <div class="textstyle1">
+        </div>
+      <div class="textstyle3">
+        <span class="textstyle8">&#32852;&#31995;&#25105;&#20204;</span>
+        </div>
+      </div></div>
+    </div></a>
+  <span class="textstyle9">   </span>
+  <a href="about.html" style="text-decoration:none"><div id="button_212cc296">
+    <div class="vcenterstyle1"><div class="vcenterstyle2">      <div class="textstyle1">
+        </div>
+      <div class="textstyle3">
+        <span class="textstyle8">&#20851;&#20110;</span>
+        </div>
+      </div></div>
+    </div></a>
+</div>
+<div class="textstyle3">  <span class="textstyle9"><br/><br/></span>
+</div>
 <div style="clear:both"></div></div></div></div>
-</div><span class="textstyle4"><br/></span><div id="container_147dd5a4"><div class="textstyle1"><div id="container_2a63c6c8"><div id="container_2a63c6c8_padding" ><div class="textstyle1">  <div id="text_7bfc192b">
+<div style="clear:both"></div></div></div></div>
+<div style="clear:both"></div></div></div></div>
+</div>  </div>
+<div class="textstyle2">
+<select name="ComboBox1" title="&#25490;&#24207;&#26041;&#24335;"  id="sort" >
+<option value="Default" selected="selected">&#40664;&#35748;</option>
+<option value="CREATE_AT">&#21019;&#24314;&#26102;&#38388;</option>
+<option value="UPDATED_AT">&#20462;&#25913;&#26102;&#38388;</option>
+<option value="UP_AT">&#28857;&#36190;&#37327;</option>
+</select>
+<input name="RadioButton1" type="radio" value="" title="" checked="checked"  id="UP" >
+<span class="textstyle10">&#21319;&#24207;</span>  </div>
+<div class="textstyle1">
+<div id="main"></div><span class="textstyle4"><br/></span><div id="container_147dd5a4"><div class="textstyle1"><div id="container_2a63c6c8"><div id="container_2a63c6c8_padding" ><div class="textstyle1">  <div id="text_7bfc192b">
     <div class="textstyle1">
       <span class="textstyle4">&#38382;&#39064;&#21453;&#39304;: </span>
       <span class="textstyle4"><a href="mailto:chengxidaxia@outlook.com" target="_blank">chengxidaxia@outlook.com</a></span>
