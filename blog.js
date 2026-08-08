@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（修复 renderMarkdown 异常）
+// blog.js - 文章详情页（增强版，解决引用/代码块渲染）
 // ============================================================
 
 (function() {
@@ -71,6 +71,12 @@
         font-size: 14px;
         line-height: 1.6;
       }
+      blockquote {
+        border-left: 4px solid #dfe2e5;
+        color: #6a737d;
+        padding-left: 16px;
+        margin-left: 0;
+      }
     `;
     document.head.appendChild(style);
   }
@@ -85,14 +91,12 @@
     }
   }
 
-  // ---------- Markdown 渲染（带异常捕获） ----------
+  // ---------- Markdown 渲染（增强版） ----------
   let markedConfigured = false;
 
   function renderMarkdown(text) {
-    // 如果文本为空或未定义，返回空字符串
     if (!text) return '';
 
-    // 检查 marked 是否可用
     if (typeof marked === 'undefined' || typeof marked.parse !== 'function') {
       console.warn('marked 未加载，使用纯文本 fallback');
       return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
@@ -119,76 +123,74 @@
         markedConfigured = true;
       } catch (e) {
         console.warn('marked 配置失败:', e);
-        // 即使配置失败，也尝试继续渲染
       }
     }
 
+    let html;
     try {
-      // 尝试解析 Markdown
-      let html = marked.parse(text);
-
-      // 清洗 HTML
-      if (typeof DOMPurify !== 'undefined') {
-        html = DOMPurify.sanitize(html, {
-          ADD_TAGS: ['input', 'task-list', 'task-list-item'],
-          ADD_ATTR: ['type', 'checked', 'disabled', 'class', 'id', 'aria-label', 'data-*'],
-          FORCE_ATTR: { 'input': { 'disabled': '' } },
-          ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|geo):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
-        });
-      }
-
-      // 后处理：@提及 和 #引用
-      const linkPlaceholders = [];
-      html = html.replace(/<a\b[^>]*>.*?<\/a>/gi, function(match) {
-        const index = linkPlaceholders.length;
-        linkPlaceholders.push(match);
-        return `@@PLACEHOLDER${index}@@`;
-      });
-
-      html = html.replace(/(^|\s)@([a-zA-Z0-9\-_]+)/g, function(match, prefix, username) {
-        return `${prefix}<a href="https://github.com/${username}" target="_blank" class="mention" style="color:#0366d6;text-decoration:none;">@${username}</a>`;
-      });
-
-      html = html.replace(/(^|\s)#(\d+)/g, function(match, prefix, num) {
-        return `${prefix}<a href="/blog.html?d=${num}" class="issue-link" style="color:#0366d6;text-decoration:none;">#${num}</a>`;
-      });
-
-      html = html.replace(/@@PLACEHOLDER(\d+)@@/g, function(match, index) {
-        return linkPlaceholders[parseInt(index)];
-      });
-
-      // 图片块级显示
-      html = html.replace(/<img([^>]*)>/gi, function(match, attrs) {
-        if (/style\s*=/i.test(attrs)) {
-          attrs = attrs.replace(/style\s*=\s*(["'])([^"']*)\1/i, function(m, quote, style) {
-            return `style=${quote}${style}; display:block; margin:10px 0; max-width:100%; height:auto;${quote}`;
-          });
-        } else {
-          attrs += ` style="display:block; margin:10px 0; max-width:100%; height:auto;"`;
-        }
-        return `<img${attrs}>`;
-      });
-
-      html = html.replace(/<pre>/g, '<pre class="markdown-body">');
-
-      return html;
-    } catch (error) {
-      console.error('Markdown 渲染失败:', error, '文本片段:', text.slice(0, 200));
-      // 出错时返回转义后的原始文本
+      html = marked.parse(text);
+    } catch (e) {
+      console.error('marked.parse 抛出异常:', e);
       return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
     }
+
+    // 清洗 HTML（显式允许 blockquote, pre, code 等）
+    if (typeof DOMPurify !== 'undefined') {
+      html = DOMPurify.sanitize(html, {
+        ADD_TAGS: ['input', 'task-list', 'task-list-item', 'blockquote', 'pre', 'code'],
+        ADD_ATTR: ['type', 'checked', 'disabled', 'class', 'id', 'aria-label', 'data-*'],
+        FORCE_ATTR: { 'input': { 'disabled': '' } },
+        ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|geo):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
+      });
+    }
+
+    // 调试：输出前200字符
+    console.log('renderMarkdown 输出片段:', html.slice(0, 200));
+
+    // 后处理：@提及 和 #引用
+    const linkPlaceholders = [];
+    html = html.replace(/<a\b[^>]*>.*?<\/a>/gi, function(match) {
+      const index = linkPlaceholders.length;
+      linkPlaceholders.push(match);
+      return `@@PLACEHOLDER${index}@@`;
+    });
+
+    html = html.replace(/(^|\s)@([a-zA-Z0-9\-_]+)/g, function(match, prefix, username) {
+      return `${prefix}<a href="https://github.com/${username}" target="_blank" class="mention" style="color:#0366d6;text-decoration:none;">@${username}</a>`;
+    });
+
+    html = html.replace(/(^|\s)#(\d+)/g, function(match, prefix, num) {
+      return `${prefix}<a href="/blog.html?d=${num}" class="issue-link" style="color:#0366d6;text-decoration:none;">#${num}</a>`;
+    });
+
+    html = html.replace(/@@PLACEHOLDER(\d+)@@/g, function(match, index) {
+      return linkPlaceholders[parseInt(index)];
+    });
+
+    // 图片块级显示
+    html = html.replace(/<img([^>]*)>/gi, function(match, attrs) {
+      if (/style\s*=/i.test(attrs)) {
+        attrs = attrs.replace(/style\s*=\s*(["'])([^"']*)\1/i, function(m, quote, style) {
+          return `style=${quote}${style}; display:block; margin:10px 0; max-width:100%; height:auto;${quote}`;
+        });
+      } else {
+        attrs += ` style="display:block; margin:10px 0; max-width:100%; height:auto;"`;
+      }
+      return `<img${attrs}>`;
+    });
+
+    html = html.replace(/<pre>/g, '<pre class="markdown-body">');
+
+    return html;
   }
 
   // ---------- 代码块复制 ----------
   function addCopyButtonsToCodeBlocks() {
     document.querySelectorAll('.markdown-body pre, .comment-item pre, #text pre').forEach(pre => {
       if (pre.querySelector('.copy-code-btn')) return;
-
       const code = pre.querySelector('code');
       if (!code) return;
-
       let codeText = code.textContent;
-
       const btn = document.createElement('button');
       btn.className = 'copy-code-btn';
       btn.textContent = '复制';
@@ -208,7 +210,6 @@
       `;
       btn.addEventListener('mouseenter', () => { btn.style.opacity = '1'; });
       btn.addEventListener('mouseleave', () => { btn.style.opacity = '0.7'; });
-
       btn.addEventListener('click', async function(e) {
         e.stopPropagation();
         try {
@@ -226,7 +227,6 @@
           setTimeout(() => { btn.textContent = '复制'; }, 2000);
         }
       });
-
       pre.style.position = 'relative';
       pre.appendChild(btn);
     });
@@ -235,7 +235,7 @@
   function sanitizeHtml(html) {
     if (typeof DOMPurify !== 'undefined' && typeof DOMPurify.sanitize === 'function') {
       return DOMPurify.sanitize(html, {
-        ADD_TAGS: ['pre', 'code', 'input', 'task-list', 'task-list-item'],
+        ADD_TAGS: ['pre', 'code', 'input', 'task-list', 'task-list-item', 'blockquote'],
         ADD_ATTR: ['style', 'class', 'type', 'checked', 'disabled', 'id', 'aria-label', 'data-*'],
       });
     }
@@ -261,7 +261,6 @@
     'EYES': '👀'
   };
 
-  // ---------- 修复后的 parseFirstLine ----------
   function parseFirstLine(body) {
     const lines = body.split('\n');
     const firstLine = lines.find(line => line.trim() !== '') || '';
