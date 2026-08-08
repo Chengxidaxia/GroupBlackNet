@@ -1,5 +1,5 @@
 // ============================================================
-// edit.js - 创建新讨论页面（最终强制父级样式）
+// edit.js - 创建新讨论页面（最终版，彻底修复宽度）
 // ============================================================
 
 (function() {
@@ -44,82 +44,96 @@
     }
   }
 
-  // ---------- 强制父级样式（核心） ----------
-  function forceParentStyles() {
-    // 直接修改父容器（#container_4dd2eac8）
-    const container = document.getElementById('container_4dd2eac8');
-    if (container) {
-      container.style.cssText = `
-        display: block !important;
+  // ---------- 强制修复布局（核心） ----------
+  function forceLayoutFix() {
+    // 修复父容器链
+    let parent = editingContainer.parentNode;
+    while (parent && parent.id !== 'container_4dd2eac8') {
+      parent.style.cssText = `
         width: 100% !important;
         max-width: 100% !important;
+        display: block !important;
         text-align: center !important;
-        background: transparent !important;
-        min-height: auto !important;
-        padding: 0 !important;
       `;
-      // 内部 .textstyle2
-      const textstyle = container.querySelector('.textstyle2');
-      if (textstyle) {
-        textstyle.style.cssText = `
-          display: block !important;
-          width: 100% !important;
-          text-align: center !important;
-        `;
-      }
+      parent = parent.parentNode;
     }
-
-    // 强制 editing 容器
-    if (editingContainer) {
-      editingContainer.style.cssText = `
-        display: block !important;
+    if (parent) {
+      parent.style.cssText = `
         width: 100% !important;
         max-width: 100% !important;
+        display: block !important;
         text-align: center !important;
-        min-height: 400px !important;
-        padding: 0 !important;
-        margin: 0 !important;
       `;
     }
 
-    // 编辑器包装器
+    // 修复 editing 容器
+    editingContainer.style.cssText = `
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: flex-start !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      min-height: 400px !important;
+      margin: 0 auto !important;
+      padding: 0 !important;
+    `;
+
+    // 修复编辑器包装器
     const editorWrapper = document.getElementById('editor-wrapper');
     if (editorWrapper) {
       editorWrapper.style.cssText = `
-        display: block !important;
         width: 80% !important;
         max-width: 1000px !important;
         min-width: 600px !important;
-        margin: 0 auto !important;
         background: #ffffff !important;
         border-radius: 8px !important;
         border: 1px solid #ddd !important;
         overflow: hidden !important;
+        margin: 0 !important;
         padding: 0 !important;
         min-height: 400px !important;
         text-align: left !important;
+        flex-shrink: 0 !important;
+        display: block !important;
       `;
-      // 内部的 vditor
+
+      // 修复内部的 vditor
       const vditor = editorWrapper.querySelector('.vditor');
       if (vditor) {
         vditor.style.cssText = `
           border: none !important;
           border-radius: 0 !important;
           width: 100% !important;
+          min-width: 100% !important;
+          box-sizing: border-box !important;
         `;
+        // 修复 vditor 内部内容
+        const content = vditor.querySelector('.vditor-content');
+        if (content) {
+          content.style.width = '100% !important';
+          content.style.minWidth = '100% !important';
+        }
+        // 修复大纲
+        const outline = vditor.querySelector('.vditor-outline');
+        if (outline) {
+          outline.style.left = '0 !important';
+          outline.style.right = 'auto !important';
+        }
       }
     }
 
-    // 菜单包装器
+    // 修复菜单包装器
     const menuWrapper = document.getElementById('menu-wrapper');
     if (menuWrapper) {
       menuWrapper.style.cssText = `
-        display: block !important;
         width: 80% !important;
         max-width: 1000px !important;
-        margin: 10px auto 0 auto !important;
         text-align: center !important;
         padding: 20px 0 !important;
+        margin: 10px 0 0 0 !important;
+        flex-shrink: 0 !important;
+        display: block !important;
       `;
     }
   }
@@ -130,11 +144,16 @@
     const style = document.createElement('style');
     style.id = 'edit-styles';
     style.textContent = `
-      /* 强制大纲左侧 */
-      .vditor-outline {
-        left: 0 !important;
-        right: auto !important;
+      /* 强制父容器链 */
+      #container_4dd2eac8,
+      #container_4dd2eac8 .textstyle2,
+      #container_4dd2eac8 .textstyle2 > div {
+        width: 100% !important;
+        max-width: 100% !important;
+        display: block !important;
+        text-align: center !important;
       }
+
       /* 封面上传区域 */
       .upload-area {
         border: 2px dashed #ccc;
@@ -175,6 +194,12 @@
       }
       .upload-area.hidden {
         display: none !important;
+      }
+
+      /* 强制大纲左侧 */
+      .vditor-outline {
+        left: 0 !important;
+        right: auto !important;
       }
     `;
     document.head.appendChild(style);
@@ -341,6 +366,11 @@
     }
     wrapper.innerHTML = '';
 
+    // 在初始化前强制设置宽度
+    wrapper.style.width = '80%';
+    wrapper.style.maxWidth = '1000px';
+    wrapper.style.minWidth = '600px';
+
     vditorInstance = new Vditor(wrapper, {
       height: 500,
       mode: 'ir',
@@ -367,14 +397,13 @@
       }
     });
 
-    // 强制大纲左侧
+    // 初始化后强制刷新布局
     setTimeout(function() {
-      const outline = document.querySelector('.vditor-outline');
-      if (outline) {
-        outline.style.left = '0';
-        outline.style.right = 'auto';
+      if (vditorInstance && typeof vditorInstance.resize === 'function') {
+        vditorInstance.resize();
       }
-    }, 200);
+      forceLayoutFix();
+    }, 100);
   }
 
   // ---------- 提交 ----------
@@ -442,6 +471,11 @@
   function buildMenu(wrapper) {
     if (!wrapper) return;
     wrapper.innerHTML = '';
+    wrapper.style.width = '80%';
+    wrapper.style.maxWidth = '1000px';
+    wrapper.style.textAlign = 'center';
+    wrapper.style.padding = '20px 0';
+    wrapper.style.margin = '10px 0 0 0';
     const submitBtn = document.createElement('button');
     submitBtn.textContent = '创建新讨论';
     submitBtn.style.cssText = `
@@ -479,7 +513,7 @@
     // 清空
     editingContainer.innerHTML = '';
 
-    // 创建编辑器包装器
+    // 创建编辑器包装器（先在 DOM 中创建，再设置样式）
     const editorWrapper = document.createElement('div');
     editorWrapper.id = 'editor-wrapper';
     editingContainer.appendChild(editorWrapper);
@@ -488,6 +522,9 @@
     const menuWrapper = document.createElement('div');
     menuWrapper.id = 'menu-wrapper';
     editingContainer.appendChild(menuWrapper);
+
+    // 强制父容器布局（在初始化前）
+    forceLayoutFix();
 
     // 初始化 Vditor
     initVditor(editorWrapper);
@@ -509,17 +546,16 @@
 
     updateUploadVisibility();
 
-    // ⭐ 核心：强制父级样式（立即执行）
-    forceParentStyles();
-
-    // 延迟再强制一次（确保 Vditor 渲染完成）
+    // 多次强制修复（确保最终稳定）
     setTimeout(function() {
-      forceParentStyles();
+      forceLayoutFix();
+      if (vditorInstance && typeof vditorInstance.resize === 'function') {
+        vditorInstance.resize();
+      }
     }, 300);
 
-    // 再次延迟（保险）
     setTimeout(function() {
-      forceParentStyles();
+      forceLayoutFix();
     }, 800);
   }
 
