@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（最终版，上传已修复）
+// blog.js - 文章详情页（最终版，修复评论 400）
 // ============================================================
 
 (function() {
@@ -583,7 +583,7 @@
     container.appendChild(wrapper);
   }
 
-  // ---------- 提交评论 ----------
+  // ---------- 提交评论（修复 400，增加日志） ----------
   async function submitComment() {
     if (!vditorInstance) {
       alert('编辑器未初始化');
@@ -599,12 +599,18 @@
       return;
     }
     const discussionId = discussionData.id;
+    const payload = {
+      discussionId: discussionId,
+      body: body,
+      parentCommentId: null  // 明确传递 null
+    };
+    console.log('提交评论 payload:', payload);
     try {
       const res = await fetch(`${OAUTH_BASE}/comment`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ discussionId, body })
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (res.ok) {
@@ -620,7 +626,7 @@
     }
   }
 
-  // ---------- Vditor 初始化（已移除 format） ----------
+  // ---------- Vditor 初始化 ----------
   function initVditor() {
     const editorContainer = document.getElementById('vditor-container');
     if (!editorContainer) return;
