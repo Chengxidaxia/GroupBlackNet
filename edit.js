@@ -1,5 +1,5 @@
 // ============================================================
-// edit.js - 创建新讨论页面（修复布局错位）
+// edit.js - 创建新讨论页面（修复布局，居中显示）
 // ============================================================
 
 (function() {
@@ -39,20 +39,20 @@
     }
   }
 
-  // ---------- 样式注入（适配 RocketCake 布局） ----------
+  // ---------- 样式注入 ----------
   function injectStyles() {
     if (document.getElementById('edit-styles')) return;
     const style = document.createElement('style');
     style.id = 'edit-styles';
     style.textContent = `
-      /* 编辑器居中 */
+      /* 编辑器居中 - 利用父级 text-align:center + inline-block */
       #editor {
         display: inline-block !important;
         width: 80% !important;
         max-width: 1000px !important;
         text-align: left !important;
-        margin: 0 auto !important;
-        float: none !important;
+        vertical-align: top !important;
+        min-height: 600px !important;
       }
       /* 菜单居中 */
       #menu {
@@ -60,8 +60,8 @@
         width: 80% !important;
         max-width: 1000px !important;
         text-align: center !important;
-        margin: 20px auto !important;
-        float: none !important;
+        vertical-align: top !important;
+        padding: 20px 0 !important;
       }
       /* 封面上传区域 */
       .upload-area {
@@ -76,6 +76,7 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
+        background: #fafafa;
       }
       .upload-area.dragover {
         border-color: #2da44e;
@@ -102,6 +103,10 @@
       }
       .upload-area.hidden {
         display: none !important;
+      }
+      .vditor {
+        border-radius: 8px !important;
+        overflow: hidden !important;
       }
     `;
     document.head.appendChild(style);
@@ -131,7 +136,7 @@
     area.className = 'upload-area';
     area.id = 'upload-area';
     area.innerHTML = `
-      <div class="hint">点击选择或拖拽图片到此作为封面</div>
+      <div class="hint">📷 点击选择或拖拽图片到此作为封面</div>
       <div id="upload-preview"></div>
     `;
     uploadContainer.appendChild(area);
@@ -143,20 +148,17 @@
     fileInput.id = 'cover-file-input';
     uploadContainer.appendChild(fileInput);
 
-    // 点击上传区域触发文件选择
     area.addEventListener('click', function(e) {
       if (e.target.closest('.remove-btn')) return;
       fileInput.click();
     });
 
-    // 文件选择
     fileInput.addEventListener('change', function(e) {
       const file = e.target.files[0];
       if (file) handleCoverFile(file);
       fileInput.value = '';
     });
 
-    // 拖拽
     area.addEventListener('dragover', function(e) {
       e.preventDefault();
       area.classList.add('dragover');
@@ -179,7 +181,6 @@
       }
     });
 
-    // 初始隐藏（根据 noicon 状态）
     updateUploadVisibility();
   }
 
@@ -261,7 +262,7 @@
   // ---------- 初始化 Vditor ----------
   function initVditor() {
     if (typeof Vditor === 'undefined') {
-      editorContainer.innerHTML = '<p style="color:red;">Vditor 未加载，请刷新页面重试。</p>';
+      editorContainer.innerHTML = '<p style="color:red;text-align:center;padding:40px;">Vditor 未加载，请刷新页面重试。</p>';
       return;
     }
     if (vditorInstance) {
@@ -269,9 +270,6 @@
       vditorInstance = null;
     }
     editorContainer.innerHTML = '';
-    // 移除之前可能添加的样式干扰
-    editorContainer.style.cssText = '';
-    // 由 CSS 控制居中
 
     vditorInstance = new Vditor(editorContainer, {
       height: 500,
@@ -362,19 +360,17 @@
   // ---------- 构建菜单 ----------
   function buildMenu() {
     menuContainer.innerHTML = '';
-    menuContainer.style.cssText = ''; // 清除可能的内联样式
-    // 由 CSS 控制居中
-
     const submitBtn = document.createElement('button');
     submitBtn.textContent = '创建新讨论';
     submitBtn.style.cssText = `
-      padding: 10px 30px;
+      padding: 12px 40px;
       background: #2da44e;
       color: white;
       border: none;
       border-radius: 6px;
       font-size: 18px;
       cursor: pointer;
+      font-weight: bold;
     `;
     submitBtn.addEventListener('click', submitDiscussion);
     menuContainer.appendChild(submitBtn);
@@ -412,6 +408,10 @@
 
     // 6. 初始隐藏状态
     updateUploadVisibility();
+
+    // 7. 确保编辑器容器可见
+    editorContainer.style.display = 'inline-block';
+    menuContainer.style.display = 'inline-block';
   }
 
   if (document.readyState === 'loading') {
