@@ -1,5 +1,6 @@
 // ============================================================
-// blog.js - 文章详情页（修复简介/正文逻辑，完整功能）
+// blog.js - 文章详情页（完整功能版）
+// 包含：GFM Markdown渲染、任务列表、@提及、#引用、代码块复制、回复、表情
 // ============================================================
 
 (function() {
@@ -85,7 +86,7 @@
     }
   }
 
-  // ---------- Markdown 渲染 ----------
+  // ---------- Markdown 渲染（GFM + 后处理） ----------
   let markedConfigured = false;
 
   function renderMarkdown(text) {
@@ -119,6 +120,7 @@
 
     let html = marked.parse(text);
 
+    // 清洗但保留必要元素
     if (typeof DOMPurify !== 'undefined') {
       html = DOMPurify.sanitize(html, {
         ADD_TAGS: ['input', 'task-list', 'task-list-item'],
@@ -128,7 +130,7 @@
       });
     }
 
-    // 后处理：@提及 和 #引用
+    // 后处理：将 @提及 和 #引用 转换为链接（保护已有链接）
     const linkPlaceholders = [];
     html = html.replace(/<a\b[^>]*>.*?<\/a>/gi, function(match) {
       const index = linkPlaceholders.length;
@@ -160,12 +162,13 @@
       return `<img${attrs}>`;
     });
 
+    // 给代码块添加类，便于复制按钮定位
     html = html.replace(/<pre>/g, '<pre class="markdown-body">');
 
     return html;
   }
 
-  // ---------- 代码块复制 ----------
+  // ---------- 代码块复制按钮 ----------
   function addCopyButtonsToCodeBlocks() {
     document.querySelectorAll('.markdown-body pre, .comment-item pre, #text pre').forEach(pre => {
       if (pre.querySelector('.copy-code-btn')) return;
@@ -247,40 +250,27 @@
     'EYES': '👀'
   };
 
-  // ---------- 核心：解析第一行（恢复原逻辑） ----------
   function parseFirstLine(body) {
     const lines = body.split('\n');
     const firstLine = lines.find(line => line.trim() !== '') || '';
     let info = null;
-    let bodyText = '';
+    let bodyText = body; // 默认全部作为正文
 
     try {
       const data = JSON.parse(firstLine);
-      // 是 JSON
+      // 只有成功解析为 JSON 时才拆分
       if (data.info) {
         info = base64Decode(data.info);
-      } else {
-        info = firstLine; // 如果没有 info 字段，用原始第一行
+        const restLines = lines.slice(1);
+        bodyText = restLines.join('\n').trim() || body;
       }
-      // 正文为剩余行
-      const restLines = lines.slice(1);
-      bodyText = restLines.join('\n').trim();
     } catch (e) {
-      // 不是 JSON，第一行作为简介（去除 Markdown 标记）
-      info = firstLine
-        .replace(/!\[.*?\]\(.*?\)/g, '')
-        .replace(/\[.*?\]\(.*?\)/g, '$1')
-        .replace(/[#*`>_\-]/g, '')
-        .trim() || '无简介';
-      // 正文为剩余行
-      const restLines = lines.slice(1);
-      bodyText = restLines.join('\n').trim();
+      // 不是 JSON，全部作为正文，info 留空
+      info = null;
+      bodyText = body;
     }
 
-    // 如果没有正文，设置空字符串
-    if (!bodyText) bodyText = '';
-
-    return { info, bodyText, isJson: !!JSON.parse(firstLine) };
+    return { info, bodyText, isJson: !!info };
   }
 
   // ---------- 渲染 Reaction ----------
@@ -316,7 +306,7 @@
     return html;
   }
 
-  // ---------- 渲染评论树 ----------
+  // ---------- 渲染评论树（递归） ----------
   function renderCommentTree(comments, level = 0) {
     if (!comments || comments.length === 0) return '';
     let html = '';
@@ -354,7 +344,7 @@
     return html;
   }
 
-  // ---------- 渲染评论列表 ----------
+  // ---------- 渲染评论列表（背景纯白） ----------
   function renderComments(comments) {
     if (!comments || comments.length === 0) {
       return '<p style="text-align:center;color:#888;">暂无评论</p>';
@@ -673,21 +663,17 @@
       document.title = titleText + ' - 群档案';
       titleEl.innerHTML = `<span style="font-size:26pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; font-weight:bold;">${titleText}</span>`;
 
-      // ---------- 解析第一行（恢复原逻辑） ----------
       const { info, bodyText, isJson } = parseFirstLine(discussionData.body);
 
-      // 简介：如果有 info 且非空，显示；否则隐藏
-      if (info && info.trim()) {
+      if (info) {
         infoEl.innerHTML = `<span style="font-size:14pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; font-weight:bold;">${sanitizeHtml(renderMarkdown(info))}</span>`;
       } else {
-        infoEl.innerHTML = '';
+        infoEl.innerHTML = ''; // 没有简介时隐藏
       }
 
-      // 正文
       textEl.innerHTML = `<div style="padding:0 10px; text-align:left;">${sanitizeHtml(renderMarkdown(bodyText))}</div>`;
       addCopyButtonsToCodeBlocks();
 
-      // ---------- 表情 ----------
       const discussionId = discussionData.id;
       const reactionHtml = renderReactions(
         discussionData.reactionGroups || [],
@@ -699,7 +685,6 @@
       reactionDiv.innerHTML = reactionHtml;
       commentContainer.appendChild(reactionDiv);
 
-      // ---------- 编辑器 ----------
       const editorContainer = document.createElement('div');
       editorContainer.id = 'vditor-container';
       editorContainer.style.cssText = 'margin:10px 0; text-align:left;';
@@ -714,7 +699,6 @@
         editorContainer.innerHTML = '<p style="text-align:center;color:#888;padding:20px;">登录后即可评论</p>';
       }
 
-      // ---------- 评论列表 ----------
       const commentListDiv = document.createElement('div');
       commentListDiv.id = 'comment-list';
       commentListDiv.style.cssText = 'text-align:left; margin-top:20px;';

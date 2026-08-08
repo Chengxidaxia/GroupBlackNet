@@ -22,13 +22,10 @@ a:hover { color:#B2B3B4; }
 #container_297d27c3 { vertical-align: top; position:relative; display: inline-block; width:80%; background:none;  }
 #title { vertical-align: top; position:relative; display: inline-block; width:100%; background:none;  }
 #title_padding { margin: 10px; display: block;  }
-.textstyle4 { font-size:26pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; font-weight:bold;  }
 #information { vertical-align: top; position:relative; display: inline-block; width:100%; background:none;  }
 #information_padding { margin: 10px; display: block;  }
-.textstyle5 { font-size:14pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; font-weight:bold;  }
 #main { vertical-align: top; position:relative; display: inline-block; width:100%; min-height:150px; background:none;  }
 #text { box-sizing: border-box; vertical-align: top; border-radius: 15px; position:relative; display: inline-block; width:80%; min-height:320px; background-color:#FFFFFF; border: 1px solid #404040;  }
 #text_padding { margin: 10px; display: block;  }
-.textstyle6 { font-size:14pt; font-family:Arial, Helvetica, sans-serif; color:#444444;  }
 #comment { vertical-align: top; position:relative; display: inline-block; width:80%; min-height:150px; background:none;  }
 #footer-placeholder { vertical-align: bottom; position:relative; display: inline-block; width:100%;  }
