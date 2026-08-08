@@ -1,6 +1,5 @@
 // ============================================================
-// edit.js - 创建新讨论页面（终极布局修复）
-// 使用 flex 强制垂直居中，解决编辑器和菜单布局问题
+// edit.js - 创建新讨论页面（彻底重建编辑器容器）
 // ============================================================
 
 (function() {
@@ -15,8 +14,8 @@
   const infoInput = document.getElementById('info');
   const noiconCheck = document.getElementById('noicon');
   const uploadContainer = document.getElementById('upload');
-  const editorContainer = document.getElementById('editor');
-  const menuContainer = document.getElementById('menu');
+  const oldEditorContainer = document.getElementById('editor');
+  const oldMenuContainer = document.getElementById('menu');
 
   let vditorInstance = null;
   let coverUrl = null;
@@ -46,50 +45,69 @@
     }
   }
 
-  // ---------- 样式注入（关键：flex 布局） ----------
+  // ---------- 重建编辑器容器 ----------
+  function rebuildEditorContainer() {
+    // 找到编辑器所在的父容器（注意：edit.html 中 #editor 是在 .textstyle2 内）
+    const parent = oldEditorContainer.parentNode;
+    // 保存旧容器的引用，稍后替换
+    const newEditor = document.createElement('div');
+    newEditor.id = 'editor';
+    // 设置样式
+    newEditor.style.cssText = `
+      width: 80% !important;
+      max-width: 1000px !important;
+      min-width: 600px !important;
+      background: #ffffff !important;
+      border-radius: 8px !important;
+      border: 1px solid #ddd !important;
+      overflow: hidden !important;
+      margin: 0 auto !important;
+      padding: 0 !important;
+      display: block !important;
+      min-height: 400px !important;
+    `;
+    // 替换
+    parent.replaceChild(newEditor, oldEditorContainer);
+    return newEditor;
+  }
+
+  // ---------- 重建菜单容器 ----------
+  function rebuildMenuContainer() {
+    const parent = oldMenuContainer.parentNode;
+    const newMenu = document.createElement('div');
+    newMenu.id = 'menu';
+    newMenu.style.cssText = `
+      width: 80% !important;
+      max-width: 1000px !important;
+      text-align: center !important;
+      padding: 20px 0 !important;
+      margin: 20px auto 0 auto !important;
+      display: block !important;
+      clear: both !important;
+    `;
+    parent.replaceChild(newMenu, oldMenuContainer);
+    return newMenu;
+  }
+
+  // ---------- 样式注入 ----------
   function injectStyles() {
     if (document.getElementById('edit-styles')) return;
     const style = document.createElement('style');
     style.id = 'edit-styles';
     style.textContent = `
-      /* 将 .textstyle2 改为 flex 垂直居中 */
-      .textstyle2:has(#editor) {
+      /* 强制父容器 flex 垂直居中 */
+      #container_4dd2eac8 {
         display: flex !important;
         flex-direction: column !important;
         align-items: center !important;
         width: 100% !important;
       }
-
-      /* 编辑器容器 - 宽度 80%，最大 1000px */
-      #editor {
-        width: 80% !important;
-        max-width: 1000px !important;
-        min-width: 600px !important;
-        background: #ffffff !important;
-        border-radius: 8px !important;
-        border: 1px solid #ddd !important;
-        overflow: hidden !important;
-        margin: 0 !important;
-        padding: 0 !important;
-      }
-      #editor .vditor {
-        border: none !important;
-        border-radius: 0 !important;
+      #container_4dd2eac8 .textstyle2 {
         width: 100% !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
       }
-      #editor .vditor-content {
-        min-height: 400px !important;
-      }
-
-      /* 菜单容器 */
-      #menu {
-        width: 80% !important;
-        max-width: 1000px !important;
-        text-align: center !important;
-        padding: 20px 0 !important;
-        margin: 10px 0 0 0 !important;
-      }
-
       /* 封面上传区域 */
       .upload-area {
         border: 2px dashed #ccc;
@@ -131,11 +149,16 @@
       .upload-area.hidden {
         display: none !important;
       }
-
-      /* 强制大纲在左侧 */
+      /* 强制大纲左侧 */
       .vditor-outline {
         left: 0 !important;
         right: auto !important;
+      }
+      /* 编辑器内 Vditor 自适应 */
+      .vditor {
+        width: 100% !important;
+        border: none !important;
+        border-radius: 0 !important;
       }
     `;
     document.head.appendChild(style);
@@ -289,7 +312,7 @@
   }
 
   // ---------- 初始化 Vditor ----------
-  function initVditor() {
+  function initVditor(editorContainer) {
     if (typeof Vditor === 'undefined') {
       editorContainer.innerHTML = '<p style="color:red;text-align:center;padding:40px;">Vditor 未加载，请刷新页面重试。</p>';
       return;
@@ -299,9 +322,6 @@
       vditorInstance = null;
     }
     editorContainer.innerHTML = '';
-    // 清除可能的内联干扰样式
-    editorContainer.style.cssText = '';
-    editorContainer.style.width = '100%';
 
     vditorInstance = new Vditor(editorContainer, {
       height: 500,
@@ -329,18 +349,19 @@
       }
     });
 
-    // 修复大纲位置
+    // 强制大纲左侧
     setTimeout(function() {
       const outline = document.querySelector('.vditor-outline');
       if (outline) {
         outline.style.left = '0';
         outline.style.right = 'auto';
       }
-      // 确保编辑器宽度
       const vditor = document.querySelector('.vditor');
       if (vditor) {
         vditor.style.width = '100%';
       }
+      // 强制编辑器容器高度
+      editorContainer.style.minHeight = '400px';
     }, 200);
   }
 
@@ -407,10 +428,8 @@
   }
 
   // ---------- 构建菜单 ----------
-  function buildMenu() {
+  function buildMenu(menuContainer) {
     menuContainer.innerHTML = '';
-    menuContainer.style.cssText = '';
-    menuContainer.style.width = '100%';
     const submitBtn = document.createElement('button');
     submitBtn.textContent = '创建新讨论';
     submitBtn.style.cssText = `
@@ -443,13 +462,19 @@
     // 3. 封面上传
     buildUploadUI();
 
-    // 4. 编辑器
-    initVditor();
+    // 4. 重建编辑器容器
+    const newEditor = rebuildEditorContainer();
 
-    // 5. 菜单
-    buildMenu();
+    // 5. 重建菜单容器
+    const newMenu = rebuildMenuContainer();
 
-    // 6. noicon 切换
+    // 6. 初始化 Vditor
+    initVditor(newEditor);
+
+    // 7. 构建菜单
+    buildMenu(newMenu);
+
+    // 8. noicon 切换
     noiconCheck.addEventListener('change', function() {
       if (this.checked) {
         coverUrl = null;
@@ -461,7 +486,7 @@
       }
     });
 
-    // 7. 初始隐藏
+    // 9. 初始隐藏
     updateUploadVisibility();
   }
 
