@@ -1,5 +1,5 @@
 // ============================================================
-// edit.js - 创建新讨论页面（完全接管布局）
+// edit.js - 创建新讨论页面（适配 #editing 容器）
 // ============================================================
 
 (function() {
@@ -14,9 +14,7 @@
   const infoInput = document.getElementById('info');
   const noiconCheck = document.getElementById('noicon');
   const uploadContainer = document.getElementById('upload');
-  const editorContainer = document.getElementById('editor');
-  const menuContainer = document.getElementById('menu');
-  const container = document.getElementById('container_4dd2eac8');
+  const editingContainer = document.getElementById('editing');
 
   let vditorInstance = null;
   let coverUrl = null;
@@ -52,20 +50,7 @@
     const style = document.createElement('style');
     style.id = 'edit-styles';
     style.textContent = `
-      /* 清空容器内部干扰 */
-      #container_4dd2eac8 {
-        display: block !important;
-        width: 100% !important;
-        max-width: 100% !important;
-        text-align: center !important;
-        background: transparent !important;
-      }
-      #container_4dd2eac8 .textstyle2 {
-        display: block !important;
-        width: 100% !important;
-        text-align: center !important;
-      }
-      /* 编辑器外部容器 - 由 JS 创建 */
+      /* 编辑器包装器 */
       .edit-editor-wrapper {
         display: inline-block !important;
         width: 80% !important;
@@ -85,7 +70,7 @@
         border-radius: 0 !important;
         width: 100% !important;
       }
-      /* 菜单容器 */
+      /* 菜单包装器 */
       .edit-menu-wrapper {
         display: inline-block !important;
         width: 80% !important;
@@ -139,6 +124,12 @@
       .vditor-outline {
         left: 0 !important;
         right: auto !important;
+      }
+      /* 确保 #editing 容器居中 */
+      #editing {
+        text-align: center !important;
+        display: block !important;
+        width: 100% !important;
       }
     `;
     document.head.appendChild(style);
@@ -420,26 +411,6 @@
     wrapper.appendChild(submitBtn);
   }
 
-  // ---------- 彻底重建布局 ----------
-  function rebuildLayout() {
-    // 清空 container 内部所有内容（保留 container 本身）
-    container.innerHTML = '';
-
-    // 创建编辑器包装器
-    const editorWrapper = document.createElement('div');
-    editorWrapper.className = 'edit-editor-wrapper';
-    editorWrapper.id = 'editor-wrapper';
-    container.appendChild(editorWrapper);
-
-    // 创建菜单包装器
-    const menuWrapper = document.createElement('div');
-    menuWrapper.className = 'edit-menu-wrapper';
-    menuWrapper.id = 'menu-wrapper';
-    container.appendChild(menuWrapper);
-
-    return { editorWrapper, menuWrapper };
-  }
-
   // ---------- 初始化 ----------
   async function init() {
     // 1. 登录检查
@@ -448,7 +419,7 @@
       window.location.href = '/404.html';
       return;
     }
-[
+
     // 2. 标题同步
     updateTitle();
     titleInput.addEventListener('input', updateTitle);
@@ -456,8 +427,20 @@
     // 3. 封面上传
     buildUploadUI();
 
-    // 4. 重建布局（完全清空并新建）
-    const { editorWrapper, menuWrapper } = rebuildLayout();
+    // 4. 清空 #editing 并创建包装器
+    editingContainer.innerHTML = '';
+
+    // 创建编辑器包装器
+    const editorWrapper = document.createElement('div');
+    editorWrapper.className = 'edit-editor-wrapper';
+    editorWrapper.id = 'editor-wrapper';
+    editingContainer.appendChild(editorWrapper);
+
+    // 创建菜单包装器
+    const menuWrapper = document.createElement('div');
+    menuWrapper.className = 'edit-menu-wrapper';
+    menuWrapper.id = 'menu-wrapper';
+    editingContainer.appendChild(menuWrapper);
 
     // 5. 初始化 Vditor
     initVditor(editorWrapper);
