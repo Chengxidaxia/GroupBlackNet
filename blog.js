@@ -1,23 +1,20 @@
 // ============================================================
-// blog.js - 文章详情页（修复表情状态 + 图片换行）
+// blog.js - 完整修复版（上传、评论、代码块、图片）
 // ============================================================
 
 (function() {
   'use strict';
 
-  // ---------- 配置 ----------
   const API_URL = 'https://api.blacknet.cc.cd';
   const OAUTH_BASE = 'https://oauth.blacknet.cc.cd';
   const UPLOAD_URL = 'https://upload.blacknet.cc.cd';
   const COMMENTS_PER_PAGE = 20;
 
-  // ---------- DOM 引用 ----------
   const titleEl = document.getElementById('title');
   const infoEl = document.getElementById('information');
   const textEl = document.getElementById('text');
   const commentContainer = document.getElementById('comment');
 
-  // ---------- 状态 ----------
   let discussionData = null;
   let currentPage = 1;
   let totalPages = 1;
@@ -26,7 +23,7 @@
   let vditorInstance = null;
   let allComments = [];
   let totalComments = 0;
-  let userReactions = {}; // 存储当前会话中的用户反应状态
+  let userReactions = {};
 
   // ---------- 辅助函数 ----------
   function base64Decode(str) {
@@ -37,33 +34,24 @@
     }
   }
 
-  // 自定义 Markdown 渲染：让图片独占一行
+  // 重写 renderMarkdown
   function renderMarkdown(text) {
     if (typeof marked === 'undefined' || typeof marked.parse !== 'function') {
-      // fallback
       return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
     }
-    // 使用自定义渲染器
-    const renderer = {
-      image(href, title, text) {
-        // 生成块级图片
-        return `<img src="${href}" alt="${text}" title="${title || ''}" style="display:block; margin:10px 0; max-width:100%; height:auto;" />`;
-      }
-    };
-    // 创建 marked 实例并应用渲染器
-    const markedInstance = new marked.Marked();
-    markedInstance.setOptions({ renderer });
-    // 或者直接使用默认 marked 但通过 parse 的选项
-    // 由于 marked 版本可能不同，这里采用更通用的方式：
-    // 先正常解析，再替换 img 标签
     let html = marked.parse(text);
-    // 替换所有 img 标签，增加块级样式（无论是否有属性换行）
+    // DOMPurify 清洗，保留代码块
+    if (typeof DOMPurify !== 'undefined') {
+      html = DOMPurify.sanitize(html, {
+        ADD_TAGS: ['pre', 'code'],
+        ADD_ATTR: ['style', 'class'],
+      });
+    }
+    // 强制图片块级
     html = html.replace(/<img([^>]*)>/gi, function(match, attrs) {
-      // 检查是否已经有 style 属性
-      if (attrs.includes('style=')) {
-        // 在 style 中追加 display:block
-        attrs = attrs.replace(/style=["']([^"']*)["']/i, function(m, style) {
-          return `style="${style}; display:block; margin:10px 0; max-width:100%; height:auto;"`;
+      if (/style\s*=/i.test(attrs)) {
+        attrs = attrs.replace(/style\s*=\s*(["'])([^"']*)\1/i, function(m, quote, style) {
+          return `style=${quote}${style}; display:block; margin:10px 0; max-width:100%; height:auto;${quote}`;
         });
       } else {
         attrs += ` style="display:block; margin:10px 0; max-width:100%; height:auto;"`;
@@ -75,7 +63,10 @@
 
   function sanitizeHtml(html) {
     if (typeof DOMPurify !== 'undefined' && typeof DOMPurify.sanitize === 'function') {
-      return DOMPurify.sanitize(html);
+      return DOMPurify.sanitize(html, {
+        ADD_TAGS: ['pre', 'code'],
+        ADD_ATTR: ['style', 'class'],
+      });
     }
     return html;
   }
@@ -99,7 +90,6 @@
     'EYES': '👀'
   };
 
-  // ---------- 解析第一行 ----------
   function parseFirstLine(body) {
     const lines = body.split('\n');
     const firstLine = lines.find(line => line.trim() !== '') || '';
@@ -128,7 +118,7 @@
     return { info, bodyText, isJson };
   }
 
-  // ---------- 渲染 Reaction（基于 viewerHasReacted） ----------
+  // ---------- 渲染 Reaction ----------
   function renderReactions(reactionGroups, subjectId, canInteract = false) {
     if (!reactionGroups || reactionGroups.length === 0) {
       return '<div class="reactions-container" style="display:flex; flex-wrap:wrap; gap:8px; margin:10px 0;"></div>';
@@ -138,8 +128,8 @@
       const count = group.users.totalCount;
       const emoji = EMOJI_MAP[group.content] || group.content;
       const countId = `reaction-count-${subjectId}-${group.content}`;
+      // 如果 API 返回了 viewerHasReacted 就使用，否则默认为 false
       const viewerReacted = group.viewerHasReacted === true;
-      // 更新 userReactions
       if (canInteract) {
         userReactions[`${subjectId}-${group.content}`] = viewerReacted;
       }
@@ -162,7 +152,7 @@
     return html;
   }
 
-  // ---------- 渲染评论列表 ----------
+  // ---------- 渲染评论 ----------
   function renderComments(comments) {
     if (!comments || comments.length === 0) {
       return '<p style="text-align:center;color:#888;">暂无评论</p>';
@@ -197,7 +187,7 @@
     return html;
   }
 
-  // ---------- Reaction 交互（toggle） ----------
+  // ---------- Reaction 交互 ----------
   function updateReactionCount(subjectId, content, delta) {
     const countId = `reaction-count-${subjectId}-${content}`;
     const el = document.getElementById(countId);
@@ -233,7 +223,6 @@
     const newActive = !isActive;
     userReactions[key] = newActive;
 
-    // 乐观更新 UI
     toggleReactionHighlight(item, newActive);
     updateReactionCount(subjectId, content, newActive ? 1 : -1);
     item.style.opacity = '0.6';
@@ -254,7 +243,6 @@
         return;
       }
 
-      // 如果失败，回滚
       if (res.status === 409) {
         const reverseAction = newActive ? 'remove' : 'add';
         const reverseRes = await fetch(`${OAUTH_BASE}/reaction`, {
@@ -277,7 +265,6 @@
         return;
       }
 
-      // 其他错误
       const errData = await res.json();
       console.error('Reaction error:', errData);
       userReactions[key] = isActive;
@@ -354,7 +341,7 @@
       });
       const data = await res.json();
       if (res.ok) {
-        alert('评论发表成功！');
+        // 静默刷新，不弹窗
         vditorInstance.setValue('');
         const d = discussionData.number;
         await loadDiscussionFull(d);
@@ -367,7 +354,7 @@
     }
   }
 
-  // ---------- 初始化 Vditor ----------
+  // ---------- Vditor 初始化 ----------
   function initVditor() {
     const editorContainer = document.getElementById('vditor-container');
     if (!editorContainer) return;
@@ -428,7 +415,7 @@
     }
   }
 
-  // ---------- 加载讨论数据 ----------
+  // ---------- 加载讨论 ----------
   async function loadDiscussionFull(discussionNumber) {
     try {
       const res = await fetch(`${API_URL}/?d=${discussionNumber}&cfirst=100`);
@@ -439,19 +426,15 @@
 
       commentContainer.innerHTML = '';
 
-      // 标题
       const titleText = discussionData.title || '无标题';
       document.title = titleText + ' - 群档案';
       titleEl.innerHTML = `<span style="font-size:26pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; font-weight:bold;">${titleText}</span>`;
 
-      // 简介
       const { info, bodyText, isJson } = parseFirstLine(discussionData.body);
       infoEl.innerHTML = `<span style="font-size:14pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; font-weight:bold;">${sanitizeHtml(renderMarkdown(info))}</span>`;
 
-      // 正文（使用 renderMarkdown 已处理图片）
       textEl.innerHTML = `<div style="padding:0 10px; text-align:left;">${sanitizeHtml(renderMarkdown(bodyText))}</div>`;
 
-      // 顶部 Reaction
       const discussionId = discussionData.id;
       const reactionHtml = renderReactions(
         discussionData.reactionGroups || [],
@@ -463,7 +446,6 @@
       reactionDiv.innerHTML = reactionHtml;
       commentContainer.appendChild(reactionDiv);
 
-      // Vditor
       const editorContainer = document.createElement('div');
       editorContainer.id = 'vditor-container';
       editorContainer.style.cssText = 'margin:10px 0; text-align:left;';
@@ -478,7 +460,6 @@
         editorContainer.innerHTML = '<p style="text-align:center;color:#888;padding:20px;">登录后即可评论</p>';
       }
 
-      // 评论列表
       const commentListDiv = document.createElement('div');
       commentListDiv.id = 'comment-list';
       commentListDiv.style.cssText = 'text-align:left; margin-top:20px;';
@@ -520,7 +501,6 @@
     }
   }
 
-  // ---------- 动态加载 Vditor ----------
   function loadVditorScript() {
     return new Promise((resolve, reject) => {
       if (typeof Vditor !== 'undefined') { resolve(); return; }
@@ -536,7 +516,6 @@
     });
   }
 
-  // ---------- 检查登录状态 ----------
   async function checkLoginStatus() {
     try {
       const res = await fetch(`${OAUTH_BASE}/me`, { credentials: 'include' });
@@ -552,7 +531,6 @@
     }
   }
 
-  // ---------- 初始化 ----------
   async function init() {
     const params = new URLSearchParams(window.location.search);
     const d = params.get('d');
@@ -574,5 +552,4 @@
   } else {
     init();
   }
-
 })();
