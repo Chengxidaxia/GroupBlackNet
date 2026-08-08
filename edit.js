@@ -1,6 +1,5 @@
 // ============================================================
-// edit.js - 创建新讨论页面（适配单一 editor 容器）
-// 提交按钮直接放在编辑器底部
+// edit.js - 创建新讨论页面（适配 #editing 容器）
 // ============================================================
 
 (function() {
@@ -15,7 +14,7 @@
   const infoInput = document.getElementById('info');
   const noiconCheck = document.getElementById('noicon');
   const uploadContainer = document.getElementById('upload');
-  const editorContainer = document.getElementById('editor');
+  const editorContainer = document.getElementById('editing');  // 改为 #editing
 
   let vditorInstance = null;
   let coverUrl = null;
@@ -91,13 +90,13 @@
       .upload-area.hidden {
         display: none !important;
       }
-      /* 编辑器容器最小高度 */
-      #editor {
+      /* 编辑器容器样式 */
+      #editing {
         min-height: 500px;
         display: block;
         width: 80%;
         max-width: 1000px;
-        margin: 0 auto;
+        margin: 20px auto;
       }
       /* 提交按钮区域 */
       .editor-footer {
@@ -288,6 +287,7 @@
     }
     container.innerHTML = '';
 
+    // 像 blog 一样直接初始化
     vditorInstance = new Vditor(container, {
       height: 500,
       mode: 'ir',
@@ -387,7 +387,7 @@
 
   // ---------- 构建编辑器底部（提交按钮） ----------
   function buildEditorFooter(container) {
-    // 移除已有的 footer
+    if (!container) return;
     const oldFooter = container.querySelector('.editor-footer');
     if (oldFooter) oldFooter.remove();
 
@@ -403,7 +403,7 @@
   // ---------- 初始化 ----------
   async function init() {
     if (!editorContainer) {
-      console.error('编辑器容器未找到');
+      console.error('编辑器容器 #editing 未找到');
       return;
     }
 
