@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（增强版，解决引用/代码块渲染）
+// blog.js - 文章详情页（最终修复版，代码块/引用正常显示）
 // ============================================================
 
 (function() {
@@ -25,11 +25,11 @@
   let totalComments = 0;
   let userReactions = {};
 
-  // ---------- 注入任务列表样式 ----------
-  function injectTaskListStyles() {
-    if (document.getElementById('task-list-styles')) return;
+  // ---------- 注入样式（包含代码块可见样式） ----------
+  function injectStyles() {
+    if (document.getElementById('blog-styles')) return;
     const style = document.createElement('style');
-    style.id = 'task-list-styles';
+    style.id = 'blog-styles';
     style.textContent = `
       .task-list-item {
         list-style-type: none !important;
@@ -44,43 +44,46 @@
         flex-shrink: 0;
         accent-color: #2da44e;
       }
-      .task-list-item p {
-        margin: 0;
-      }
+      .task-list-item p { margin: 0; }
       .comment-body .task-list-item,
       .markdown-body .task-list-item {
         margin-left: -20px;
       }
-      .comment-item ul, .comment-item ol {
-        padding-left: 24px;
-      }
+      .comment-item ul, .comment-item ol { padding-left: 24px; }
       .markdown-body pre {
         position: relative;
-        background: #f6f8fa;
-        padding: 16px;
-        border-radius: 6px;
-        overflow: auto;
+        background: #f6f8fa !important;
+        padding: 16px !important;
+        border-radius: 6px !important;
+        overflow: auto !important;
+        color: #000 !important;
       }
       .markdown-body code {
-        font-family: SFMono-Regular, Consolas, monospace;
+        font-family: SFMono-Regular, Consolas, monospace !important;
+        background: #f6f8fa !important;
+        padding: 0.2em 0.4em !important;
+        border-radius: 3px !important;
+        color: #000 !important;
       }
-      .comment-item {
-        text-align: left;
+      .markdown-body pre code {
+        background: transparent !important;
+        padding: 0 !important;
+        color: #000 !important;
       }
-      .comment-item .markdown-body {
-        font-size: 14px;
-        line-height: 1.6;
-      }
+      .comment-item { text-align: left; }
+      .comment-item .markdown-body { font-size: 14px; line-height: 1.6; }
       blockquote {
-        border-left: 4px solid #dfe2e5;
-        color: #6a737d;
-        padding-left: 16px;
-        margin-left: 0;
+        border-left: 4px solid #dfe2e5 !important;
+        color: #6a737d !important;
+        padding-left: 16px !important;
+        margin-left: 0 !important;
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
       }
     `;
     document.head.appendChild(style);
   }
-  injectTaskListStyles();
+  injectStyles();
 
   // ---------- 辅助函数 ----------
   function base64Decode(str) {
@@ -91,7 +94,7 @@
     }
   }
 
-  // ---------- Markdown 渲染（增强版） ----------
+  // ---------- Markdown 渲染（自带清洗，不再外部二次清洗） ----------
   let markedConfigured = false;
 
   function renderMarkdown(text) {
@@ -102,7 +105,6 @@
       return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
     }
 
-    // 配置 marked（只执行一次）
     if (!markedConfigured) {
       try {
         marked.use({
@@ -134,7 +136,7 @@
       return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
     }
 
-    // 清洗 HTML（显式允许 blockquote, pre, code 等）
+    // 使用 DOMPurify 清洗（确保 blockquote, pre, code 保留）
     if (typeof DOMPurify !== 'undefined') {
       html = DOMPurify.sanitize(html, {
         ADD_TAGS: ['input', 'task-list', 'task-list-item', 'blockquote', 'pre', 'code'],
@@ -144,8 +146,8 @@
       });
     }
 
-    // 调试：输出前200字符
-    console.log('renderMarkdown 输出片段:', html.slice(0, 200));
+    // 调试（可选）
+    // console.log('renderMarkdown 输出片段:', html.slice(0, 300));
 
     // 后处理：@提及 和 #引用
     const linkPlaceholders = [];
@@ -184,7 +186,7 @@
     return html;
   }
 
-  // ---------- 代码块复制 ----------
+  // ---------- 代码块复制按钮 ----------
   function addCopyButtonsToCodeBlocks() {
     document.querySelectorAll('.markdown-body pre, .comment-item pre, #text pre').forEach(pre => {
       if (pre.querySelector('.copy-code-btn')) return;
@@ -232,6 +234,7 @@
     });
   }
 
+  // 简化 sanitizeHtml（仅用于其它地方，正文和评论已由 renderMarkdown 清洗）
   function sanitizeHtml(html) {
     if (typeof DOMPurify !== 'undefined' && typeof DOMPurify.sanitize === 'function') {
       return DOMPurify.sanitize(html, {
@@ -335,7 +338,8 @@
       const author = comment.author.login;
       const avatar = comment.author.avatarUrl;
       const createdAt = formatDate(comment.createdAt);
-      const bodyHtml = sanitizeHtml(renderMarkdown(comment.body));
+      // 直接使用 renderMarkdown，不再外部 sanitizeHtml
+      const bodyHtml = renderMarkdown(comment.body);
       const reactionHtml = renderReactions(
         comment.reactionGroups || [],
         comment.id,
@@ -686,13 +690,14 @@
       const { info, bodyText, isJson } = parseFirstLine(discussionData.body);
 
       if (info && info.trim()) {
-        infoEl.innerHTML = `<span style="font-size:14pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; font-weight:bold;">${sanitizeHtml(renderMarkdown(info))}</span>`;
+        infoEl.innerHTML = `<span style="font-size:14pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; font-weight:bold;">${renderMarkdown(info)}</span>`;
       } else {
         infoEl.innerHTML = '';
       }
 
+      // 直接使用 renderMarkdown，不再额外 sanitizeHtml
       const renderedBody = renderMarkdown(bodyText);
-      textEl.innerHTML = `<div style="padding:0 10px; text-align:left;">${sanitizeHtml(renderedBody)}</div>`;
+      textEl.innerHTML = `<div style="padding:0 10px; text-align:left;">${renderedBody}</div>`;
       addCopyButtonsToCodeBlocks();
 
       // ---------- 表情 ----------
