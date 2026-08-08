@@ -1,6 +1,5 @@
 // ============================================================
-// edit.js - 创建新讨论页面（完整版）
-// 包含：登录检查、编辑器、封面上传、noicon 控制、居中
+// edit.js - 创建新讨论页面（修复布局错位）
 // ============================================================
 
 (function() {
@@ -40,16 +39,31 @@
     }
   }
 
-  // ---------- 样式注入（含居中、封面上传） ----------
+  // ---------- 样式注入（适配 RocketCake 布局） ----------
   function injectStyles() {
     if (document.getElementById('edit-styles')) return;
     const style = document.createElement('style');
     style.id = 'edit-styles';
     style.textContent = `
-      #editor, #menu {
+      /* 编辑器居中 */
+      #editor {
+        display: inline-block !important;
+        width: 80% !important;
+        max-width: 1000px !important;
+        text-align: left !important;
         margin: 0 auto !important;
-        display: block !important;
+        float: none !important;
       }
+      /* 菜单居中 */
+      #menu {
+        display: inline-block !important;
+        width: 80% !important;
+        max-width: 1000px !important;
+        text-align: center !important;
+        margin: 20px auto !important;
+        float: none !important;
+      }
+      /* 封面上传区域 */
       .upload-area {
         border: 2px dashed #ccc;
         border-radius: 8px;
@@ -255,8 +269,9 @@
       vditorInstance = null;
     }
     editorContainer.innerHTML = '';
-    editorContainer.style.margin = '0 auto';
-    editorContainer.style.display = 'block';
+    // 移除之前可能添加的样式干扰
+    editorContainer.style.cssText = '';
+    // 由 CSS 控制居中
 
     vditorInstance = new Vditor(editorContainer, {
       height: 500,
@@ -347,9 +362,8 @@
   // ---------- 构建菜单 ----------
   function buildMenu() {
     menuContainer.innerHTML = '';
-    menuContainer.style.margin = '0 auto';
-    menuContainer.style.display = 'block';
-    menuContainer.style.textAlign = 'center';
+    menuContainer.style.cssText = ''; // 清除可能的内联样式
+    // 由 CSS 控制居中
 
     const submitBtn = document.createElement('button');
     submitBtn.textContent = '创建新讨论';
