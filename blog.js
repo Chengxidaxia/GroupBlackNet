@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（最终版，含上传修复）
+// blog.js - 文章详情页（最终版，上传已修复）
 // ============================================================
 
 (function() {
@@ -620,7 +620,7 @@
     }
   }
 
-  // ---------- Vditor 初始化（包含 format 调试） ----------
+  // ---------- Vditor 初始化（核心修复） ----------
   function initVditor() {
     const editorContainer = document.getElementById('vditor-container');
     if (!editorContainer) return;
@@ -649,19 +649,18 @@
         max: 32 * 1024 * 1024,
         multiple: false,
         withCredentials: true,
-        // 关键：使用 format 解析响应，确保 Vditor 能识别
-        format: function(res) {
-          console.log('Vditor format 原始响应:', res);
-          // 如果 res 是字符串，尝试解析 JSON
-          if (typeof res === 'string') {
-            try {
-              return JSON.parse(res);
-            } catch (e) {
-              console.error('JSON 解析失败:', res);
-              return { code: 1, msg: '服务器返回非 JSON' };
-            }
+        // 正确实现 format：第一个参数是文件列表，第二个是响应文本
+        format: function (files, responseText) {
+          console.log('上传文件列表:', files);
+          console.log('服务器响应原文:', responseText);
+          try {
+            const data = JSON.parse(responseText);
+            // 要求返回 { code: 0, data: { errFiles: [], succMap: { "filename": "url" } } }
+            return data;
+          } catch (e) {
+            console.error('解析响应失败:', e);
+            return { code: 1, msg: '服务器返回格式错误' };
           }
-          return res;
         }
       },
       toolbar: [
