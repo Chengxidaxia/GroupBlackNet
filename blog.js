@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（最终版，去掉加号，修复上传）
+// blog.js - 文章详情页（最终版，含上传修复）
 // ============================================================
 
 (function() {
@@ -620,7 +620,7 @@
     }
   }
 
-  // ---------- Vditor 初始化（修复上传） ----------
+  // ---------- Vditor 初始化（包含 format 调试） ----------
   function initVditor() {
     const editorContainer = document.getElementById('vditor-container');
     if (!editorContainer) return;
@@ -649,12 +649,19 @@
         max: 32 * 1024 * 1024,
         multiple: false,
         withCredentials: true,
-        success: function(res) {
-          console.log('上传成功，返回数据:', res);
-          // Vditor 自动插入图片
-        },
-        error: function(msg) {
-          console.error('上传失败:', msg);
+        // 关键：使用 format 解析响应，确保 Vditor 能识别
+        format: function(res) {
+          console.log('Vditor format 原始响应:', res);
+          // 如果 res 是字符串，尝试解析 JSON
+          if (typeof res === 'string') {
+            try {
+              return JSON.parse(res);
+            } catch (e) {
+              console.error('JSON 解析失败:', res);
+              return { code: 1, msg: '服务器返回非 JSON' };
+            }
+          }
+          return res;
         }
       },
       toolbar: [
