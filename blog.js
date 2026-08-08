@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（最终版，修复评论 400）
+// blog.js - 文章详情页（最终版，修复顶层评论 400）
 // ============================================================
 
 (function() {
@@ -583,7 +583,7 @@
     container.appendChild(wrapper);
   }
 
-  // ---------- 提交评论（修复 400，增加日志） ----------
+  // ---------- 提交顶层评论（已修复） ----------
   async function submitComment() {
     if (!vditorInstance) {
       alert('编辑器未初始化');
@@ -599,12 +599,9 @@
       return;
     }
     const discussionId = discussionData.id;
-    const payload = {
-      discussionId: discussionId,
-      body: body,
-      parentCommentId: null  // 明确传递 null
-    };
-    console.log('提交评论 payload:', payload);
+    // 顶层评论不传 parentCommentId
+    const payload = { discussionId, body };
+    console.log('提交顶层评论 payload:', payload);
     try {
       const res = await fetch(`${OAUTH_BASE}/comment`, {
         method: 'POST',
@@ -618,6 +615,7 @@
         const d = discussionData.number;
         await loadDiscussionFull(d);
       } else {
+        console.error('评论提交失败:', data);
         alert(data.error || '评论发表失败');
       }
     } catch (error) {
