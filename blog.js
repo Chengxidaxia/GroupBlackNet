@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 完整修复版（上传、评论、代码块、图片）
+// blog.js - 文章详情页（支持回复功能）
 // ============================================================
 
 (function() {
@@ -34,20 +34,17 @@
     }
   }
 
-  // 重写 renderMarkdown
   function renderMarkdown(text) {
     if (typeof marked === 'undefined' || typeof marked.parse !== 'function') {
       return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
     }
     let html = marked.parse(text);
-    // DOMPurify 清洗，保留代码块
     if (typeof DOMPurify !== 'undefined') {
       html = DOMPurify.sanitize(html, {
         ADD_TAGS: ['pre', 'code'],
         ADD_ATTR: ['style', 'class'],
       });
     }
-    // 强制图片块级
     html = html.replace(/<img([^>]*)>/gi, function(match, attrs) {
       if (/style\s*=/i.test(attrs)) {
         attrs = attrs.replace(/style\s*=\s*(["'])([^"']*)\1/i, function(m, quote, style) {
@@ -128,7 +125,6 @@
       const count = group.users.totalCount;
       const emoji = EMOJI_MAP[group.content] || group.content;
       const countId = `reaction-count-${subjectId}-${group.content}`;
-      // 如果 API 返回了 viewerHasReacted 就使用，否则默认为 false
       const viewerReacted = group.viewerHasReacted === true;
       if (canInteract) {
         userReactions[`${subjectId}-${group.content}`] = viewerReacted;
@@ -152,12 +148,11 @@
     return html;
   }
 
-  // ---------- 渲染评论 ----------
-  function renderComments(comments) {
-    if (!comments || comments.length === 0) {
-      return '<p style="text-align:center;color:#888;">暂无评论</p>';
-    }
-    let html = '<div style="border:1px solid #ddd; border-radius:8px; padding:10px; background:#f9f9f9; text-align:left;">';
+  // ---------- 渲染评论树（递归） ----------
+  function renderCommentTree(comments, level = 0) {
+    if (!comments || comments.length === 0) return '';
+    let html = '';
+    const indent = level * 20;
     comments.forEach(comment => {
       const author = comment.author.login;
       const avatar = comment.author.avatarUrl;
@@ -168,23 +163,110 @@
         comment.id,
         isLoggedIn
       );
+      const replyCount = comment.replies ? comment.replies.totalCount || 0 : 0;
+      const hasReplies = replyCount > 0;
 
       html += `
-        <div class="comment-item" style="border-bottom:1px solid #e1e4e8;padding:12px 0; text-align:left;">
+        <div class="comment-item" style="border-bottom:1px solid #e1e4e8;padding:12px 0; text-align:left; margin-left:${indent}px;">
           <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
             <a href="https://github.com/${author}" target="_blank" style="display:flex; align-items:center; gap:8px; text-decoration:none; color:inherit;">
               <img src="${avatar}" style="width:32px; height:32px; border-radius:50%;" alt="avatar" />
               <span style="font-weight:bold;">${author}</span>
             </a>
             <span style="color:#888;font-size:12px;">${createdAt}</span>
+            ${isLoggedIn ? `<button class="reply-btn" data-comment-id="${comment.id}" style="border:none;background:none;cursor:pointer;color:#0366d6;font-size:12px;">回复</button>` : ''}
           </div>
           <div style="margin-left:40px; font-size:14px; line-height:1.6;">${bodyHtml}</div>
           ${reactionHtml}
+          <div class="reply-container" data-parent-id="${comment.id}" style="margin-top:8px;"></div>
+          ${hasReplies ? `<div class="replies-container" style="margin-left:20px;">${renderCommentTree(comment.replies.nodes, level + 1)}</div>` : ''}
         </div>
       `;
     });
-    html += '</div>';
     return html;
+  }
+
+  // ---------- 渲染评论列表 ----------
+  function renderComments(comments) {
+    if (!comments || comments.length === 0) {
+      return '<p style="text-align:center;color:#888;">暂无评论</p>';
+    }
+    return `<div style="border:1px solid #ddd; border-radius:8px; padding:10px; background:#f9f9f9; text-align:left;">${renderCommentTree(comments)}</div>`;
+  }
+
+  // ---------- 绑定回复按钮事件 ----------
+  function bindReplyEvents() {
+    document.querySelectorAll('.reply-btn').forEach(btn => {
+      btn.removeEventListener('click', handleReplyClick);
+      btn.addEventListener('click', handleReplyClick);
+    });
+    // 重新绑定 reaction 事件
+    bindReactionEvents();
+  }
+
+  // ---------- 处理回复点击 ----------
+  function handleReplyClick(e) {
+    const btn = e.currentTarget;
+    const parentId = btn.dataset.commentId;
+    const container = document.querySelector(`.reply-container[data-parent-id="${parentId}"]`);
+    if (!container) return;
+
+    // 如果已经存在回复框则移除
+    const existing = container.querySelector('.reply-editor');
+    if (existing) {
+      container.innerHTML = '';
+      return;
+    }
+
+    // 创建内联编辑框（简单 textarea + 提交按钮）
+    const editorDiv = document.createElement('div');
+    editorDiv.className = 'reply-editor';
+    editorDiv.style.cssText = 'margin-top:8px; padding:8px; border:1px solid #ddd; border-radius:4px; background:#fff;';
+    editorDiv.innerHTML = `
+      <textarea rows="3" placeholder="写下你的回复..." style="width:100%; padding:4px; font-size:14px; border:1px solid #ccc; border-radius:4px;"></textarea>
+      <div style="margin-top:4px;">
+        <button class="reply-submit" data-parent-id="${parentId}" style="background:#2da44e; color:white; border:none; border-radius:4px; padding:4px 12px; cursor:pointer;">提交回复</button>
+        <button class="reply-cancel" style="background:#ccc; color:#333; border:none; border-radius:4px; padding:4px 12px; cursor:pointer; margin-left:4px;">取消</button>
+      </div>
+    `;
+    container.appendChild(editorDiv);
+
+    editorDiv.querySelector('.reply-cancel').addEventListener('click', function() {
+      container.innerHTML = '';
+    });
+
+    editorDiv.querySelector('.reply-submit').addEventListener('click', async function() {
+      const textarea = editorDiv.querySelector('textarea');
+      const body = textarea.value.trim();
+      if (!body) {
+        alert('请输入回复内容');
+        return;
+      }
+      try {
+        const res = await fetch(`${OAUTH_BASE}/comment`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            discussionId: discussionData.id,
+            body: body,
+            parentCommentId: parentId
+          })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert('回复成功！');
+          // 重新加载讨论以显示新回复
+          const d = discussionData.number;
+          await loadDiscussionFull(d);
+        } else {
+          alert(data.error || '回复失败');
+        }
+      } catch (error) {
+        console.error('回复异常:', error);
+        alert('网络错误，请稍后重试');
+      }
+    });
   }
 
   // ---------- Reaction 交互 ----------
@@ -316,7 +398,7 @@
     container.appendChild(wrapper);
   }
 
-  // ---------- 提交评论 ----------
+  // ---------- 提交评论（顶层） ----------
   async function submitComment() {
     if (!vditorInstance) {
       alert('编辑器未初始化');
@@ -337,11 +419,10 @@
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ discussionId, body }),
+        body: JSON.stringify({ discussionId, body })
       });
       const data = await res.json();
       if (res.ok) {
-        // 静默刷新，不弹窗
         vditorInstance.setValue('');
         const d = discussionData.number;
         await loadDiscussionFull(d);
@@ -383,8 +464,8 @@
         max: 32 * 1024 * 1024,
         multiple: false,
         withCredentials: true,
-        success: (res) => {},
-        error: (msg) => { console.error('上传失败:', msg); }
+        success: function(res) {},
+        error: function(msg) { console.error('上传失败:', msg); }
       },
       toolbar: [
         'emoji', 'headings', 'bold', 'italic', 'strike', 'link', 'quote',
@@ -489,10 +570,12 @@
         renderPagination(paginationBottom, page, totalPages, (newPage) => {
           renderCommentsPage(newPage);
         });
+        bindReplyEvents();
         bindReactionEvents();
       }
 
       renderCommentsPage(1);
+      bindReplyEvents();
       bindReactionEvents();
 
     } catch (error) {
