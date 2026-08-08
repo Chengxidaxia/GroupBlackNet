@@ -1,6 +1,5 @@
 // ============================================================
-// main.js - 文章列表加载、排序、分页（完整稳定版）
-// 依赖：marked.js（可选），如未加载则使用纯文本 fallback
+// main.js - 文章列表加载、排序、分页（图片路径改为 img/）
 // ============================================================
 
 (function() {
@@ -24,14 +23,6 @@
   const CONTAINER = document.getElementById('main');
 
   // ---------- 辅助函数 ----------
-  function base64Decode(str) {
-    try {
-      return decodeURIComponent(escape(atob(str)));
-    } catch (e) {
-      return atob(str);
-    }
-  }
-
   function extractFirstImage(markdown) {
     if (!markdown) return null;
     const mdMatch = markdown.match(/!\[.*?\]\((.*?)\)/);
@@ -43,46 +34,14 @@
     return null;
   }
 
-  function renderMarkdown(text) {
-    if (typeof marked !== 'undefined' && typeof marked.parse === 'function') {
-      return marked.parse(text);
-    }
-    return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
-  }
-
-  function parseFirstLine(body) {
-    const lines = body.split('\n');
+  function getFirstLinePlainText(markdown) {
+    const lines = markdown.split('\n');
     const firstLine = lines.find(line => line.trim() !== '') || '';
-    let summaryHtml = '';
-    let iconUrl = null;
-
-    try {
-      const data = JSON.parse(firstLine);
-      if (data.info) {
-        const decoded = base64Decode(data.info);
-        summaryHtml = renderMarkdown(decoded);
-      }
-      if (data.icon) {
-        const decodedIcon = base64Decode(data.icon);
-        if (decodedIcon && /^https?:\/\//.test(decodedIcon)) {
-          iconUrl = decodedIcon;
-        }
-      }
-    } catch (e) {
-      summaryHtml = firstLine
-        .replace(/!\[.*?\]\(.*?\)/g, '')
-        .replace(/\[.*?\]\(.*?\)/g, '$1')
-        .replace(/[#*`>_\-]/g, '')
-        .trim() || '无简介';
-    }
-
-    if (!iconUrl) {
-      iconUrl = extractFirstImage(body) || 'rc_images/pole.jpg';
-    }
-    if (!summaryHtml) {
-      summaryHtml = '无简介';
-    }
-    return { summaryHtml, iconUrl };
+    return firstLine
+      .replace(/!\[.*?\]\(.*?\)/g, '')
+      .replace(/\[.*?\]\(.*?\)/g, '$1')
+      .replace(/[#*`>_\-]/g, '')
+      .trim() || '无简介';
   }
 
   function formatDate(dateStr) {
@@ -129,9 +88,11 @@
     const avatar = post.author.avatarUrl;
     const createdAt = formatDate(post.createdAt);
     const commentsCount = post.comments.totalCount;
+    // 修改默认图片路径为 img/pole.jpg
+    const imageUrl = extractFirstImage(post.body) || 'img/pole.jpg';
+    const summary = getFirstLinePlainText(post.body);
     const reactionsHtml = renderReactions(post.reactionGroups);
     const detailLink = `/blog.html?d=${number}`;
-    const { summaryHtml, iconUrl } = parseFirstLine(post.body);
 
     return `
       <div style="box-sizing: border-box; vertical-align: top; border-radius: 15px; position:relative; display: inline-block; margin:10px; width:80%; min-height:320px; max-width:1000px; background-color:#FFFFFF; border: 1px solid #404040; text-align:left;">
@@ -142,10 +103,10 @@
             <div style="vertical-align: top; position:relative; display: inline-block; width:100%; min-height:150px; background:none;">
               <div style="margin: 10px; display: block;">
                 <div style="text-align:left;">
-                  <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000; line-height: 1.5;">${summaryHtml}</span>
+                  <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000; line-height: 1.5;">${summary}</span>
                 </div>
                 <div style="text-align:right;">
-                  <img src="${iconUrl}" style="vertical-align: bottom; position:relative; display: inline-block; height:150px; background:none;" alt="" onerror="this.src='rc_images/pole.jpg'" />
+                  <img src="${imageUrl}" style="vertical-align: bottom; position:relative; display: inline-block; height:150px; background:none;" alt="" onerror="this.src='img/pole.jpg'" />
                 </div>
                 <div style="text-align:left;">
                   <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000; line-height: 1.5;"><br/><br/><br/></span>
@@ -202,6 +163,7 @@
   // ---------- 渲染 ----------
   function renderCards() {
     if (!cardsContainer) return;
+
     if (!allPosts || allPosts.length === 0) {
       cardsContainer.innerHTML = '<p style="text-align:center;padding:20px;">暂无文章</p>';
       const topEl = document.getElementById('pagination-top');
