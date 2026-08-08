@@ -1,6 +1,5 @@
 <!-- ============================================================
-     公共头部：标题、导航、登录/用户信息
-     依赖：oauth.js 会操作 #user-info、#login-area 等元素
+     公共头部：标题、导航、登录/用户信息（含写稿按钮）
      ============================================================ -->
 <div id="header" style="
   display: flex;
@@ -43,6 +42,19 @@
       <a id="user-link" href="#" target="_blank" style="display: flex; align-items: center; gap: 6px; text-decoration: none; color: #333;">
         <img id="user-avatar" src="" alt="avatar" style="width: 32px; height: 32px; border-radius: 50%;">
         <span id="username" style="font-size: 12pt;"></span>
+      </a>
+      <!-- 写稿按钮 -->
+      <a href="/edit.html" style="text-decoration: none;">
+        <button style="
+          padding: 6px 16px;
+          background: #1a7f37;
+          color: white;
+          border: none;
+          border-radius: 6px;
+          font-size: 12pt;
+          cursor: pointer;
+          font-weight: bold;
+        ">✏️ 写稿</button>
       </a>
       <button id="logout" style="
         width: 100px; height: 40px;
