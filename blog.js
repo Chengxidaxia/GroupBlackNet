@@ -1,5 +1,6 @@
 // ============================================================
-// blog.js - 文章详情页（支持回复功能）
+// blog.js - 文章详情页（完整修复版）
+// 依赖：marked.js、DOMPurify、Vditor（CDN）
 // ============================================================
 
 (function() {
@@ -34,52 +35,48 @@
     }
   }
 
-  // ---------- Markdown 渲染（支持 GFM 全部特性） ----------
+  // ---------- Markdown 渲染（GFM 全部特性 + 代码块复制） ----------
+  let markedConfigured = false;
+
   function renderMarkdown(text) {
     if (typeof marked === 'undefined' || typeof marked.parse !== 'function') {
-      // fallback
       return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
     }
 
-    // 配置 marked 以支持 GFM 全部特性
-    // 使用 marked.use 扩展（推荐）
-    if (typeof marked.use === 'function') {
+    // 配置 marked（只需执行一次）
+    if (!markedConfigured) {
       marked.use({
-        gfm: true,          // 启用 GFM（自动链接、任务列表、表格等）
-        breaks: true,       // 换行符转 <br>
+        gfm: true,
+        breaks: true,
         pedantic: false,
         mangle: false,
         headerIds: false,
         highlight: function(code, lang) {
           if (typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) {
-            return hljs.highlight(code, { language: lang }).value;
+            try {
+              return hljs.highlight(code, { language: lang }).value;
+            } catch (e) {}
           }
           return code;
         }
       });
+      markedConfigured = true;
     }
 
     // 渲染 Markdown
     let html = marked.parse(text);
 
-    // 清洗 HTML，但保留必要属性和标签
+    // DOMPurify 清洗，保留必要属性
     if (typeof DOMPurify !== 'undefined') {
       html = DOMPurify.sanitize(html, {
-        ADD_TAGS: ['input', 'task-list', 'task-list-item'],  // 任务列表所需
+        ADD_TAGS: ['input', 'task-list', 'task-list-item'],
         ADD_ATTR: ['type', 'checked', 'disabled', 'class', 'id', 'aria-label', 'data-*'],
-        FORCE_ATTR: {
-          'input': { 'disabled': '' }  // 防止用户交互
-        },
+        FORCE_ATTR: { 'input': { 'disabled': '' } },
         ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|geo):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
       });
     }
 
-    // 给代码块添加样式（如果需要语法高亮，可配合 highlight.js）
-    // 我们使用简单的背景和字体
-    html = html.replace(/<pre>/g, '<pre style="background:#f6f8fa; padding:16px; border-radius:6px; overflow:auto; font-size:13px; line-height:1.45;">');
-    html = html.replace(/<code>/g, '<code style="font-family:SFMono-Regular,Consolas,monospace;">');
-
-    // 强制图片块级显示
+    // 图片块级显示
     html = html.replace(/<img([^>]*)>/gi, function(match, attrs) {
       if (/style\s*=/i.test(attrs)) {
         attrs = attrs.replace(/style\s*=\s*(["'])([^"']*)\1/i, function(m, quote, style) {
@@ -94,11 +91,64 @@
     return html;
   }
 
+  // ---------- 为代码块添加复制按钮 ----------
+  function addCopyButtonsToCodeBlocks() {
+    document.querySelectorAll('.comment-item pre, .markdown-body pre, #text pre').forEach(pre => {
+      if (pre.querySelector('.copy-code-btn')) return;
+
+      const code = pre.querySelector('code');
+      if (!code) return;
+
+      let codeText = code.textContent;
+
+      const btn = document.createElement('button');
+      btn.className = 'copy-code-btn';
+      btn.textContent = '复制';
+      btn.style.cssText = `
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        padding: 4px 10px;
+        background: #2da44e;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        font-size: 12px;
+        cursor: pointer;
+        opacity: 0.7;
+        transition: opacity 0.2s;
+      `;
+      btn.addEventListener('mouseenter', () => { btn.style.opacity = '1'; });
+      btn.addEventListener('mouseleave', () => { btn.style.opacity = '0.7'; });
+
+      btn.addEventListener('click', async function(e) {
+        e.stopPropagation();
+        try {
+          await navigator.clipboard.writeText(codeText);
+          btn.textContent = '已复制!';
+          setTimeout(() => { btn.textContent = '复制'; }, 2000);
+        } catch (err) {
+          const textarea = document.createElement('textarea');
+          textarea.value = codeText;
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textarea);
+          btn.textContent = '已复制!';
+          setTimeout(() => { btn.textContent = '复制'; }, 2000);
+        }
+      });
+
+      pre.style.position = 'relative';
+      pre.appendChild(btn);
+    });
+  }
+
   function sanitizeHtml(html) {
     if (typeof DOMPurify !== 'undefined' && typeof DOMPurify.sanitize === 'function') {
       return DOMPurify.sanitize(html, {
-        ADD_TAGS: ['pre', 'code'],
-        ADD_ATTR: ['style', 'class'],
+        ADD_TAGS: ['pre', 'code', 'input', 'task-list', 'task-list-item'],
+        ADD_ATTR: ['style', 'class', 'type', 'checked', 'disabled', 'id', 'aria-label', 'data-*'],
       });
     }
     return html;
@@ -222,12 +272,12 @@
     return html;
   }
 
-  // ---------- 渲染评论列表 ----------
+  // ---------- 渲染评论列表（背景纯白） ----------
   function renderComments(comments) {
     if (!comments || comments.length === 0) {
       return '<p style="text-align:center;color:#888;">暂无评论</p>';
     }
-    return `<div style="border:1px solid #ddd; border-radius:8px; padding:10px; background:#f9f9f9; text-align:left;">${renderCommentTree(comments)}</div>`;
+    return `<div style="border:1px solid #ddd; border-radius:8px; padding:10px; background:#ffffff; text-align:left;">${renderCommentTree(comments)}</div>`;
   }
 
   // ---------- 绑定回复按钮事件 ----------
@@ -236,8 +286,6 @@
       btn.removeEventListener('click', handleReplyClick);
       btn.addEventListener('click', handleReplyClick);
     });
-    // 重新绑定 reaction 事件
-    bindReactionEvents();
   }
 
   // ---------- 处理回复点击 ----------
@@ -247,14 +295,12 @@
     const container = document.querySelector(`.reply-container[data-parent-id="${parentId}"]`);
     if (!container) return;
 
-    // 如果已经存在回复框则移除
     const existing = container.querySelector('.reply-editor');
     if (existing) {
       container.innerHTML = '';
       return;
     }
 
-    // 创建内联编辑框（简单 textarea + 提交按钮）
     const editorDiv = document.createElement('div');
     editorDiv.className = 'reply-editor';
     editorDiv.style.cssText = 'margin-top:8px; padding:8px; border:1px solid #ddd; border-radius:4px; background:#fff;';
@@ -292,7 +338,6 @@
         const data = await res.json();
         if (res.ok) {
           alert('回复成功！');
-          // 重新加载讨论以显示新回复
           const d = discussionData.number;
           await loadDiscussionFull(d);
         } else {
@@ -551,6 +596,8 @@
       infoEl.innerHTML = `<span style="font-size:14pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; font-weight:bold;">${sanitizeHtml(renderMarkdown(info))}</span>`;
 
       textEl.innerHTML = `<div style="padding:0 10px; text-align:left;">${sanitizeHtml(renderMarkdown(bodyText))}</div>`;
+      // 正文代码块复制按钮
+      addCopyButtonsToCodeBlocks();
 
       const discussionId = discussionData.id;
       const reactionHtml = renderReactions(
@@ -600,6 +647,8 @@
         const pageComments = allComments.slice(start, end);
         const html = renderComments(pageComments);
         commentListDiv.innerHTML = html;
+        // 评论代码块复制按钮
+        addCopyButtonsToCodeBlocks();
         renderPagination(paginationTop, page, totalPages, (newPage) => {
           renderCommentsPage(newPage);
         });
@@ -671,4 +720,5 @@
   } else {
     init();
   }
+
 })();
