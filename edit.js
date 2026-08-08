@@ -1,5 +1,6 @@
 // ============================================================
-// edit.js - 创建新讨论页面（最终布局修复）
+// edit.js - 创建新讨论页面（终极布局修复）
+// 使用 flex 强制垂直居中，解决编辑器和菜单布局问题
 // ============================================================
 
 (function() {
@@ -45,35 +46,31 @@
     }
   }
 
-  // ---------- 样式注入（强力修复布局） ----------
+  // ---------- 样式注入（关键：flex 布局） ----------
   function injectStyles() {
     if (document.getElementById('edit-styles')) return;
     const style = document.createElement('style');
     style.id = 'edit-styles';
     style.textContent = `
-      /* 父容器强制居中 */
-      #container_4dd2eac8 {
-        text-align: center !important;
-      }
-      #container_4dd2eac8 .textstyle2 {
-        text-align: center !important;
+      /* 将 .textstyle2 改为 flex 垂直居中 */
+      .textstyle2:has(#editor) {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        width: 100% !important;
       }
 
-      /* 编辑器容器 - 强制宽高 */
+      /* 编辑器容器 - 宽度 80%，最大 1000px */
       #editor {
-        display: inline-block !important;
         width: 80% !important;
         max-width: 1000px !important;
-        min-width: 600px !important;  /* 防止过窄 */
-        text-align: left !important;
-        vertical-align: top !important;
-        min-height: 400px !important;
+        min-width: 600px !important;
         background: #ffffff !important;
         border-radius: 8px !important;
         border: 1px solid #ddd !important;
-        padding: 0 !important;
         overflow: hidden !important;
-        margin: 0 auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
       }
       #editor .vditor {
         border: none !important;
@@ -83,28 +80,14 @@
       #editor .vditor-content {
         min-height: 400px !important;
       }
-      /* Vditor 大纲强制左侧 */
-      .vditor-outline {
-        left: 0 !important;
-        right: auto !important;
-      }
 
       /* 菜单容器 */
       #menu {
-        display: inline-block !important;
         width: 80% !important;
         max-width: 1000px !important;
         text-align: center !important;
-        vertical-align: top !important;
         padding: 20px 0 !important;
-        margin: 10px auto 0 auto !important;
-      }
-
-      /* 在 editor 和 menu 之间加换行效果 */
-      #editor::after {
-        content: "";
-        display: block;
-        height: 20px;
+        margin: 10px 0 0 0 !important;
       }
 
       /* 封面上传区域 */
@@ -147,6 +130,12 @@
       }
       .upload-area.hidden {
         display: none !important;
+      }
+
+      /* 强制大纲在左侧 */
+      .vditor-outline {
+        left: 0 !important;
+        right: auto !important;
       }
     `;
     document.head.appendChild(style);
@@ -310,8 +299,9 @@
       vditorInstance = null;
     }
     editorContainer.innerHTML = '';
-    // 确保容器样式正确
-    editorContainer.style.cssText = 'display:inline-block !important; width:80% !important; max-width:1000px !important; min-width:600px !important;';
+    // 清除可能的内联干扰样式
+    editorContainer.style.cssText = '';
+    editorContainer.style.width = '100%';
 
     vditorInstance = new Vditor(editorContainer, {
       height: 500,
@@ -335,11 +325,11 @@
       ],
       outline: {
         enable: true,
-        position: 'left'   // 明确左侧
+        position: 'left'
       }
     });
 
-    // 额外修复：确保大纲在左侧（如果 Vditor 渲染后仍跑偏，强制 CSS）
+    // 修复大纲位置
     setTimeout(function() {
       const outline = document.querySelector('.vditor-outline');
       if (outline) {
@@ -419,7 +409,8 @@
   // ---------- 构建菜单 ----------
   function buildMenu() {
     menuContainer.innerHTML = '';
-    menuContainer.style.cssText = 'display:inline-block !important; width:80% !important; max-width:1000px !important; text-align:center !important; margin-top:20px !important;';
+    menuContainer.style.cssText = '';
+    menuContainer.style.width = '100%';
     const submitBtn = document.createElement('button');
     submitBtn.textContent = '创建新讨论';
     submitBtn.style.cssText = `
@@ -472,8 +463,6 @@
 
     // 7. 初始隐藏
     updateUploadVisibility();
-
-    // 8. 确保编辑器和菜单之间有空隙（已通过 margin-top 和伪元素实现）
   }
 
   if (document.readyState === 'loading') {
