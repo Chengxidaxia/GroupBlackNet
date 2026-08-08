@@ -1,6 +1,6 @@
 // ============================================================
-// blog.js - 文章详情页（全功能修复版）
-// 包含：GFM全部、任务列表、@提及、#引用、代码块复制
+// blog.js - 文章详情页（完整功能版）
+// 包含：GFM Markdown渲染、任务列表、@提及、#引用、代码块复制、回复、表情
 // ============================================================
 
 (function() {
@@ -55,6 +55,23 @@
       .comment-item ul, .comment-item ol {
         padding-left: 24px;
       }
+      .markdown-body pre {
+        position: relative;
+        background: #f6f8fa;
+        padding: 16px;
+        border-radius: 6px;
+        overflow: auto;
+      }
+      .markdown-body code {
+        font-family: SFMono-Regular, Consolas, monospace;
+      }
+      .comment-item {
+        text-align: left;
+      }
+      .comment-item .markdown-body {
+        font-size: 14px;
+        line-height: 1.6;
+      }
     `;
     document.head.appendChild(style);
   }
@@ -69,7 +86,7 @@
     }
   }
 
-  // ---------- Markdown 渲染（含后处理） ----------
+  // ---------- Markdown 渲染（GFM + 后处理） ----------
   let markedConfigured = false;
 
   function renderMarkdown(text) {
@@ -78,7 +95,6 @@
       return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
     }
 
-    // 配置 marked（只执行一次）
     if (!markedConfigured) {
       try {
         marked.use({
@@ -102,10 +118,9 @@
       }
     }
 
-    // 第一步：渲染 Markdown
     let html = marked.parse(text);
 
-    // 第二步：DOMPurify 清洗（保留必要标签）
+    // 清洗但保留必要元素
     if (typeof DOMPurify !== 'undefined') {
       html = DOMPurify.sanitize(html, {
         ADD_TAGS: ['input', 'task-list', 'task-list-item'],
@@ -115,8 +130,7 @@
       });
     }
 
-    // 第三步：后处理 - 将 @提及 和 #引用 转换为链接
-    // 先保护已有的 <a> 标签
+    // 后处理：将 @提及 和 #引用 转换为链接（保护已有链接）
     const linkPlaceholders = [];
     html = html.replace(/<a\b[^>]*>.*?<\/a>/gi, function(match) {
       const index = linkPlaceholders.length;
@@ -124,22 +138,19 @@
       return `@@PLACEHOLDER${index}@@`;
     });
 
-    // @提及
     html = html.replace(/(^|\s)@([a-zA-Z0-9\-_]+)/g, function(match, prefix, username) {
       return `${prefix}<a href="https://github.com/${username}" target="_blank" class="mention" style="color:#0366d6;text-decoration:none;">@${username}</a>`;
     });
 
-    // #数字（假设是讨论编号）
     html = html.replace(/(^|\s)#(\d+)/g, function(match, prefix, num) {
       return `${prefix}<a href="/blog.html?d=${num}" class="issue-link" style="color:#0366d6;text-decoration:none;">#${num}</a>`;
     });
 
-    // 还原 <a> 标签
     html = html.replace(/@@PLACEHOLDER(\d+)@@/g, function(match, index) {
       return linkPlaceholders[parseInt(index)];
     });
 
-    // 第四步：图片块级显示
+    // 图片块级显示
     html = html.replace(/<img([^>]*)>/gi, function(match, attrs) {
       if (/style\s*=/i.test(attrs)) {
         attrs = attrs.replace(/style\s*=\s*(["'])([^"']*)\1/i, function(m, quote, style) {
@@ -151,12 +162,15 @@
       return `<img${attrs}>`;
     });
 
+    // 给代码块添加类，便于复制按钮定位
+    html = html.replace(/<pre>/g, '<pre class="markdown-body">');
+
     return html;
   }
 
   // ---------- 代码块复制按钮 ----------
   function addCopyButtonsToCodeBlocks() {
-    document.querySelectorAll('.comment-item pre, .markdown-body pre, #text pre').forEach(pre => {
+    document.querySelectorAll('.markdown-body pre, .comment-item pre, #text pre').forEach(pre => {
       if (pre.querySelector('.copy-code-btn')) return;
 
       const code = pre.querySelector('code');
@@ -240,28 +254,23 @@
     const lines = body.split('\n');
     const firstLine = lines.find(line => line.trim() !== '') || '';
     let info = null;
-    let isJson = false;
+    let bodyText = body; // 默认全部作为正文
+
     try {
       const data = JSON.parse(firstLine);
-      isJson = true;
+      // 只有成功解析为 JSON 时才拆分
       if (data.info) {
         info = base64Decode(data.info);
+        const restLines = lines.slice(1);
+        bodyText = restLines.join('\n').trim() || body;
       }
     } catch (e) {
-      info = firstLine
-        .replace(/!\[.*?\]\(.*?\)/g, '')
-        .replace(/\[.*?\]\(.*?\)/g, '$1')
-        .replace(/[#*`>_\-]/g, '')
-        .trim() || '无简介';
+      // 不是 JSON，全部作为正文，info 留空
+      info = null;
+      bodyText = body;
     }
-    let bodyText = '';
-    if (isJson) {
-      const restLines = lines.slice(1);
-      bodyText = restLines.join('\n').trim();
-    } else {
-      bodyText = body.replace(firstLine, '').trim();
-    }
-    return { info, bodyText, isJson };
+
+    return { info, bodyText, isJson: !!info };
   }
 
   // ---------- 渲染 Reaction ----------
@@ -297,7 +306,7 @@
     return html;
   }
 
-  // ---------- 渲染评论树 ----------
+  // ---------- 渲染评论树（递归） ----------
   function renderCommentTree(comments, level = 0) {
     if (!comments || comments.length === 0) return '';
     let html = '';
@@ -655,7 +664,12 @@
       titleEl.innerHTML = `<span style="font-size:26pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; font-weight:bold;">${titleText}</span>`;
 
       const { info, bodyText, isJson } = parseFirstLine(discussionData.body);
-      infoEl.innerHTML = `<span style="font-size:14pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; font-weight:bold;">${sanitizeHtml(renderMarkdown(info))}</span>`;
+
+      if (info) {
+        infoEl.innerHTML = `<span style="font-size:14pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; font-weight:bold;">${sanitizeHtml(renderMarkdown(info))}</span>`;
+      } else {
+        infoEl.innerHTML = ''; // 没有简介时隐藏
+      }
 
       textEl.innerHTML = `<div style="padding:0 10px; text-align:left;">${sanitizeHtml(renderMarkdown(bodyText))}</div>`;
       addCopyButtonsToCodeBlocks();
