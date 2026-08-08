@@ -1,5 +1,6 @@
 // ============================================================
-// edit.js - 创建新讨论页面（修复布局，居中显示）
+// edit.js - 创建新讨论页面（完整版）
+// 包含：标题同步、登录检查、编辑器、封面上传、布局修复
 // ============================================================
 
 (function() {
@@ -21,6 +22,12 @@
   let coverUrl = null;
   let coverFile = null;
   let isLoggedIn = false;
+
+  // ---------- 标题同步 ----------
+  function updateTitle() {
+    const val = titleInput.value.trim();
+    document.title = val || '编稿';
+  }
 
   // ---------- 登录检查 ----------
   async function checkLogin() {
@@ -45,14 +52,24 @@
     const style = document.createElement('style');
     style.id = 'edit-styles';
     style.textContent = `
-      /* 编辑器居中 - 利用父级 text-align:center + inline-block */
+      /* 编辑器居中 */
       #editor {
         display: inline-block !important;
         width: 80% !important;
         max-width: 1000px !important;
         text-align: left !important;
         vertical-align: top !important;
-        min-height: 600px !important;
+        min-height: 400px !important;
+        margin: 0 auto !important;
+        background: #fff !important;
+        border-radius: 8px !important;
+        border: 1px solid #ddd !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+      }
+      #editor .vditor {
+        border: none !important;
+        border-radius: 0 !important;
       }
       /* 菜单居中 */
       #menu {
@@ -62,6 +79,7 @@
         text-align: center !important;
         vertical-align: top !important;
         padding: 20px 0 !important;
+        margin: 0 auto !important;
       }
       /* 封面上传区域 */
       .upload-area {
@@ -104,9 +122,24 @@
       .upload-area.hidden {
         display: none !important;
       }
+      /* 容器 4dd2eac8 内的 text-align 保证居中 */
+      #container_4dd2eac8 {
+        text-align: center !important;
+      }
+      #container_4dd2eac8 .textstyle2 {
+        text-align: center !important;
+      }
+      /* 让编辑器容器有可见背景 */
+      #editor {
+        background: #ffffff !important;
+      }
       .vditor {
         border-radius: 8px !important;
         overflow: hidden !important;
+      }
+      /* 标题输入框样式 */
+      #title {
+        font-size: 26pt !important;
       }
     `;
     document.head.appendChild(style);
@@ -270,6 +303,7 @@
       vditorInstance = null;
     }
     editorContainer.innerHTML = '';
+    editorContainer.style.cssText = 'display:inline-block !important;';
 
     vditorInstance = new Vditor(editorContainer, {
       height: 500,
@@ -360,6 +394,7 @@
   // ---------- 构建菜单 ----------
   function buildMenu() {
     menuContainer.innerHTML = '';
+    menuContainer.style.cssText = 'display:inline-block !important;';
     const submitBtn = document.createElement('button');
     submitBtn.textContent = '创建新讨论';
     submitBtn.style.cssText = `
@@ -385,16 +420,20 @@
       return;
     }
 
-    // 2. 构建封面上传区域
+    // 2. 标题同步
+    updateTitle();
+    titleInput.addEventListener('input', updateTitle);
+
+    // 3. 构建封面上传区域
     buildUploadUI();
 
-    // 3. 初始化编辑器
+    // 4. 初始化编辑器
     initVditor();
 
-    // 4. 构建菜单
+    // 5. 构建菜单
     buildMenu();
 
-    // 5. noicon 切换控制 upload 显示/隐藏
+    // 6. noicon 切换控制 upload 显示/隐藏
     noiconCheck.addEventListener('change', function() {
       if (this.checked) {
         coverUrl = null;
@@ -406,12 +445,14 @@
       }
     });
 
-    // 6. 初始隐藏状态
+    // 7. 初始隐藏状态
     updateUploadVisibility();
 
-    // 7. 确保编辑器容器可见
-    editorContainer.style.display = 'inline-block';
-    menuContainer.style.display = 'inline-block';
+    // 8. 强制编辑器容器可见（延迟确保 Vditor 已渲染）
+    setTimeout(function() {
+      editorContainer.style.display = 'inline-block !important';
+      editorContainer.style.minHeight = '400px';
+    }, 100);
   }
 
   if (document.readyState === 'loading') {
