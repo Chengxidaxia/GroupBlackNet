@@ -1,6 +1,5 @@
 // ============================================================
-// edit.js - 创建新讨论页面（完整版）
-// 包含：标题同步、登录检查、编辑器、封面上传、布局修复
+// edit.js - 创建新讨论页面（最终布局修复）
 // ============================================================
 
 (function() {
@@ -46,32 +45,51 @@
     }
   }
 
-  // ---------- 样式注入 ----------
+  // ---------- 样式注入（强力修复布局） ----------
   function injectStyles() {
     if (document.getElementById('edit-styles')) return;
     const style = document.createElement('style');
     style.id = 'edit-styles';
     style.textContent = `
-      /* 编辑器居中 */
+      /* 父容器强制居中 */
+      #container_4dd2eac8 {
+        text-align: center !important;
+      }
+      #container_4dd2eac8 .textstyle2 {
+        text-align: center !important;
+      }
+
+      /* 编辑器容器 - 强制宽高 */
       #editor {
         display: inline-block !important;
         width: 80% !important;
         max-width: 1000px !important;
+        min-width: 600px !important;  /* 防止过窄 */
         text-align: left !important;
         vertical-align: top !important;
         min-height: 400px !important;
-        margin: 0 auto !important;
-        background: #fff !important;
+        background: #ffffff !important;
         border-radius: 8px !important;
         border: 1px solid #ddd !important;
         padding: 0 !important;
         overflow: hidden !important;
+        margin: 0 auto !important;
       }
       #editor .vditor {
         border: none !important;
         border-radius: 0 !important;
+        width: 100% !important;
       }
-      /* 菜单居中 */
+      #editor .vditor-content {
+        min-height: 400px !important;
+      }
+      /* Vditor 大纲强制左侧 */
+      .vditor-outline {
+        left: 0 !important;
+        right: auto !important;
+      }
+
+      /* 菜单容器 */
       #menu {
         display: inline-block !important;
         width: 80% !important;
@@ -79,8 +97,16 @@
         text-align: center !important;
         vertical-align: top !important;
         padding: 20px 0 !important;
-        margin: 0 auto !important;
+        margin: 10px auto 0 auto !important;
       }
+
+      /* 在 editor 和 menu 之间加换行效果 */
+      #editor::after {
+        content: "";
+        display: block;
+        height: 20px;
+      }
+
       /* 封面上传区域 */
       .upload-area {
         border: 2px dashed #ccc;
@@ -121,25 +147,6 @@
       }
       .upload-area.hidden {
         display: none !important;
-      }
-      /* 容器 4dd2eac8 内的 text-align 保证居中 */
-      #container_4dd2eac8 {
-        text-align: center !important;
-      }
-      #container_4dd2eac8 .textstyle2 {
-        text-align: center !important;
-      }
-      /* 让编辑器容器有可见背景 */
-      #editor {
-        background: #ffffff !important;
-      }
-      .vditor {
-        border-radius: 8px !important;
-        overflow: hidden !important;
-      }
-      /* 标题输入框样式 */
-      #title {
-        font-size: 26pt !important;
       }
     `;
     document.head.appendChild(style);
@@ -303,7 +310,8 @@
       vditorInstance = null;
     }
     editorContainer.innerHTML = '';
-    editorContainer.style.cssText = 'display:inline-block !important;';
+    // 确保容器样式正确
+    editorContainer.style.cssText = 'display:inline-block !important; width:80% !important; max-width:1000px !important; min-width:600px !important;';
 
     vditorInstance = new Vditor(editorContainer, {
       height: 500,
@@ -325,8 +333,25 @@
         'preview', 'fullscreen', 'outline', 'edit-mode', 'both',
         'undo', 'redo', 'more'
       ],
-      outline: { enable: true, position: 'left' }
+      outline: {
+        enable: true,
+        position: 'left'   // 明确左侧
+      }
     });
+
+    // 额外修复：确保大纲在左侧（如果 Vditor 渲染后仍跑偏，强制 CSS）
+    setTimeout(function() {
+      const outline = document.querySelector('.vditor-outline');
+      if (outline) {
+        outline.style.left = '0';
+        outline.style.right = 'auto';
+      }
+      // 确保编辑器宽度
+      const vditor = document.querySelector('.vditor');
+      if (vditor) {
+        vditor.style.width = '100%';
+      }
+    }, 200);
   }
 
   // ---------- 提交 ----------
@@ -394,7 +419,7 @@
   // ---------- 构建菜单 ----------
   function buildMenu() {
     menuContainer.innerHTML = '';
-    menuContainer.style.cssText = 'display:inline-block !important;';
+    menuContainer.style.cssText = 'display:inline-block !important; width:80% !important; max-width:1000px !important; text-align:center !important; margin-top:20px !important;';
     const submitBtn = document.createElement('button');
     submitBtn.textContent = '创建新讨论';
     submitBtn.style.cssText = `
@@ -413,7 +438,7 @@
 
   // ---------- 初始化 ----------
   async function init() {
-    // 1. 检查登录状态，未登录跳转 404
+    // 1. 登录检查
     const loggedIn = await checkLogin();
     if (!loggedIn) {
       window.location.href = '/404.html';
@@ -424,16 +449,16 @@
     updateTitle();
     titleInput.addEventListener('input', updateTitle);
 
-    // 3. 构建封面上传区域
+    // 3. 封面上传
     buildUploadUI();
 
-    // 4. 初始化编辑器
+    // 4. 编辑器
     initVditor();
 
-    // 5. 构建菜单
+    // 5. 菜单
     buildMenu();
 
-    // 6. noicon 切换控制 upload 显示/隐藏
+    // 6. noicon 切换
     noiconCheck.addEventListener('change', function() {
       if (this.checked) {
         coverUrl = null;
@@ -445,14 +470,10 @@
       }
     });
 
-    // 7. 初始隐藏状态
+    // 7. 初始隐藏
     updateUploadVisibility();
 
-    // 8. 强制编辑器容器可见（延迟确保 Vditor 已渲染）
-    setTimeout(function() {
-      editorContainer.style.display = 'inline-block !important';
-      editorContainer.style.minHeight = '400px';
-    }, 100);
+    // 8. 确保编辑器和菜单之间有空隙（已通过 margin-top 和伪元素实现）
   }
 
   if (document.readyState === 'loading') {
