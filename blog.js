@@ -1,6 +1,6 @@
 // ============================================================
-// blog.js - 文章详情页（完全修复版）
-// 包含：GFM全部特性、任务列表、@提及、#引用、代码块复制
+// blog.js - 文章详情页（全功能修复版）
+// 包含：GFM全部、任务列表、@提及、#引用、代码块复制
 // ============================================================
 
 (function() {
@@ -33,9 +33,9 @@
     style.id = 'task-list-styles';
     style.textContent = `
       .task-list-item {
-        list-style-type: none;
-        display: flex;
-        align-items: flex-start;
+        list-style-type: none !important;
+        display: flex !important;
+        align-items: flex-start !important;
       }
       .task-list-item input[type="checkbox"] {
         margin-right: 6px;
@@ -45,14 +45,15 @@
         flex-shrink: 0;
         accent-color: #2da44e;
       }
-      .task-list-item input[type="checkbox"]:checked {
-        accent-color: #2da44e;
-      }
       .task-list-item p {
         margin: 0;
       }
-      .comment-body .task-list-item {
+      .comment-body .task-list-item,
+      .markdown-body .task-list-item {
         margin-left: -20px;
+      }
+      .comment-item ul, .comment-item ol {
+        padding-left: 24px;
       }
     `;
     document.head.appendChild(style);
@@ -68,36 +69,43 @@
     }
   }
 
-  // ---------- Markdown 渲染（GFM + 提及 + 引用链接） ----------
+  // ---------- Markdown 渲染（含后处理） ----------
   let markedConfigured = false;
 
   function renderMarkdown(text) {
     if (typeof marked === 'undefined' || typeof marked.parse !== 'function') {
+      console.warn('marked 未加载，使用纯文本 fallback');
       return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
     }
 
+    // 配置 marked（只执行一次）
     if (!markedConfigured) {
-      marked.use({
-        gfm: true,
-        breaks: true,
-        pedantic: false,
-        mangle: false,
-        headerIds: false,
-        highlight: function(code, lang) {
-          if (typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) {
-            try {
-              return hljs.highlight(code, { language: lang }).value;
-            } catch (e) {}
+      try {
+        marked.use({
+          gfm: true,
+          breaks: true,
+          pedantic: false,
+          mangle: false,
+          headerIds: false,
+          highlight: function(code, lang) {
+            if (typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) {
+              try {
+                return hljs.highlight(code, { language: lang }).value;
+              } catch (e) {}
+            }
+            return code;
           }
-          return code;
-        }
-      });
-      markedConfigured = true;
+        });
+        markedConfigured = true;
+      } catch (e) {
+        console.warn('marked 配置失败:', e);
+      }
     }
 
+    // 第一步：渲染 Markdown
     let html = marked.parse(text);
 
-    // 清洗但保留必要元素
+    // 第二步：DOMPurify 清洗（保留必要标签）
     if (typeof DOMPurify !== 'undefined') {
       html = DOMPurify.sanitize(html, {
         ADD_TAGS: ['input', 'task-list', 'task-list-item'],
@@ -107,9 +115,8 @@
       });
     }
 
-    // ----- 后处理：将 @提及 和 #引用 转换为链接 -----
-    // 注意：避免替换已经在 <a> 标签内的内容
-    // 我们先将所有 <a> 标签暂时替换为占位符，处理完后再还原
+    // 第三步：后处理 - 将 @提及 和 #引用 转换为链接
+    // 先保护已有的 <a> 标签
     const linkPlaceholders = [];
     html = html.replace(/<a\b[^>]*>.*?<\/a>/gi, function(match) {
       const index = linkPlaceholders.length;
@@ -117,22 +124,22 @@
       return `@@PLACEHOLDER${index}@@`;
     });
 
-    // 转换 @用户名
+    // @提及
     html = html.replace(/(^|\s)@([a-zA-Z0-9\-_]+)/g, function(match, prefix, username) {
       return `${prefix}<a href="https://github.com/${username}" target="_blank" class="mention" style="color:#0366d6;text-decoration:none;">@${username}</a>`;
     });
 
-    // 转换 #数字（假设是讨论编号）
+    // #数字（假设是讨论编号）
     html = html.replace(/(^|\s)#(\d+)/g, function(match, prefix, num) {
       return `${prefix}<a href="/blog.html?d=${num}" class="issue-link" style="color:#0366d6;text-decoration:none;">#${num}</a>`;
     });
 
-    // 还原链接
+    // 还原 <a> 标签
     html = html.replace(/@@PLACEHOLDER(\d+)@@/g, function(match, index) {
       return linkPlaceholders[parseInt(index)];
     });
 
-    // 图片块级显示
+    // 第四步：图片块级显示
     html = html.replace(/<img([^>]*)>/gi, function(match, attrs) {
       if (/style\s*=/i.test(attrs)) {
         attrs = attrs.replace(/style\s*=\s*(["'])([^"']*)\1/i, function(m, quote, style) {
@@ -290,7 +297,7 @@
     return html;
   }
 
-  // ---------- 渲染评论树（递归） ----------
+  // ---------- 渲染评论树 ----------
   function renderCommentTree(comments, level = 0) {
     if (!comments || comments.length === 0) return '';
     let html = '';
@@ -336,7 +343,7 @@
     return `<div style="border:1px solid #ddd; border-radius:8px; padding:10px; background:#ffffff; text-align:left;">${renderCommentTree(comments)}</div>`;
   }
 
-  // ---------- 绑定回复按钮事件 ----------
+  // ---------- 回复事件 ----------
   function bindReplyEvents() {
     document.querySelectorAll('.reply-btn').forEach(btn => {
       btn.removeEventListener('click', handleReplyClick);
@@ -344,7 +351,6 @@
     });
   }
 
-  // ---------- 处理回复点击 ----------
   function handleReplyClick(e) {
     const btn = e.currentTarget;
     const parentId = btn.dataset.commentId;
@@ -535,7 +541,7 @@
     container.appendChild(wrapper);
   }
 
-  // ---------- 提交评论（顶层） ----------
+  // ---------- 提交评论 ----------
   async function submitComment() {
     if (!vditorInstance) {
       alert('编辑器未初始化');
@@ -572,7 +578,7 @@
     }
   }
 
-  // ---------- Vditor 初始化 ----------
+  // ---------- Vditor ----------
   function initVditor() {
     const editorContainer = document.getElementById('vditor-container');
     if (!editorContainer) return;
