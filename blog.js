@@ -1,7 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（最终稳定版）
-// 代码块背景 #F0F1F2，圆角；行内代码背景 #F0F1F2；
-// 图片最大高度 500px，保持比例
+// blog.js - 文章详情页（最终版，去掉加号，修复上传）
 // ============================================================
 
 (function() {
@@ -27,7 +25,7 @@
   let totalComments = 0;
   let userReactions = {};
 
-  // ---------- 注入样式 ----------
+  // ---------- 样式注入 ----------
   function injectStyles() {
     if (document.getElementById('blog-styles')) return;
     const style = document.createElement('style');
@@ -48,8 +46,6 @@
       }
       .task-list-item p { margin: 0; }
       .comment-item ul, .comment-item ol { padding-left: 24px; }
-
-      /* 引用样式 */
       blockquote {
         border-left: 4px solid #dfe2e5 !important;
         color: #6a737d !important;
@@ -58,8 +54,6 @@
         margin-top: 0 !important;
         margin-bottom: 0 !important;
       }
-
-      /* 行内代码样式 */
       .markdown-body code:not(pre code) {
         background: #F0F1F2 !important;
         padding: 0.2em 0.4em !important;
@@ -68,8 +62,6 @@
         font-size: 85% !important;
         font-family: SFMono-Regular, Consolas, monospace !important;
       }
-
-      /* 代码块样式（pre > code） */
       .markdown-body pre {
         background: #F0F1F2 !important;
         border-radius: 8px !important;
@@ -87,8 +79,6 @@
         white-space: pre !important;
         border-radius: 0 !important;
       }
-
-      /* 图片样式 */
       .markdown-body img {
         max-width: 100% !important;
         max-height: 500px !important;
@@ -97,7 +87,6 @@
         display: block !important;
         margin: 10px 0 !important;
       }
-
       .comment-item { text-align: left; }
       .comment-item .markdown-body { font-size: 14px; line-height: 1.6; }
     `;
@@ -156,7 +145,6 @@
       return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
     }
 
-    // DOMPurify 清洗（允许样式和必要标签）
     if (typeof DOMPurify !== 'undefined') {
       html = DOMPurify.sanitize(html, {
         ADD_TAGS: ['input', 'task-list', 'task-list-item', 'blockquote', 'pre', 'code'],
@@ -166,7 +154,7 @@
       });
     }
 
-    // 给 <pre> 添加内联样式（确保代码块背景和圆角）
+    // 给 <pre> 添加内联样式
     html = html.replace(/<pre>/gi, function(match) {
       if (/style\s*=/i.test(match)) {
         return match.replace(/style\s*=\s*(["'])([^"']*)\1/i, function(m, quote, style) {
@@ -176,31 +164,26 @@
         return '<pre style="background:#F0F1F2; border-radius:8px; padding:16px; overflow:auto; position:relative;">';
       }
     });
-
-    // 给 <pre> 添加 class="markdown-body"
     html = html.replace(/<pre/g, '<pre class="markdown-body"');
 
-    // 后处理 @提及 和 #引用
+    // 后处理 @ 和 #
     const linkPlaceholders = [];
     html = html.replace(/<a\b[^>]*>.*?<\/a>/gi, function(match) {
       const index = linkPlaceholders.length;
       linkPlaceholders.push(match);
       return `@@PLACEHOLDER${index}@@`;
     });
-
     html = html.replace(/(^|\s)@([a-zA-Z0-9\-_]+)/g, function(match, prefix, username) {
       return `${prefix}<a href="https://github.com/${username}" target="_blank" class="mention" style="color:#0366d6;text-decoration:none;">@${username}</a>`;
     });
-
     html = html.replace(/(^|\s)#(\d+)/g, function(match, prefix, num) {
       return `${prefix}<a href="/blog.html?d=${num}" class="issue-link" style="color:#0366d6;text-decoration:none;">#${num}</a>`;
     });
-
     html = html.replace(/@@PLACEHOLDER(\d+)@@/g, function(match, index) {
       return linkPlaceholders[parseInt(index)];
     });
 
-    // 图片块级显示（CSS 中已控制 max-height，这里只加块级样式）
+    // 图片限制高度
     html = html.replace(/<img([^>]*)>/gi, function(match, attrs) {
       if (/style\s*=/i.test(attrs)) {
         attrs = attrs.replace(/style\s*=\s*(["'])([^"']*)\1/i, function(m, quote, style) {
@@ -325,6 +308,7 @@
     return { info, bodyText, isJson };
   }
 
+  // ---------- 渲染 Reaction（已去掉加号） ----------
   function renderReactions(reactionGroups, subjectId, canInteract = false) {
     if (!reactionGroups || reactionGroups.length === 0) {
       return '<div class="reactions-container" style="display:flex; flex-wrap:wrap; gap:8px; margin:10px 0;"></div>';
@@ -349,7 +333,6 @@
              style="display:flex; align-items:center; gap:4px; padding:4px 8px; border:1px solid ${borderColor}; border-radius:16px; background:${bgColor}; ${canInteract ? 'cursor:pointer;' : ''}">
           <span style="font-size:18px;">${emoji}</span>
           <span id="${countId}" style="font-weight:bold;">${count}</span>
-          ${canInteract ? `<span style="font-size:12px;color:#888;">➕</span>` : ''}
         </div>
       `;
     });
@@ -357,6 +340,7 @@
     return html;
   }
 
+  // ---------- 评论树 ----------
   function renderCommentTree(comments, level = 0) {
     if (!comments || comments.length === 0) return '';
     let html = '';
@@ -365,7 +349,6 @@
       const author = comment.author.login;
       const avatar = comment.author.avatarUrl;
       const createdAt = formatDate(comment.createdAt);
-      // 用 .markdown-body 包裹内容，让样式生效
       const bodyHtml = `<div class="markdown-body">${renderMarkdown(comment.body)}</div>`;
       const reactionHtml = renderReactions(
         comment.reactionGroups || [],
@@ -402,6 +385,7 @@
     return `<div style="border:1px solid #ddd; border-radius:8px; padding:10px; background:#ffffff; text-align:left;">${renderCommentTree(comments)}</div>`;
   }
 
+  // ---------- 回复事件 ----------
   function bindReplyEvents() {
     document.querySelectorAll('.reply-btn').forEach(btn => {
       btn.removeEventListener('click', handleReplyClick);
@@ -470,6 +454,7 @@
     });
   }
 
+  // ---------- Reaction 交互 ----------
   function updateReactionCount(subjectId, content, delta) {
     const countId = `reaction-count-${subjectId}-${content}`;
     const el = document.getElementById(countId);
@@ -571,6 +556,7 @@
     });
   }
 
+  // ---------- 分页 ----------
   function renderPagination(container, currentPage, totalPages, onPageChange) {
     container.innerHTML = '';
     if (totalPages <= 1) return;
@@ -597,6 +583,7 @@
     container.appendChild(wrapper);
   }
 
+  // ---------- 提交评论 ----------
   async function submitComment() {
     if (!vditorInstance) {
       alert('编辑器未初始化');
@@ -633,6 +620,7 @@
     }
   }
 
+  // ---------- Vditor 初始化（修复上传） ----------
   function initVditor() {
     const editorContainer = document.getElementById('vditor-container');
     if (!editorContainer) return;
@@ -661,8 +649,13 @@
         max: 32 * 1024 * 1024,
         multiple: false,
         withCredentials: true,
-        success: function(res) {},
-        error: function(msg) { console.error('上传失败:', msg); }
+        success: function(res) {
+          console.log('上传成功，返回数据:', res);
+          // Vditor 自动插入图片
+        },
+        error: function(msg) {
+          console.error('上传失败:', msg);
+        }
       },
       toolbar: [
         'emoji', 'headings', 'bold', 'italic', 'strike', 'link', 'quote',
@@ -716,7 +709,6 @@
         infoEl.innerHTML = '';
       }
 
-      // 用 .markdown-body 包裹正文，让样式生效
       const renderedBody = `<div class="markdown-body" style="padding:0 10px; text-align:left;">${renderMarkdown(bodyText)}</div>`;
       textEl.innerHTML = renderedBody;
       addCopyButtonsToCodeBlocks();
