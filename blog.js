@@ -34,17 +34,52 @@
     }
   }
 
+  // ---------- Markdown 渲染（支持 GFM 全部特性） ----------
   function renderMarkdown(text) {
     if (typeof marked === 'undefined' || typeof marked.parse !== 'function') {
+      // fallback
       return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
     }
-    let html = marked.parse(text);
-    if (typeof DOMPurify !== 'undefined') {
-      html = DOMPurify.sanitize(html, {
-        ADD_TAGS: ['pre', 'code'],
-        ADD_ATTR: ['style', 'class'],
+
+    // 配置 marked 以支持 GFM 全部特性
+    // 使用 marked.use 扩展（推荐）
+    if (typeof marked.use === 'function') {
+      marked.use({
+        gfm: true,          // 启用 GFM（自动链接、任务列表、表格等）
+        breaks: true,       // 换行符转 <br>
+        pedantic: false,
+        mangle: false,
+        headerIds: false,
+        highlight: function(code, lang) {
+          if (typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) {
+            return hljs.highlight(code, { language: lang }).value;
+          }
+          return code;
+        }
       });
     }
+
+    // 渲染 Markdown
+    let html = marked.parse(text);
+
+    // 清洗 HTML，但保留必要属性和标签
+    if (typeof DOMPurify !== 'undefined') {
+      html = DOMPurify.sanitize(html, {
+        ADD_TAGS: ['input', 'task-list', 'task-list-item'],  // 任务列表所需
+        ADD_ATTR: ['type', 'checked', 'disabled', 'class', 'id', 'aria-label', 'data-*'],
+        FORCE_ATTR: {
+          'input': { 'disabled': '' }  // 防止用户交互
+        },
+        ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|geo):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
+      });
+    }
+
+    // 给代码块添加样式（如果需要语法高亮，可配合 highlight.js）
+    // 我们使用简单的背景和字体
+    html = html.replace(/<pre>/g, '<pre style="background:#f6f8fa; padding:16px; border-radius:6px; overflow:auto; font-size:13px; line-height:1.45;">');
+    html = html.replace(/<code>/g, '<code style="font-family:SFMono-Regular,Consolas,monospace;">');
+
+    // 强制图片块级显示
     html = html.replace(/<img([^>]*)>/gi, function(match, attrs) {
       if (/style\s*=/i.test(attrs)) {
         attrs = attrs.replace(/style\s*=\s*(["'])([^"']*)\1/i, function(m, quote, style) {
@@ -55,6 +90,7 @@
       }
       return `<img${attrs}>`;
     });
+
     return html;
   }
 

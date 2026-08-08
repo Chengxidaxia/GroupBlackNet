@@ -6,7 +6,12 @@ a:hover { color:#B2B3B4; }
 		a.wsp744bd6fd:visited{ color:#000000; text-decoration: none} 
 		a.wsp744bd6fd:active{ color:#000000; text-decoration: none} 
 		a.wsp744bd6fd:hover{ color:#000000; text-decoration: none} 
-body { background-color:#C0C0C0; padding:0;  margin: 0; }
+.task-list-item {
+  list-style-type: none;
+}
+.task-list-item input[type="checkbox"] {
+  margin-right: 8px;
+}body { background-color:#C0C0C0; padding:0;  margin: 0; }
 .textstyle1 { text-align:left; }
 #header-placeholder { vertical-align: bottom; position:relative; display: inline-block; width:100%;  }
 .textstyle2 { text-align:center; }
