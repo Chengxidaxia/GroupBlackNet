@@ -1,6 +1,7 @@
 // ============================================================
 // blog.js - 文章详情页（最终稳定版）
-// 代码块背景 #F0F1F2，圆角，内联样式确保显示
+// 代码块背景 #F0F1F2，圆角；行内代码背景 #F0F1F2；
+// 图片最大高度 500px，保持比例
 // ============================================================
 
 (function() {
@@ -26,7 +27,7 @@
   let totalComments = 0;
   let userReactions = {};
 
-  // ---------- 注入基本样式 ----------
+  // ---------- 注入样式 ----------
   function injectStyles() {
     if (document.getElementById('blog-styles')) return;
     const style = document.createElement('style');
@@ -47,6 +48,8 @@
       }
       .task-list-item p { margin: 0; }
       .comment-item ul, .comment-item ol { padding-left: 24px; }
+
+      /* 引用样式 */
       blockquote {
         border-left: 4px solid #dfe2e5 !important;
         color: #6a737d !important;
@@ -55,6 +58,46 @@
         margin-top: 0 !important;
         margin-bottom: 0 !important;
       }
+
+      /* 行内代码样式 */
+      .markdown-body code:not(pre code) {
+        background: #F0F1F2 !important;
+        padding: 0.2em 0.4em !important;
+        border-radius: 3px !important;
+        color: #000 !important;
+        font-size: 85% !important;
+        font-family: SFMono-Regular, Consolas, monospace !important;
+      }
+
+      /* 代码块样式（pre > code） */
+      .markdown-body pre {
+        background: #F0F1F2 !important;
+        border-radius: 8px !important;
+        padding: 16px !important;
+        overflow: auto !important;
+        position: relative;
+      }
+      .markdown-body pre code {
+        background: transparent !important;
+        color: #000 !important;
+        padding: 0 !important;
+        font-family: SFMono-Regular, Consolas, monospace !important;
+        font-size: 13px !important;
+        line-height: 1.45 !important;
+        white-space: pre !important;
+        border-radius: 0 !important;
+      }
+
+      /* 图片样式 */
+      .markdown-body img {
+        max-width: 100% !important;
+        max-height: 500px !important;
+        width: auto !important;
+        height: auto !important;
+        display: block !important;
+        margin: 10px 0 !important;
+      }
+
       .comment-item { text-align: left; }
       .comment-item .markdown-body { font-size: 14px; line-height: 1.6; }
     `;
@@ -71,7 +114,7 @@
     }
   }
 
-  // ---------- Markdown 渲染（核心：内联样式确保代码块可见） ----------
+  // ---------- Markdown 渲染 ----------
   let markedConfigured = false;
 
   function renderMarkdown(text) {
@@ -113,7 +156,7 @@
       return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
     }
 
-    // DOMPurify 清洗（允许 style 属性）
+    // DOMPurify 清洗（允许样式和必要标签）
     if (typeof DOMPurify !== 'undefined') {
       html = DOMPurify.sanitize(html, {
         ADD_TAGS: ['input', 'task-list', 'task-list-item', 'blockquote', 'pre', 'code'],
@@ -123,7 +166,7 @@
       });
     }
 
-    // 强制给 <pre> 添加内联样式（确保背景和圆角）
+    // 给 <pre> 添加内联样式（确保代码块背景和圆角）
     html = html.replace(/<pre>/gi, function(match) {
       if (/style\s*=/i.test(match)) {
         return match.replace(/style\s*=\s*(["'])([^"']*)\1/i, function(m, quote, style) {
@@ -134,10 +177,10 @@
       }
     });
 
-    // 给 <pre> 添加 class="markdown-body" 以便 CSS 也能生效（双重保险）
+    // 给 <pre> 添加 class="markdown-body"
     html = html.replace(/<pre/g, '<pre class="markdown-body"');
 
-    // 后处理 @提及 和 #引用（保护已有链接）
+    // 后处理 @提及 和 #引用
     const linkPlaceholders = [];
     html = html.replace(/<a\b[^>]*>.*?<\/a>/gi, function(match) {
       const index = linkPlaceholders.length;
@@ -157,14 +200,14 @@
       return linkPlaceholders[parseInt(index)];
     });
 
-    // 图片块级显示
+    // 图片块级显示（CSS 中已控制 max-height，这里只加块级样式）
     html = html.replace(/<img([^>]*)>/gi, function(match, attrs) {
       if (/style\s*=/i.test(attrs)) {
         attrs = attrs.replace(/style\s*=\s*(["'])([^"']*)\1/i, function(m, quote, style) {
-          return `style="${quote}${style}; display:block; margin:10px 0; max-width:100%; height:auto;${quote}"`;
+          return `style="${quote}${style}; display:block; margin:10px 0; max-width:100%; max-height:500px; width:auto; height:auto;${quote}"`;
         });
       } else {
-        attrs += ` style="display:block; margin:10px 0; max-width:100%; height:auto;"`;
+        attrs += ` style="display:block; margin:10px 0; max-width:100%; max-height:500px; width:auto; height:auto;"`;
       }
       return `<img${attrs}>`;
     });
@@ -322,7 +365,8 @@
       const author = comment.author.login;
       const avatar = comment.author.avatarUrl;
       const createdAt = formatDate(comment.createdAt);
-      const bodyHtml = renderMarkdown(comment.body);
+      // 用 .markdown-body 包裹内容，让样式生效
+      const bodyHtml = `<div class="markdown-body">${renderMarkdown(comment.body)}</div>`;
       const reactionHtml = renderReactions(
         comment.reactionGroups || [],
         comment.id,
@@ -672,8 +716,9 @@
         infoEl.innerHTML = '';
       }
 
-      const renderedBody = renderMarkdown(bodyText);
-      textEl.innerHTML = `<div style="padding:0 10px; text-align:left;">${renderedBody}</div>`;
+      // 用 .markdown-body 包裹正文，让样式生效
+      const renderedBody = `<div class="markdown-body" style="padding:0 10px; text-align:left;">${renderMarkdown(bodyText)}</div>`;
+      textEl.innerHTML = renderedBody;
       addCopyButtonsToCodeBlocks();
 
       const discussionId = discussionData.id;
