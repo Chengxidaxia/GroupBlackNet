@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（最终版，上传修复完毕）
+// blog.js - 文章详情页（最终版，上传已修复）
 // ============================================================
 
 (function() {
@@ -620,7 +620,7 @@
     }
   }
 
-  // ---------- Vditor 初始化（修复 format） ----------
+  // ---------- Vditor 初始化（已移除 format） ----------
   function initVditor() {
     const editorContainer = document.getElementById('vditor-container');
     if (!editorContainer) return;
@@ -649,20 +649,6 @@
         max: 32 * 1024 * 1024,
         multiple: false,
         withCredentials: true,
-        format: function (files, responseText) {
-          console.log('上传文件列表:', files);
-          console.log('服务器响应原文:', responseText);
-          let data = responseText;
-          if (typeof responseText === 'string') {
-            try {
-              data = JSON.parse(responseText);
-            } catch (e) {
-              console.error('JSON 解析失败:', e);
-              return { code: 1, msg: '服务器返回格式错误' };
-            }
-          }
-          return data;
-        }
       },
       toolbar: [
         'emoji', 'headings', 'bold', 'italic', 'strike', 'link', 'quote',
