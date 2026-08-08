@@ -1,5 +1,5 @@
 // ============================================================
-// edit.js - 创建新讨论页面（彻底重建编辑器容器）
+// edit.js - 创建新讨论页面（完全接管布局）
 // ============================================================
 
 (function() {
@@ -14,8 +14,9 @@
   const infoInput = document.getElementById('info');
   const noiconCheck = document.getElementById('noicon');
   const uploadContainer = document.getElementById('upload');
-  const oldEditorContainer = document.getElementById('editor');
-  const oldMenuContainer = document.getElementById('menu');
+  const editorContainer = document.getElementById('editor');
+  const menuContainer = document.getElementById('menu');
+  const container = document.getElementById('container_4dd2eac8');
 
   let vditorInstance = null;
   let coverUrl = null;
@@ -45,68 +46,53 @@
     }
   }
 
-  // ---------- 重建编辑器容器 ----------
-  function rebuildEditorContainer() {
-    // 找到编辑器所在的父容器（注意：edit.html 中 #editor 是在 .textstyle2 内）
-    const parent = oldEditorContainer.parentNode;
-    // 保存旧容器的引用，稍后替换
-    const newEditor = document.createElement('div');
-    newEditor.id = 'editor';
-    // 设置样式
-    newEditor.style.cssText = `
-      width: 80% !important;
-      max-width: 1000px !important;
-      min-width: 600px !important;
-      background: #ffffff !important;
-      border-radius: 8px !important;
-      border: 1px solid #ddd !important;
-      overflow: hidden !important;
-      margin: 0 auto !important;
-      padding: 0 !important;
-      display: block !important;
-      min-height: 400px !important;
-    `;
-    // 替换
-    parent.replaceChild(newEditor, oldEditorContainer);
-    return newEditor;
-  }
-
-  // ---------- 重建菜单容器 ----------
-  function rebuildMenuContainer() {
-    const parent = oldMenuContainer.parentNode;
-    const newMenu = document.createElement('div');
-    newMenu.id = 'menu';
-    newMenu.style.cssText = `
-      width: 80% !important;
-      max-width: 1000px !important;
-      text-align: center !important;
-      padding: 20px 0 !important;
-      margin: 20px auto 0 auto !important;
-      display: block !important;
-      clear: both !important;
-    `;
-    parent.replaceChild(newMenu, oldMenuContainer);
-    return newMenu;
-  }
-
   // ---------- 样式注入 ----------
   function injectStyles() {
     if (document.getElementById('edit-styles')) return;
     const style = document.createElement('style');
     style.id = 'edit-styles';
     style.textContent = `
-      /* 强制父容器 flex 垂直居中 */
+      /* 清空容器内部干扰 */
       #container_4dd2eac8 {
-        display: flex !important;
-        flex-direction: column !important;
-        align-items: center !important;
+        display: block !important;
         width: 100% !important;
+        max-width: 100% !important;
+        text-align: center !important;
+        background: transparent !important;
       }
       #container_4dd2eac8 .textstyle2 {
+        display: block !important;
         width: 100% !important;
-        display: flex !important;
-        flex-direction: column !important;
-        align-items: center !important;
+        text-align: center !important;
+      }
+      /* 编辑器外部容器 - 由 JS 创建 */
+      .edit-editor-wrapper {
+        display: inline-block !important;
+        width: 80% !important;
+        max-width: 1000px !important;
+        min-width: 600px !important;
+        background: #ffffff !important;
+        border-radius: 8px !important;
+        border: 1px solid #ddd !important;
+        overflow: hidden !important;
+        margin: 0 auto !important;
+        padding: 0 !important;
+        min-height: 400px !important;
+        text-align: left !important;
+      }
+      .edit-editor-wrapper .vditor {
+        border: none !important;
+        border-radius: 0 !important;
+        width: 100% !important;
+      }
+      /* 菜单容器 */
+      .edit-menu-wrapper {
+        display: inline-block !important;
+        width: 80% !important;
+        max-width: 1000px !important;
+        text-align: center !important;
+        padding: 20px 0 !important;
+        margin: 20px auto 0 auto !important;
       }
       /* 封面上传区域 */
       .upload-area {
@@ -153,12 +139,6 @@
       .vditor-outline {
         left: 0 !important;
         right: auto !important;
-      }
-      /* 编辑器内 Vditor 自适应 */
-      .vditor {
-        width: 100% !important;
-        border: none !important;
-        border-radius: 0 !important;
       }
     `;
     document.head.appendChild(style);
@@ -312,18 +292,18 @@
   }
 
   // ---------- 初始化 Vditor ----------
-  function initVditor(editorContainer) {
+  function initVditor(wrapper) {
     if (typeof Vditor === 'undefined') {
-      editorContainer.innerHTML = '<p style="color:red;text-align:center;padding:40px;">Vditor 未加载，请刷新页面重试。</p>';
+      wrapper.innerHTML = '<p style="color:red;text-align:center;padding:40px;">Vditor 未加载，请刷新页面重试。</p>';
       return;
     }
     if (vditorInstance) {
       vditorInstance.destroy();
       vditorInstance = null;
     }
-    editorContainer.innerHTML = '';
+    wrapper.innerHTML = '';
 
-    vditorInstance = new Vditor(editorContainer, {
+    vditorInstance = new Vditor(wrapper, {
       height: 500,
       mode: 'ir',
       placeholder: '在这里写文章内容...',
@@ -356,12 +336,6 @@
         outline.style.left = '0';
         outline.style.right = 'auto';
       }
-      const vditor = document.querySelector('.vditor');
-      if (vditor) {
-        vditor.style.width = '100%';
-      }
-      // 强制编辑器容器高度
-      editorContainer.style.minHeight = '400px';
     }, 200);
   }
 
@@ -428,8 +402,8 @@
   }
 
   // ---------- 构建菜单 ----------
-  function buildMenu(menuContainer) {
-    menuContainer.innerHTML = '';
+  function buildMenu(wrapper) {
+    wrapper.innerHTML = '';
     const submitBtn = document.createElement('button');
     submitBtn.textContent = '创建新讨论';
     submitBtn.style.cssText = `
@@ -443,7 +417,27 @@
       font-weight: bold;
     `;
     submitBtn.addEventListener('click', submitDiscussion);
-    menuContainer.appendChild(submitBtn);
+    wrapper.appendChild(submitBtn);
+  }
+
+  // ---------- 彻底重建布局 ----------
+  function rebuildLayout() {
+    // 清空 container 内部所有内容（保留 container 本身）
+    container.innerHTML = '';
+
+    // 创建编辑器包装器
+    const editorWrapper = document.createElement('div');
+    editorWrapper.className = 'edit-editor-wrapper';
+    editorWrapper.id = 'editor-wrapper';
+    container.appendChild(editorWrapper);
+
+    // 创建菜单包装器
+    const menuWrapper = document.createElement('div');
+    menuWrapper.className = 'edit-menu-wrapper';
+    menuWrapper.id = 'menu-wrapper';
+    container.appendChild(menuWrapper);
+
+    return { editorWrapper, menuWrapper };
   }
 
   // ---------- 初始化 ----------
@@ -454,7 +448,7 @@
       window.location.href = '/404.html';
       return;
     }
-
+[
     // 2. 标题同步
     updateTitle();
     titleInput.addEventListener('input', updateTitle);
@@ -462,19 +456,16 @@
     // 3. 封面上传
     buildUploadUI();
 
-    // 4. 重建编辑器容器
-    const newEditor = rebuildEditorContainer();
+    // 4. 重建布局（完全清空并新建）
+    const { editorWrapper, menuWrapper } = rebuildLayout();
 
-    // 5. 重建菜单容器
-    const newMenu = rebuildMenuContainer();
+    // 5. 初始化 Vditor
+    initVditor(editorWrapper);
 
-    // 6. 初始化 Vditor
-    initVditor(newEditor);
+    // 6. 构建菜单
+    buildMenu(menuWrapper);
 
-    // 7. 构建菜单
-    buildMenu(newMenu);
-
-    // 8. noicon 切换
+    // 7. noicon 切换
     noiconCheck.addEventListener('change', function() {
       if (this.checked) {
         coverUrl = null;
@@ -486,8 +477,11 @@
       }
     });
 
-    // 9. 初始隐藏
+    // 8. 初始隐藏
     updateUploadVisibility();
+
+    // 9. 强制编辑器容器可见
+    editorWrapper.style.display = 'inline-block';
   }
 
   if (document.readyState === 'loading') {
