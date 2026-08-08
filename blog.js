@@ -1,6 +1,6 @@
 // ============================================================
-// blog.js - 文章详情页（完整增强版）
-// 依赖：marked.js、DOMPurify、Vditor（CDN）
+// blog.js - 文章详情页（完整修复版）
+// 修复：图片独占一行、表情切换、标题更新、评论样式
 // ============================================================
 
 (function() {
@@ -25,9 +25,11 @@
   let isLoggedIn = false;
   let currentUser = null;
   let vditorInstance = null;
-  // 存储当前评论列表（用于分页）
   let allComments = [];
   let totalComments = 0;
+
+  // 存储当前用户对各个 subjectId 的反应状态
+  let userReactions = {};
 
   // ---------- 辅助函数 ----------
   function base64Decode(str) {
@@ -42,7 +44,6 @@
     if (typeof marked !== 'undefined' && typeof marked.parse === 'function') {
       return marked.parse(text);
     }
-    // fallback
     return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
   }
 
@@ -101,6 +102,19 @@
     return { info, bodyText, isJson };
   }
 
+  // ---------- 检查用户是否已反应 ----------
+  function hasUserReacted(reactionGroups) {
+    // 如果 reactionGroups 中包含 viewerHasReacted 字段，直接使用
+    // 否则通过查找当前用户的 login 来判断（备选方案）
+    if (reactionGroups && reactionGroups.length > 0) {
+      // 如果 API 返回了 viewerHasReacted，直接使用
+      if (reactionGroups[0].viewerHasReacted !== undefined) {
+        return reactionGroups.some(g => g.viewerHasReacted === true);
+      }
+    }
+    return false;
+  }
+
   // ---------- 渲染 Reaction（可交互） ----------
   function renderReactions(reactionGroups, subjectId, canInteract = false) {
     let html = '<div class="reactions-container" style="display:flex; flex-wrap:wrap; gap:8px; margin:10px 0;">';
@@ -109,9 +123,25 @@
       const emoji = EMOJI_MAP[group.content] || group.content;
       const countId = `reaction-count-${subjectId}-${group.content}`;
       const interactiveClass = canInteract ? 'reaction-btn' : '';
-      // 点击整个区块，而非小加号
+      
+      // 检查用户是否已对此反应
+      const viewerReacted = group.viewerHasReacted === true;
+      const isActive = viewerReacted;
+      
+      // 存储用户反应状态
+      if (canInteract && viewerReacted) {
+        userReactions[`${subjectId}-${group.content}`] = true;
+      }
+      
+      // 高亮样式
+      const borderColor = isActive ? '#0366d6' : '#ddd';
+      const bgColor = isActive ? '#dbedff' : '#f6f8fa';
+      
       html += `
-        <div class="reaction-item ${interactiveClass}" data-subject-id="${subjectId}" data-reaction="${group.content}" style="display:flex; align-items:center; gap:4px; padding:4px 8px; border:1px solid #ddd; border-radius:16px; background:#f6f8fa; ${canInteract ? 'cursor:pointer;' : ''}">
+        <div class="reaction-item ${interactiveClass}" 
+             data-subject-id="${subjectId}" 
+             data-reaction="${group.content}"
+             style="display:flex; align-items:center; gap:4px; padding:4px 8px; border:1px solid ${borderColor}; border-radius:16px; background:${bgColor}; ${canInteract ? 'cursor:pointer;' : ''}">
           <span style="font-size:18px;">${emoji}</span>
           <span id="${countId}" style="font-weight:bold;">${count}</span>
           ${canInteract ? `<span style="font-size:12px;color:#888;">➕</span>` : ''}
@@ -122,7 +152,7 @@
     return html;
   }
 
-  // ---------- 渲染评论列表（含可点击头像） ----------
+  // ---------- 渲染评论列表 ----------
   function renderComments(comments) {
     if (!comments || comments.length === 0) {
       return '<p style="text-align:center;color:#888;">暂无评论</p>';
@@ -167,7 +197,6 @@
     }
   }
 
-  // 高亮/取消高亮 reaction 区块
   function toggleReactionHighlight(item, active) {
     if (active) {
       item.style.borderColor = '#0366d6';
@@ -189,61 +218,75 @@
       return;
     }
 
-    // 乐观更新：先加 1
-    updateReactionCount(subjectId, content, 1);
-    toggleReactionHighlight(item, true);
+    // 获取当前状态
+    const key = `${subjectId}-${content}`;
+    const isActive = userReactions[key] === true;
+    
+    // 乐观更新：切换状态
+    const newActive = !isActive;
+    userReactions[key] = newActive;
+    
+    // 更新UI
+    toggleReactionHighlight(item, newActive);
+    updateReactionCount(subjectId, content, newActive ? 1 : -1);
     item.style.opacity = '0.6';
     item.style.pointerEvents = 'none';
 
     try {
-      const addRes = await fetch(`${OAUTH_BASE}/reaction`, {
+      const action = newActive ? 'add' : 'remove';
+      const res = await fetch(`${OAUTH_BASE}/reaction`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subjectId, content, action: 'add' })
+        body: JSON.stringify({ subjectId, content, action })
       });
 
-      if (addRes.ok) {
-        // 添加成功，保持高亮
+      if (res.ok) {
+        // 成功
         item.style.opacity = '1';
         item.style.pointerEvents = 'auto';
         return;
       }
 
-      if (addRes.status === 409) {
-        // 已存在，尝试移除
-        const removeRes = await fetch(`${OAUTH_BASE}/reaction`, {
+      // 如果操作失败，回滚
+      if (res.status === 409) {
+        // 冲突：尝试反向操作
+        const reverseAction = newActive ? 'remove' : 'add';
+        const reverseRes = await fetch(`${OAUTH_BASE}/reaction`, {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ subjectId, content, action: 'remove' })
+          body: JSON.stringify({ subjectId, content, action: reverseAction })
         });
-        if (removeRes.ok) {
-          // 移除成功，计数减 2（因为之前加了 1）
-          updateReactionCount(subjectId, content, -2);
-          toggleReactionHighlight(item, false);
+        if (reverseRes.ok) {
+          // 反向操作成功，恢复UI
+          userReactions[key] = !newActive;
+          toggleReactionHighlight(item, !newActive);
+          updateReactionCount(subjectId, content, newActive ? -1 : 1);
         } else {
-          // 移除失败，回退
-          updateReactionCount(subjectId, content, -1);
-          toggleReactionHighlight(item, false);
-          console.error('移除反应失败');
+          // 完全失败，回滚到原始状态
+          userReactions[key] = isActive;
+          toggleReactionHighlight(item, isActive);
+          updateReactionCount(subjectId, content, isActive ? 1 : -1);
         }
         item.style.opacity = '1';
         item.style.pointerEvents = 'auto';
         return;
       }
 
-      // 其他错误
-      const errData = await addRes.json();
+      // 其他错误，回滚
+      const errData = await res.json();
       console.error('Reaction error:', errData);
-      updateReactionCount(subjectId, content, -1);
-      toggleReactionHighlight(item, false);
+      userReactions[key] = isActive;
+      toggleReactionHighlight(item, isActive);
+      updateReactionCount(subjectId, content, isActive ? 1 : -1);
       item.style.opacity = '1';
       item.style.pointerEvents = 'auto';
     } catch (error) {
       console.error('Reaction exception:', error);
-      updateReactionCount(subjectId, content, -1);
-      toggleReactionHighlight(item, false);
+      userReactions[key] = isActive;
+      toggleReactionHighlight(item, isActive);
+      updateReactionCount(subjectId, content, isActive ? 1 : -1);
       item.style.opacity = '1';
       item.style.pointerEvents = 'auto';
     }
@@ -313,7 +356,6 @@
       if (res.ok) {
         alert('评论发表成功！');
         vditorInstance.setValue('');
-        // 重新加载评论列表
         const d = discussionData.number;
         await loadDiscussionFull(d);
       } else {
@@ -345,10 +387,8 @@
       vditorInstance = null;
     }
 
-    // 清空容器
     editorContainer.innerHTML = '';
 
-    // 创建 Vditor 实例
     vditorInstance = new Vditor(editorContainer, {
       height: 200,
       mode: 'ir',
@@ -357,28 +397,18 @@
         enable: true,
         id: 'vditor-cache'
       },
-      // ---------- 图片上传配置（解决 401 问题） ----------
       upload: {
         url: `${UPLOAD_URL}/`,
         fieldName: 'file',
         accept: 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml',
         max: 32 * 1024 * 1024,
         multiple: false,
-        // 关键：携带 Cookie
         withCredentials: true,
-        // 额外钩子：确保请求包含凭证
-        beforeSend: (files, xhr) => {
-          // 设置 xhr.withCredentials（针对 XMLHttpRequest）
-          // Vditor 内部使用 fetch，但 withCredentials 已设置，无需额外操作
-        },
-        success: (res) => {
-          // 自动处理
-        },
+        success: (res) => {},
         error: (msg) => {
           console.error('上传失败:', msg);
         }
       },
-      // ---------- 丰富工具栏 ----------
       toolbar: [
         'emoji', 'headings', 'bold', 'italic', 'strike', 'link', 'quote',
         'list', 'ordered-list', 'check', 'outdent', 'indent',
@@ -386,14 +416,12 @@
         'preview', 'fullscreen', 'outline', 'edit-mode', 'both',
         'undo', 'redo', 'more'
       ],
-      // 更多工具栏选项可通过 more 展开
       outline: {
         enable: true,
         position: 'left'
       }
     });
 
-    // 添加“发表评论”按钮（如果不存在）
     let submitBtn = document.getElementById('comment-submit');
     if (!submitBtn) {
       submitBtn = document.createElement('button');
@@ -417,6 +445,8 @@
   // ---------- 加载讨论数据 ----------
   async function loadDiscussionFull(discussionNumber) {
     try {
+      // 注意：需要 API 支持返回 viewerHasReacted
+      // 如果 API 暂不支持，可通过其他方式判断
       const res = await fetch(`${API_URL}/?d=${discussionNumber}&cfirst=100`);
       if (!res.ok) throw new Error(`HTTP error ${res.status}`);
       const data = await res.json();
@@ -428,8 +458,10 @@
       // 清空评论容器
       commentContainer.innerHTML = '';
 
-      // ---------- 标题 ----------
-      titleEl.innerHTML = `<span style="font-size:26pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; font-weight:bold;">${discussionData.title}</span>`;
+      // ---------- 标题（更新页面标题和元素） ----------
+      const titleText = discussionData.title || '无标题';
+      document.title = titleText + ' - 群档案';
+      titleEl.innerHTML = `<span style="font-size:26pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; font-weight:bold;">${titleText}</span>`;
 
       // ---------- 解析第一行 ----------
       const { info, bodyText, isJson } = parseFirstLine(discussionData.body);
@@ -437,11 +469,10 @@
       // 简介
       infoEl.innerHTML = `<span style="font-size:14pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; font-weight:bold;">${sanitizeHtml(renderMarkdown(info))}</span>`;
 
-      // ---------- 正文（强制图片独占一行，加内边距） ----------
+      // ---------- 正文（强制图片独占一行） ----------
       let bodyHtml = sanitizeHtml(renderMarkdown(bodyText));
-      // 给所有 img 添加样式：display:block; margin:10px 0; max-width:100%;
-      bodyHtml = bodyHtml.replace(/<img /g, '<img style="display:block; margin:10px 0; max-width:calc(100% - 20px); height:auto; padding:0 10px;" ');
-      // 包裹在左对齐容器中
+      // 使用更通用的正则匹配所有 img 标签（不区分大小写）
+      bodyHtml = bodyHtml.replace(/<img\s+/gi, '<img style="display:block; margin:10px 0; max-width:calc(100% - 20px); height:auto; padding:0 10px;" ');
       textEl.innerHTML = `<div style="padding:0 10px; text-align:left;">${bodyHtml}</div>`;
 
       // ---------- 顶部 Reaction ----------
@@ -487,7 +518,6 @@
       commentContainer.appendChild(paginationTop);
       commentContainer.appendChild(paginationBottom);
 
-      // 存储评论数据
       allComments = discussionData.comments.nodes || [];
       totalComments = discussionData.comments.totalCount || 0;
       totalPages = Math.ceil(totalComments / COMMENTS_PER_PAGE) || 1;
@@ -505,7 +535,6 @@
         renderPagination(paginationBottom, page, totalPages, (newPage) => {
           renderCommentsPage(newPage);
         });
-        // 重新绑定 Reaction 事件
         bindReactionEvents();
       }
 
