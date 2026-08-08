@@ -1,5 +1,5 @@
 // ============================================================
-// edit.js - 创建新讨论页面（适配 #editing 容器）
+// edit.js - 创建新讨论页面（强制 Flex 居中）
 // ============================================================
 
 (function() {
@@ -50,9 +50,20 @@
     const style = document.createElement('style');
     style.id = 'edit-styles';
     style.textContent = `
+      /* 强制 #editing 使用 Flex 垂直居中 */
+      #editing {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        width: 100% !important;
+        min-height: 400px !important;
+        padding: 0 !important;
+        margin: 0 !important;
+      }
+
       /* 编辑器包装器 */
       .edit-editor-wrapper {
-        display: inline-block !important;
         width: 80% !important;
         max-width: 1000px !important;
         min-width: 600px !important;
@@ -60,25 +71,31 @@
         border-radius: 8px !important;
         border: 1px solid #ddd !important;
         overflow: hidden !important;
-        margin: 0 auto !important;
+        margin: 0 !important;
         padding: 0 !important;
         min-height: 400px !important;
         text-align: left !important;
+        flex-shrink: 0 !important;
       }
       .edit-editor-wrapper .vditor {
         border: none !important;
         border-radius: 0 !important;
         width: 100% !important;
       }
+      .edit-editor-wrapper .vditor-content {
+        min-height: 400px !important;
+      }
+
       /* 菜单包装器 */
       .edit-menu-wrapper {
-        display: inline-block !important;
         width: 80% !important;
         max-width: 1000px !important;
         text-align: center !important;
         padding: 20px 0 !important;
-        margin: 20px auto 0 auto !important;
+        margin: 10px 0 0 0 !important;
+        flex-shrink: 0 !important;
       }
+
       /* 封面上传区域 */
       .upload-area {
         border: 2px dashed #ccc;
@@ -120,16 +137,11 @@
       .upload-area.hidden {
         display: none !important;
       }
+
       /* 强制大纲左侧 */
       .vditor-outline {
         left: 0 !important;
         right: auto !important;
-      }
-      /* 确保 #editing 容器居中 */
-      #editing {
-        text-align: center !important;
-        display: block !important;
-        width: 100% !important;
       }
     `;
     document.head.appendChild(style);
@@ -480,9 +492,6 @@
 
     // 9. 初始隐藏
     updateUploadVisibility();
-
-    // 10. 强制编辑器容器可见
-    editorWrapper.style.display = 'inline-block';
   }
 
   if (document.readyState === 'loading') {
