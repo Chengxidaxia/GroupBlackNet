@@ -1,5 +1,6 @@
 // ============================================================
-// blog.js - 文章详情页（最终修复版，代码块/引用正常显示）
+// blog.js - 文章详情页（最终修复版）
+// 代码块背景 #F0F1F2，圆角，所有 Markdown 正常渲染
 // ============================================================
 
 (function() {
@@ -25,7 +26,7 @@
   let totalComments = 0;
   let userReactions = {};
 
-  // ---------- 注入样式（包含代码块可见样式） ----------
+  // ---------- 注入样式（包含代码块颜色和圆角） ----------
   function injectStyles() {
     if (document.getElementById('blog-styles')) return;
     const style = document.createElement('style');
@@ -50,28 +51,32 @@
         margin-left: -20px;
       }
       .comment-item ul, .comment-item ol { padding-left: 24px; }
+
+      /* 代码块样式 */
       .markdown-body pre {
-        position: relative;
-        background: #f6f8fa !important;
+        background: #F0F1F2 !important;
+        border-radius: 8px !important;
         padding: 16px !important;
-        border-radius: 6px !important;
         overflow: auto !important;
-        color: #000 !important;
-      }
-      .markdown-body code {
-        font-family: SFMono-Regular, Consolas, monospace !important;
-        background: #f6f8fa !important;
-        padding: 0.2em 0.4em !important;
-        border-radius: 3px !important;
-        color: #000 !important;
+        position: relative;
       }
       .markdown-body pre code {
         background: transparent !important;
-        padding: 0 !important;
         color: #000 !important;
+        padding: 0 !important;
+        font-family: SFMono-Regular, Consolas, monospace !important;
+        font-size: 13px !important;
+        line-height: 1.45 !important;
+        white-space: pre !important;
       }
-      .comment-item { text-align: left; }
-      .comment-item .markdown-body { font-size: 14px; line-height: 1.6; }
+      /* 行内代码 */
+      .markdown-body code:not(pre code) {
+        background: #F0F1F2 !important;
+        padding: 0.2em 0.4em !important;
+        border-radius: 3px !important;
+        color: #000 !important;
+        font-size: 85% !important;
+      }
       blockquote {
         border-left: 4px solid #dfe2e5 !important;
         color: #6a737d !important;
@@ -80,6 +85,8 @@
         margin-top: 0 !important;
         margin-bottom: 0 !important;
       }
+      .comment-item { text-align: left; }
+      .comment-item .markdown-body { font-size: 14px; line-height: 1.6; }
     `;
     document.head.appendChild(style);
   }
@@ -94,7 +101,7 @@
     }
   }
 
-  // ---------- Markdown 渲染（自带清洗，不再外部二次清洗） ----------
+  // ---------- Markdown 渲染 ----------
   let markedConfigured = false;
 
   function renderMarkdown(text) {
@@ -136,7 +143,7 @@
       return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
     }
 
-    // 使用 DOMPurify 清洗（确保 blockquote, pre, code 保留）
+    // DOMPurify 清洗（保留所有必要标签）
     if (typeof DOMPurify !== 'undefined') {
       html = DOMPurify.sanitize(html, {
         ADD_TAGS: ['input', 'task-list', 'task-list-item', 'blockquote', 'pre', 'code'],
@@ -145,9 +152,6 @@
         ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|geo):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
       });
     }
-
-    // 调试（可选）
-    // console.log('renderMarkdown 输出片段:', html.slice(0, 300));
 
     // 后处理：@提及 和 #引用
     const linkPlaceholders = [];
@@ -181,6 +185,7 @@
       return `<img${attrs}>`;
     });
 
+    // 确保 pre 有 markdown-body 类（已通过 CSS 选择器覆盖）
     html = html.replace(/<pre>/g, '<pre class="markdown-body">');
 
     return html;
@@ -234,7 +239,6 @@
     });
   }
 
-  // 简化 sanitizeHtml（仅用于其它地方，正文和评论已由 renderMarkdown 清洗）
   function sanitizeHtml(html) {
     if (typeof DOMPurify !== 'undefined' && typeof DOMPurify.sanitize === 'function') {
       return DOMPurify.sanitize(html, {
@@ -338,7 +342,6 @@
       const author = comment.author.login;
       const avatar = comment.author.avatarUrl;
       const createdAt = formatDate(comment.createdAt);
-      // 直接使用 renderMarkdown，不再外部 sanitizeHtml
       const bodyHtml = renderMarkdown(comment.body);
       const reactionHtml = renderReactions(
         comment.reactionGroups || [],
@@ -695,7 +698,6 @@
         infoEl.innerHTML = '';
       }
 
-      // 直接使用 renderMarkdown，不再额外 sanitizeHtml
       const renderedBody = renderMarkdown(bodyText);
       textEl.innerHTML = `<div style="padding:0 10px; text-align:left;">${renderedBody}</div>`;
       addCopyButtonsToCodeBlocks();
