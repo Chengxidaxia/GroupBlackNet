@@ -14,7 +14,7 @@ body { background-color:#FFFFFF; padding:0;  margin: 0; }
 #header-placeholder { vertical-align: bottom; position:relative; display: inline-block; width:100%;  }
 .textstyle2 { text-align:center; }
 #container_6c28bad { vertical-align: top; position:relative; display: inline-block; width:100%; min-height:238px; background-color:#2D2913;  }
-#container_3aa1121 { vertical-align: top; position:relative; display: inline-block; width:100%; min-height:246px; max-width:1600px; background-color:#FFFFFF; background-image: url(rc_images/landscapenoe.jpg); background-position:center left; background-size:cover;  }
+#container_3aa1121 { vertical-align: top; position:relative; display: inline-block; width:100%; min-height:246px; max-width:1600px; background-color:#FFFFFF; background-image: url(img/landscapenoe.jpg); background-position:center left; background-size:cover;  }
 #container_3aa1121_padding { margin: 10px; display: block;  }
 .textstyle3 { font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000;  }
 #container_4bbdec36 { vertical-align: top; position:relative; display: inline-block; width:85%; min-height:184px; max-width:1000px; background:none;  }
