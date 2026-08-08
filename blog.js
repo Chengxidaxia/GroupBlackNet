@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（最终修复版）
+// blog.js - 文章详情页（最终稳定版）
 // 代码块背景 #F0F1F2，圆角，所有 Markdown 正常渲染
 // ============================================================
 
@@ -26,7 +26,7 @@
   let totalComments = 0;
   let userReactions = {};
 
-  // ---------- 注入样式（包含代码块颜色和圆角） ----------
+  // ---------- 注入样式 ----------
   function injectStyles() {
     if (document.getElementById('blog-styles')) return;
     const style = document.createElement('style');
@@ -46,10 +46,6 @@
         accent-color: #2da44e;
       }
       .task-list-item p { margin: 0; }
-      .comment-body .task-list-item,
-      .markdown-body .task-list-item {
-        margin-left: -20px;
-      }
       .comment-item ul, .comment-item ol { padding-left: 24px; }
 
       /* 代码块样式 */
@@ -101,7 +97,7 @@
     }
   }
 
-  // ---------- Markdown 渲染 ----------
+  // ---------- Markdown 渲染（干净版） ----------
   let markedConfigured = false;
 
   function renderMarkdown(text) {
@@ -139,11 +135,11 @@
     try {
       html = marked.parse(text);
     } catch (e) {
-      console.error('marked.parse 抛出异常:', e);
+      console.error('marked.parse 异常:', e);
       return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
     }
 
-    // DOMPurify 清洗（保留所有必要标签）
+    // DOMPurify 清洗（保留所有必要标签和属性）
     if (typeof DOMPurify !== 'undefined') {
       html = DOMPurify.sanitize(html, {
         ADD_TAGS: ['input', 'task-list', 'task-list-item', 'blockquote', 'pre', 'code'],
@@ -153,7 +149,8 @@
       });
     }
 
-    // 后处理：@提及 和 #引用
+    // 后处理 @提及 和 #引用（必须小心，避免破坏 <pre> 内内容）
+    // 策略：先替换 <a> 标签为占位符，然后处理纯文本中的 @ 和 #，再还原
     const linkPlaceholders = [];
     html = html.replace(/<a\b[^>]*>.*?<\/a>/gi, function(match) {
       const index = linkPlaceholders.length;
@@ -161,6 +158,7 @@
       return `@@PLACEHOLDER${index}@@`;
     });
 
+    // 只匹配不在 <a> 内的 @ 和 #（但已经用占位符保护了所有 <a>，所以直接替换）
     html = html.replace(/(^|\s)@([a-zA-Z0-9\-_]+)/g, function(match, prefix, username) {
       return `${prefix}<a href="https://github.com/${username}" target="_blank" class="mention" style="color:#0366d6;text-decoration:none;">@${username}</a>`;
     });
@@ -185,7 +183,7 @@
       return `<img${attrs}>`;
     });
 
-    // 确保 pre 有 markdown-body 类（已通过 CSS 选择器覆盖）
+    // 给 <pre> 添加类（确保 CSS 生效）
     html = html.replace(/<pre>/g, '<pre class="markdown-body">');
 
     return html;
@@ -239,6 +237,7 @@
     });
   }
 
+  // ---------- 其余函数（保持不变） ----------
   function sanitizeHtml(html) {
     if (typeof DOMPurify !== 'undefined' && typeof DOMPurify.sanitize === 'function') {
       return DOMPurify.sanitize(html, {
@@ -300,7 +299,6 @@
     return { info, bodyText, isJson };
   }
 
-  // ---------- 渲染 Reaction ----------
   function renderReactions(reactionGroups, subjectId, canInteract = false) {
     if (!reactionGroups || reactionGroups.length === 0) {
       return '<div class="reactions-container" style="display:flex; flex-wrap:wrap; gap:8px; margin:10px 0;"></div>';
@@ -333,7 +331,6 @@
     return html;
   }
 
-  // ---------- 渲染评论树 ----------
   function renderCommentTree(comments, level = 0) {
     if (!comments || comments.length === 0) return '';
     let html = '';
@@ -371,7 +368,6 @@
     return html;
   }
 
-  // ---------- 渲染评论列表 ----------
   function renderComments(comments) {
     if (!comments || comments.length === 0) {
       return '<p style="text-align:center;color:#888;">暂无评论</p>';
@@ -379,7 +375,6 @@
     return `<div style="border:1px solid #ddd; border-radius:8px; padding:10px; background:#ffffff; text-align:left;">${renderCommentTree(comments)}</div>`;
   }
 
-  // ---------- 回复事件 ----------
   function bindReplyEvents() {
     document.querySelectorAll('.reply-btn').forEach(btn => {
       btn.removeEventListener('click', handleReplyClick);
@@ -448,7 +443,6 @@
     });
   }
 
-  // ---------- Reaction 交互 ----------
   function updateReactionCount(subjectId, content, delta) {
     const countId = `reaction-count-${subjectId}-${content}`;
     const el = document.getElementById(countId);
@@ -550,7 +544,6 @@
     });
   }
 
-  // ---------- 分页 ----------
   function renderPagination(container, currentPage, totalPages, onPageChange) {
     container.innerHTML = '';
     if (totalPages <= 1) return;
@@ -577,7 +570,6 @@
     container.appendChild(wrapper);
   }
 
-  // ---------- 提交评论 ----------
   async function submitComment() {
     if (!vditorInstance) {
       alert('编辑器未初始化');
@@ -614,7 +606,6 @@
     }
   }
 
-  // ---------- Vditor ----------
   function initVditor() {
     const editorContainer = document.getElementById('vditor-container');
     if (!editorContainer) return;
@@ -702,7 +693,6 @@
       textEl.innerHTML = `<div style="padding:0 10px; text-align:left;">${renderedBody}</div>`;
       addCopyButtonsToCodeBlocks();
 
-      // ---------- 表情 ----------
       const discussionId = discussionData.id;
       const reactionHtml = renderReactions(
         discussionData.reactionGroups || [],
@@ -714,7 +704,6 @@
       reactionDiv.innerHTML = reactionHtml;
       commentContainer.appendChild(reactionDiv);
 
-      // ---------- 编辑器 ----------
       const editorContainer = document.createElement('div');
       editorContainer.id = 'vditor-container';
       editorContainer.style.cssText = 'margin:10px 0; text-align:left;';
@@ -729,7 +718,6 @@
         editorContainer.innerHTML = '<p style="text-align:center;color:#888;padding:20px;">登录后即可评论</p>';
       }
 
-      // ---------- 评论列表 ----------
       const commentListDiv = document.createElement('div');
       commentListDiv.id = 'comment-list';
       commentListDiv.style.cssText = 'text-align:left; margin-top:20px;';
