@@ -1,6 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（最终完整版）
-// 包含：图片高度区分、排序、回复优化、图片查看器、编辑器高度限制
+// blog.js - 文章详情页（完整版，叉号加大点击区域）
 // ============================================================
 
 (function() {
@@ -55,7 +54,6 @@
         margin-top: 0 !important;
         margin-bottom: 0 !important;
       }
-      /* 行内代码 */
       .markdown-body code:not(pre code) {
         background: #F0F1F2 !important;
         padding: 0.2em 0.4em !important;
@@ -64,7 +62,6 @@
         font-size: 85% !important;
         font-family: SFMono-Regular, Consolas, monospace !important;
       }
-      /* 代码块 */
       .markdown-body pre {
         background: #F0F1F2 !important;
         border-radius: 8px !important;
@@ -118,17 +115,21 @@
         right: 30px;
         font-size: 40px;
         color: #fff;
-        opacity: 0.5;
+        opacity: 0.7;
         cursor: pointer;
         z-index: 10000;
         font-family: Arial, sans-serif;
-        transition: opacity 0.2s;
-        background: none;
+        transition: opacity 0.2s, background 0.2s;
+        background: rgba(0,0,0,0.4);
         border: none;
-        text-shadow: 0 0 10px rgba(0,0,0,0.8);
+        border-radius: 8px;
+        padding: 12px 20px;
+        line-height: 1;
+        user-select: none;
       }
       .image-viewer-close:hover {
         opacity: 1;
+        background: rgba(0,0,0,0.7);
       }
     `;
     document.head.appendChild(style);
