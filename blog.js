@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（修复简介/正文逻辑，完整功能）
+// blog.js - 文章详情页（修复 parseFirstLine 错误）
 // ============================================================
 
 (function() {
@@ -247,25 +247,27 @@
     'EYES': '👀'
   };
 
-  // ---------- 核心：解析第一行（恢复原逻辑） ----------
+  // ---------- 修复后的 parseFirstLine ----------
   function parseFirstLine(body) {
     const lines = body.split('\n');
     const firstLine = lines.find(line => line.trim() !== '') || '';
     let info = null;
     let bodyText = '';
+    let isJson = false;
 
     try {
       const data = JSON.parse(firstLine);
-      // 是 JSON
+      isJson = true;
       if (data.info) {
         info = base64Decode(data.info);
       } else {
-        info = firstLine; // 如果没有 info 字段，用原始第一行
+        info = firstLine;
       }
       // 正文为剩余行
       const restLines = lines.slice(1);
       bodyText = restLines.join('\n').trim();
     } catch (e) {
+      isJson = false;
       // 不是 JSON，第一行作为简介（去除 Markdown 标记）
       info = firstLine
         .replace(/!\[.*?\]\(.*?\)/g, '')
@@ -277,10 +279,8 @@
       bodyText = restLines.join('\n').trim();
     }
 
-    // 如果没有正文，设置空字符串
     if (!bodyText) bodyText = '';
-
-    return { info, bodyText, isJson: !!JSON.parse(firstLine) };
+    return { info, bodyText, isJson };
   }
 
   // ---------- 渲染 Reaction ----------
@@ -673,17 +673,14 @@
       document.title = titleText + ' - 群档案';
       titleEl.innerHTML = `<span style="font-size:26pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; font-weight:bold;">${titleText}</span>`;
 
-      // ---------- 解析第一行（恢复原逻辑） ----------
       const { info, bodyText, isJson } = parseFirstLine(discussionData.body);
 
-      // 简介：如果有 info 且非空，显示；否则隐藏
       if (info && info.trim()) {
         infoEl.innerHTML = `<span style="font-size:14pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; font-weight:bold;">${sanitizeHtml(renderMarkdown(info))}</span>`;
       } else {
         infoEl.innerHTML = '';
       }
 
-      // 正文
       textEl.innerHTML = `<div style="padding:0 10px; text-align:left;">${sanitizeHtml(renderMarkdown(bodyText))}</div>`;
       addCopyButtonsToCodeBlocks();
 
