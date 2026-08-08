@@ -1,6 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（完整修复版）
-// 修复：图片独占一行、表情切换、标题更新、评论样式
+// blog.js - 文章详情页（修复表情状态 + 图片换行）
 // ============================================================
 
 (function() {
@@ -27,9 +26,7 @@
   let vditorInstance = null;
   let allComments = [];
   let totalComments = 0;
-
-  // 存储当前用户对各个 subjectId 的反应状态
-  let userReactions = {};
+  let userReactions = {}; // 存储当前会话中的用户反应状态
 
   // ---------- 辅助函数 ----------
   function base64Decode(str) {
@@ -40,11 +37,40 @@
     }
   }
 
+  // 自定义 Markdown 渲染：让图片独占一行
   function renderMarkdown(text) {
-    if (typeof marked !== 'undefined' && typeof marked.parse === 'function') {
-      return marked.parse(text);
+    if (typeof marked === 'undefined' || typeof marked.parse !== 'function') {
+      // fallback
+      return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
     }
-    return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+    // 使用自定义渲染器
+    const renderer = {
+      image(href, title, text) {
+        // 生成块级图片
+        return `<img src="${href}" alt="${text}" title="${title || ''}" style="display:block; margin:10px 0; max-width:100%; height:auto;" />`;
+      }
+    };
+    // 创建 marked 实例并应用渲染器
+    const markedInstance = new marked.Marked();
+    markedInstance.setOptions({ renderer });
+    // 或者直接使用默认 marked 但通过 parse 的选项
+    // 由于 marked 版本可能不同，这里采用更通用的方式：
+    // 先正常解析，再替换 img 标签
+    let html = marked.parse(text);
+    // 替换所有 img 标签，增加块级样式（无论是否有属性换行）
+    html = html.replace(/<img([^>]*)>/gi, function(match, attrs) {
+      // 检查是否已经有 style 属性
+      if (attrs.includes('style=')) {
+        // 在 style 中追加 display:block
+        attrs = attrs.replace(/style=["']([^"']*)["']/i, function(m, style) {
+          return `style="${style}; display:block; margin:10px 0; max-width:100%; height:auto;"`;
+        });
+      } else {
+        attrs += ` style="display:block; margin:10px 0; max-width:100%; height:auto;"`;
+      }
+      return `<img${attrs}>`;
+    });
+    return html;
   }
 
   function sanitizeHtml(html) {
@@ -102,41 +128,25 @@
     return { info, bodyText, isJson };
   }
 
-  // ---------- 检查用户是否已反应 ----------
-  function hasUserReacted(reactionGroups) {
-    // 如果 reactionGroups 中包含 viewerHasReacted 字段，直接使用
-    // 否则通过查找当前用户的 login 来判断（备选方案）
-    if (reactionGroups && reactionGroups.length > 0) {
-      // 如果 API 返回了 viewerHasReacted，直接使用
-      if (reactionGroups[0].viewerHasReacted !== undefined) {
-        return reactionGroups.some(g => g.viewerHasReacted === true);
-      }
-    }
-    return false;
-  }
-
-  // ---------- 渲染 Reaction（可交互） ----------
+  // ---------- 渲染 Reaction（基于 viewerHasReacted） ----------
   function renderReactions(reactionGroups, subjectId, canInteract = false) {
+    if (!reactionGroups || reactionGroups.length === 0) {
+      return '<div class="reactions-container" style="display:flex; flex-wrap:wrap; gap:8px; margin:10px 0;"></div>';
+    }
     let html = '<div class="reactions-container" style="display:flex; flex-wrap:wrap; gap:8px; margin:10px 0;">';
     reactionGroups.forEach(group => {
       const count = group.users.totalCount;
       const emoji = EMOJI_MAP[group.content] || group.content;
       const countId = `reaction-count-${subjectId}-${group.content}`;
-      const interactiveClass = canInteract ? 'reaction-btn' : '';
-      
-      // 检查用户是否已对此反应
       const viewerReacted = group.viewerHasReacted === true;
-      const isActive = viewerReacted;
-      
-      // 存储用户反应状态
-      if (canInteract && viewerReacted) {
-        userReactions[`${subjectId}-${group.content}`] = true;
+      // 更新 userReactions
+      if (canInteract) {
+        userReactions[`${subjectId}-${group.content}`] = viewerReacted;
       }
-      
-      // 高亮样式
+      const isActive = viewerReacted && canInteract;
       const borderColor = isActive ? '#0366d6' : '#ddd';
       const bgColor = isActive ? '#dbedff' : '#f6f8fa';
-      
+      const interactiveClass = canInteract ? 'reaction-btn' : '';
       html += `
         <div class="reaction-item ${interactiveClass}" 
              data-subject-id="${subjectId}" 
@@ -218,15 +228,12 @@
       return;
     }
 
-    // 获取当前状态
     const key = `${subjectId}-${content}`;
     const isActive = userReactions[key] === true;
-    
-    // 乐观更新：切换状态
     const newActive = !isActive;
     userReactions[key] = newActive;
-    
-    // 更新UI
+
+    // 乐观更新 UI
     toggleReactionHighlight(item, newActive);
     updateReactionCount(subjectId, content, newActive ? 1 : -1);
     item.style.opacity = '0.6';
@@ -242,15 +249,13 @@
       });
 
       if (res.ok) {
-        // 成功
         item.style.opacity = '1';
         item.style.pointerEvents = 'auto';
         return;
       }
 
-      // 如果操作失败，回滚
+      // 如果失败，回滚
       if (res.status === 409) {
-        // 冲突：尝试反向操作
         const reverseAction = newActive ? 'remove' : 'add';
         const reverseRes = await fetch(`${OAUTH_BASE}/reaction`, {
           method: 'POST',
@@ -259,12 +264,10 @@
           body: JSON.stringify({ subjectId, content, action: reverseAction })
         });
         if (reverseRes.ok) {
-          // 反向操作成功，恢复UI
           userReactions[key] = !newActive;
           toggleReactionHighlight(item, !newActive);
           updateReactionCount(subjectId, content, newActive ? -1 : 1);
         } else {
-          // 完全失败，回滚到原始状态
           userReactions[key] = isActive;
           toggleReactionHighlight(item, isActive);
           updateReactionCount(subjectId, content, isActive ? 1 : -1);
@@ -274,7 +277,7 @@
         return;
       }
 
-      // 其他错误，回滚
+      // 其他错误
       const errData = await res.json();
       console.error('Reaction error:', errData);
       userReactions[key] = isActive;
@@ -299,7 +302,7 @@
     });
   }
 
-  // ---------- 分页控件 ----------
+  // ---------- 分页 ----------
   function renderPagination(container, currentPage, totalPages, onPageChange) {
     container.innerHTML = '';
     if (totalPages <= 1) return;
@@ -337,13 +340,11 @@
       alert('请输入评论内容');
       return;
     }
-
     if (!discussionData) {
       alert('讨论数据未加载');
       return;
     }
     const discussionId = discussionData.id;
-
     try {
       const res = await fetch(`${OAUTH_BASE}/comment`, {
         method: 'POST',
@@ -351,7 +352,6 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ discussionId, body }),
       });
-
       const data = await res.json();
       if (res.ok) {
         alert('评论发表成功！');
@@ -371,32 +371,24 @@
   function initVditor() {
     const editorContainer = document.getElementById('vditor-container');
     if (!editorContainer) return;
-
     if (!isLoggedIn) {
       editorContainer.innerHTML = '<p style="text-align:center;color:#888;padding:20px;">登录后即可评论</p>';
       return;
     }
-
     if (typeof Vditor === 'undefined') {
       editorContainer.innerHTML = '<p style="color:red;">编辑器加载失败，请刷新页面重试。</p>';
       return;
     }
-
     if (vditorInstance) {
       vditorInstance.destroy();
       vditorInstance = null;
     }
-
     editorContainer.innerHTML = '';
-
     vditorInstance = new Vditor(editorContainer, {
       height: 200,
       mode: 'ir',
       placeholder: '写下你的评论...',
-      cache: {
-        enable: true,
-        id: 'vditor-cache'
-      },
+      cache: { enable: true, id: 'vditor-cache' },
       upload: {
         url: `${UPLOAD_URL}/`,
         fieldName: 'file',
@@ -405,9 +397,7 @@
         multiple: false,
         withCredentials: true,
         success: (res) => {},
-        error: (msg) => {
-          console.error('上传失败:', msg);
-        }
+        error: (msg) => { console.error('上传失败:', msg); }
       },
       toolbar: [
         'emoji', 'headings', 'bold', 'italic', 'strike', 'link', 'quote',
@@ -416,12 +406,8 @@
         'preview', 'fullscreen', 'outline', 'edit-mode', 'both',
         'undo', 'redo', 'more'
       ],
-      outline: {
-        enable: true,
-        position: 'left'
-      }
+      outline: { enable: true, position: 'left' }
     });
-
     let submitBtn = document.getElementById('comment-submit');
     if (!submitBtn) {
       submitBtn = document.createElement('button');
@@ -445,37 +431,27 @@
   // ---------- 加载讨论数据 ----------
   async function loadDiscussionFull(discussionNumber) {
     try {
-      // 注意：需要 API 支持返回 viewerHasReacted
-      // 如果 API 暂不支持，可通过其他方式判断
       const res = await fetch(`${API_URL}/?d=${discussionNumber}&cfirst=100`);
       if (!res.ok) throw new Error(`HTTP error ${res.status}`);
       const data = await res.json();
       discussionData = data.discussion;
-      if (!discussionData) {
-        throw new Error('未找到该讨论');
-      }
+      if (!discussionData) throw new Error('未找到该讨论');
 
-      // 清空评论容器
       commentContainer.innerHTML = '';
 
-      // ---------- 标题（更新页面标题和元素） ----------
+      // 标题
       const titleText = discussionData.title || '无标题';
       document.title = titleText + ' - 群档案';
       titleEl.innerHTML = `<span style="font-size:26pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; font-weight:bold;">${titleText}</span>`;
 
-      // ---------- 解析第一行 ----------
-      const { info, bodyText, isJson } = parseFirstLine(discussionData.body);
-
       // 简介
+      const { info, bodyText, isJson } = parseFirstLine(discussionData.body);
       infoEl.innerHTML = `<span style="font-size:14pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; font-weight:bold;">${sanitizeHtml(renderMarkdown(info))}</span>`;
 
-      // ---------- 正文（强制图片独占一行） ----------
-      let bodyHtml = sanitizeHtml(renderMarkdown(bodyText));
-      // 使用更通用的正则匹配所有 img 标签（不区分大小写）
-      bodyHtml = bodyHtml.replace(/<img\s+/gi, '<img style="display:block; margin:10px 0; max-width:calc(100% - 20px); height:auto; padding:0 10px;" ');
-      textEl.innerHTML = `<div style="padding:0 10px; text-align:left;">${bodyHtml}</div>`;
+      // 正文（使用 renderMarkdown 已处理图片）
+      textEl.innerHTML = `<div style="padding:0 10px; text-align:left;">${sanitizeHtml(renderMarkdown(bodyText))}</div>`;
 
-      // ---------- 顶部 Reaction ----------
+      // 顶部 Reaction
       const discussionId = discussionData.id;
       const reactionHtml = renderReactions(
         discussionData.reactionGroups || [],
@@ -487,25 +463,22 @@
       reactionDiv.innerHTML = reactionHtml;
       commentContainer.appendChild(reactionDiv);
 
-      // ---------- Vditor 容器 ----------
+      // Vditor
       const editorContainer = document.createElement('div');
       editorContainer.id = 'vditor-container';
       editorContainer.style.cssText = 'margin:10px 0; text-align:left;';
       commentContainer.appendChild(editorContainer);
-
       if (isLoggedIn) {
         if (typeof Vditor !== 'undefined') {
           initVditor();
         } else {
-          loadVditorScript().then(() => {
-            initVditor();
-          }).catch(err => console.error('Vditor 加载失败:', err));
+          loadVditorScript().then(initVditor).catch(err => console.error('Vditor 加载失败:', err));
         }
       } else {
         editorContainer.innerHTML = '<p style="text-align:center;color:#888;padding:20px;">登录后即可评论</p>';
       }
 
-      // ---------- 评论列表 ----------
+      // 评论列表
       const commentListDiv = document.createElement('div');
       commentListDiv.id = 'comment-list';
       commentListDiv.style.cssText = 'text-align:left; margin-top:20px;';
@@ -550,17 +523,14 @@
   // ---------- 动态加载 Vditor ----------
   function loadVditorScript() {
     return new Promise((resolve, reject) => {
-      if (typeof Vditor !== 'undefined') {
-        resolve();
-        return;
-      }
+      if (typeof Vditor !== 'undefined') { resolve(); return; }
       const link = document.createElement('link');
       link.rel = 'stylesheet';
       link.href = 'https://cdn.jsdelivr.net/npm/vditor@3.10.6/dist/index.css';
       document.head.appendChild(link);
       const script = document.createElement('script');
       script.src = 'https://cdn.jsdelivr.net/npm/vditor@3.10.6/dist/index.min.js';
-      script.onload = () => resolve();
+      script.onload = resolve;
       script.onerror = () => reject(new Error('Vditor 加载失败'));
       document.head.appendChild(script);
     });
@@ -595,7 +565,6 @@
       window.location.href = '/404.html';
       return;
     }
-
     await checkLoginStatus();
     await loadDiscussionFull(number);
   }
