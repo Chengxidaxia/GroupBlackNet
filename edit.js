@@ -1,5 +1,5 @@
 // ============================================================
-// edit.js - 创建新讨论页面（最终版，彻底修复宽度）
+// edit.js - 创建新讨论页面（最终稳定版）
 // ============================================================
 
 (function() {
@@ -44,20 +44,22 @@
     }
   }
 
-  // ---------- 强制修复布局（核心） ----------
+  // ---------- 强制修复布局 ----------
   function forceLayoutFix() {
     // 修复父容器链
     let parent = editingContainer.parentNode;
     while (parent && parent.id !== 'container_4dd2eac8') {
-      parent.style.cssText = `
-        width: 100% !important;
-        max-width: 100% !important;
-        display: block !important;
-        text-align: center !important;
-      `;
+      if (parent.style) {
+        parent.style.cssText = `
+          width: 100% !important;
+          max-width: 100% !important;
+          display: block !important;
+          text-align: center !important;
+        `;
+      }
       parent = parent.parentNode;
     }
-    if (parent) {
+    if (parent && parent.style) {
       parent.style.cssText = `
         width: 100% !important;
         max-width: 100% !important;
@@ -67,17 +69,19 @@
     }
 
     // 修复 editing 容器
-    editingContainer.style.cssText = `
-      display: flex !important;
-      flex-direction: column !important;
-      align-items: center !important;
-      justify-content: flex-start !important;
-      width: 100% !important;
-      max-width: 100% !important;
-      min-height: 400px !important;
-      margin: 0 auto !important;
-      padding: 0 !important;
-    `;
+    if (editingContainer) {
+      editingContainer.style.cssText = `
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-height: 400px !important;
+        margin: 0 auto !important;
+        padding: 0 !important;
+      `;
+    }
 
     // 修复编辑器包装器
     const editorWrapper = document.getElementById('editor-wrapper');
@@ -98,7 +102,6 @@
         display: block !important;
       `;
 
-      // 修复内部的 vditor
       const vditor = editorWrapper.querySelector('.vditor');
       if (vditor) {
         vditor.style.cssText = `
@@ -108,13 +111,11 @@
           min-width: 100% !important;
           box-sizing: border-box !important;
         `;
-        // 修复 vditor 内部内容
         const content = vditor.querySelector('.vditor-content');
         if (content) {
           content.style.width = '100% !important';
           content.style.minWidth = '100% !important';
         }
-        // 修复大纲
         const outline = vditor.querySelector('.vditor-outline');
         if (outline) {
           outline.style.left = '0 !important';
@@ -366,7 +367,7 @@
     }
     wrapper.innerHTML = '';
 
-    // 在初始化前强制设置宽度
+    // 初始化前强制设置宽度
     wrapper.style.width = '80%';
     wrapper.style.maxWidth = '1000px';
     wrapper.style.minWidth = '600px';
@@ -397,7 +398,7 @@
       }
     });
 
-    // 初始化后强制刷新布局
+    // 初始化后强制布局
     setTimeout(function() {
       if (vditorInstance && typeof vditorInstance.resize === 'function') {
         vditorInstance.resize();
@@ -513,7 +514,7 @@
     // 清空
     editingContainer.innerHTML = '';
 
-    // 创建编辑器包装器（先在 DOM 中创建，再设置样式）
+    // 创建编辑器包装器
     const editorWrapper = document.createElement('div');
     editorWrapper.id = 'editor-wrapper';
     editingContainer.appendChild(editorWrapper);
@@ -523,7 +524,7 @@
     menuWrapper.id = 'menu-wrapper';
     editingContainer.appendChild(menuWrapper);
 
-    // 强制父容器布局（在初始化前）
+    // 强制布局（初始化前）
     forceLayoutFix();
 
     // 初始化 Vditor
@@ -546,7 +547,7 @@
 
     updateUploadVisibility();
 
-    // 多次强制修复（确保最终稳定）
+    // 多次强制修复
     setTimeout(function() {
       forceLayoutFix();
       if (vditorInstance && typeof vditorInstance.resize === 'function') {
