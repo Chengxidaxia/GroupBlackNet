@@ -1,6 +1,6 @@
 // ============================================================
-// edit.js - 创建新讨论页面（复用 blog 编辑器嵌入方式）
-// 容器：直接在 #comment 或 #editor 中初始化 Vditor
+// edit.js - 创建新讨论页面（适配单一 editor 容器）
+// 提交按钮直接放在编辑器底部
 // ============================================================
 
 (function() {
@@ -15,10 +15,7 @@
   const infoInput = document.getElementById('info');
   const noiconCheck = document.getElementById('noicon');
   const uploadContainer = document.getElementById('upload');
-  // 容器：优先使用 #comment，如果没有则使用 #editor（兼容旧版）
-  const editorContainer = document.getElementById('comment') || document.getElementById('editor');
-  // 菜单容器（提交按钮所在位置）
-  const menuContainer = document.getElementById('menu') || document.getElementById('editing');
+  const editorContainer = document.getElementById('editor');
 
   let vditorInstance = null;
   let coverUrl = null;
@@ -48,7 +45,7 @@
     }
   }
 
-  // ---------- 样式注入（仅封面上传用） ----------
+  // ---------- 样式注入 ----------
   function injectStyles() {
     if (document.getElementById('edit-styles')) return;
     const style = document.createElement('style');
@@ -94,9 +91,34 @@
       .upload-area.hidden {
         display: none !important;
       }
-      /* 确保编辑器容器可见 */
-      #comment, #editor {
-        min-height: 400px;
+      /* 编辑器容器最小高度 */
+      #editor {
+        min-height: 500px;
+        display: block;
+        width: 80%;
+        max-width: 1000px;
+        margin: 0 auto;
+      }
+      /* 提交按钮区域 */
+      .editor-footer {
+        text-align: center;
+        padding: 20px 0 10px 0;
+        background: #fff;
+        border-radius: 0 0 8px 8px;
+        border-top: 1px solid #eee;
+      }
+      .editor-footer button {
+        padding: 12px 40px;
+        background: #2da44e;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 18px;
+        cursor: pointer;
+        font-weight: bold;
+      }
+      .editor-footer button:hover {
+        background: #22863a;
       }
     `;
     document.head.appendChild(style);
@@ -250,7 +272,7 @@
     }
   }
 
-  // ---------- 初始化 Vditor（完全复用 blog 方式） ----------
+  // ---------- 初始化 Vditor ----------
   function initVditor(container) {
     if (!container) {
       console.error('编辑器容器未找到');
@@ -266,7 +288,6 @@
     }
     container.innerHTML = '';
 
-    // 像 blog 一样直接在容器内创建 Vditor
     vditorInstance = new Vditor(container, {
       height: 500,
       mode: 'ir',
@@ -292,6 +313,15 @@
         position: 'left'
       }
     });
+
+    // 强制大纲左侧
+    setTimeout(function() {
+      const outline = document.querySelector('.vditor-outline');
+      if (outline) {
+        outline.style.left = '0';
+        outline.style.right = 'auto';
+      }
+    }, 200);
   }
 
   // ---------- 提交 ----------
@@ -355,26 +385,19 @@
     }
   }
 
-  // ---------- 构建提交按钮 ----------
-  function buildSubmitButton() {
-    if (!menuContainer) return;
-    menuContainer.innerHTML = '';
-    const submitBtn = document.createElement('button');
-    submitBtn.textContent = '创建新讨论';
-    submitBtn.style.cssText = `
-      padding: 12px 40px;
-      background: #2da44e;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      font-size: 18px;
-      cursor: pointer;
-      font-weight: bold;
-      margin: 20px auto;
-      display: block;
-    `;
-    submitBtn.addEventListener('click', submitDiscussion);
-    menuContainer.appendChild(submitBtn);
+  // ---------- 构建编辑器底部（提交按钮） ----------
+  function buildEditorFooter(container) {
+    // 移除已有的 footer
+    const oldFooter = container.querySelector('.editor-footer');
+    if (oldFooter) oldFooter.remove();
+
+    const footer = document.createElement('div');
+    footer.className = 'editor-footer';
+    const btn = document.createElement('button');
+    btn.textContent = '创建新讨论';
+    btn.addEventListener('click', submitDiscussion);
+    footer.appendChild(btn);
+    container.appendChild(footer);
   }
 
   // ---------- 初始化 ----------
@@ -395,11 +418,13 @@
 
     buildUploadUI();
 
-    // 初始化 Vditor（完全复用 blog 方式）
+    // 初始化 Vditor
     initVditor(editorContainer);
 
-    // 构建提交按钮
-    buildSubmitButton();
+    // 在编辑器底部添加提交按钮（延迟确保 Vditor 渲染完成）
+    setTimeout(function() {
+      buildEditorFooter(editorContainer);
+    }, 300);
 
     // noicon 切换
     noiconCheck.addEventListener('change', function() {
