@@ -1,6 +1,6 @@
 // ============================================================
-// blog.js - 文章详情页（完整修复版）
-// 依赖：marked.js、DOMPurify、Vditor（CDN）
+// blog.js - 文章详情页（完全修复版）
+// 包含：GFM全部特性、任务列表、@提及、#引用、代码块复制
 // ============================================================
 
 (function() {
@@ -26,6 +26,39 @@
   let totalComments = 0;
   let userReactions = {};
 
+  // ---------- 注入任务列表样式 ----------
+  function injectTaskListStyles() {
+    if (document.getElementById('task-list-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'task-list-styles';
+    style.textContent = `
+      .task-list-item {
+        list-style-type: none;
+        display: flex;
+        align-items: flex-start;
+      }
+      .task-list-item input[type="checkbox"] {
+        margin-right: 6px;
+        margin-top: 4px;
+        width: 16px;
+        height: 16px;
+        flex-shrink: 0;
+        accent-color: #2da44e;
+      }
+      .task-list-item input[type="checkbox"]:checked {
+        accent-color: #2da44e;
+      }
+      .task-list-item p {
+        margin: 0;
+      }
+      .comment-body .task-list-item {
+        margin-left: -20px;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  injectTaskListStyles();
+
   // ---------- 辅助函数 ----------
   function base64Decode(str) {
     try {
@@ -35,7 +68,7 @@
     }
   }
 
-  // ---------- Markdown 渲染（GFM 全部特性 + 代码块复制） ----------
+  // ---------- Markdown 渲染（GFM + 提及 + 引用链接） ----------
   let markedConfigured = false;
 
   function renderMarkdown(text) {
@@ -43,7 +76,6 @@
       return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
     }
 
-    // 配置 marked（只需执行一次）
     if (!markedConfigured) {
       marked.use({
         gfm: true,
@@ -63,10 +95,9 @@
       markedConfigured = true;
     }
 
-    // 渲染 Markdown
     let html = marked.parse(text);
 
-    // DOMPurify 清洗，保留必要属性
+    // 清洗但保留必要元素
     if (typeof DOMPurify !== 'undefined') {
       html = DOMPurify.sanitize(html, {
         ADD_TAGS: ['input', 'task-list', 'task-list-item'],
@@ -75,6 +106,31 @@
         ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|geo):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
       });
     }
+
+    // ----- 后处理：将 @提及 和 #引用 转换为链接 -----
+    // 注意：避免替换已经在 <a> 标签内的内容
+    // 我们先将所有 <a> 标签暂时替换为占位符，处理完后再还原
+    const linkPlaceholders = [];
+    html = html.replace(/<a\b[^>]*>.*?<\/a>/gi, function(match) {
+      const index = linkPlaceholders.length;
+      linkPlaceholders.push(match);
+      return `@@PLACEHOLDER${index}@@`;
+    });
+
+    // 转换 @用户名
+    html = html.replace(/(^|\s)@([a-zA-Z0-9\-_]+)/g, function(match, prefix, username) {
+      return `${prefix}<a href="https://github.com/${username}" target="_blank" class="mention" style="color:#0366d6;text-decoration:none;">@${username}</a>`;
+    });
+
+    // 转换 #数字（假设是讨论编号）
+    html = html.replace(/(^|\s)#(\d+)/g, function(match, prefix, num) {
+      return `${prefix}<a href="/blog.html?d=${num}" class="issue-link" style="color:#0366d6;text-decoration:none;">#${num}</a>`;
+    });
+
+    // 还原链接
+    html = html.replace(/@@PLACEHOLDER(\d+)@@/g, function(match, index) {
+      return linkPlaceholders[parseInt(index)];
+    });
 
     // 图片块级显示
     html = html.replace(/<img([^>]*)>/gi, function(match, attrs) {
@@ -91,7 +147,7 @@
     return html;
   }
 
-  // ---------- 为代码块添加复制按钮 ----------
+  // ---------- 代码块复制按钮 ----------
   function addCopyButtonsToCodeBlocks() {
     document.querySelectorAll('.comment-item pre, .markdown-body pre, #text pre').forEach(pre => {
       if (pre.querySelector('.copy-code-btn')) return;
@@ -596,7 +652,6 @@
       infoEl.innerHTML = `<span style="font-size:14pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; font-weight:bold;">${sanitizeHtml(renderMarkdown(info))}</span>`;
 
       textEl.innerHTML = `<div style="padding:0 10px; text-align:left;">${sanitizeHtml(renderMarkdown(bodyText))}</div>`;
-      // 正文代码块复制按钮
       addCopyButtonsToCodeBlocks();
 
       const discussionId = discussionData.id;
@@ -647,7 +702,6 @@
         const pageComments = allComments.slice(start, end);
         const html = renderComments(pageComments);
         commentListDiv.innerHTML = html;
-        // 评论代码块复制按钮
         addCopyButtonsToCodeBlocks();
         renderPagination(paginationTop, page, totalPages, (newPage) => {
           renderCommentsPage(newPage);
