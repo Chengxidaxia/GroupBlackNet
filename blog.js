@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（修复 parseFirstLine 错误）
+// blog.js - 文章详情页（修复 renderMarkdown 异常）
 // ============================================================
 
 (function() {
@@ -85,15 +85,20 @@
     }
   }
 
-  // ---------- Markdown 渲染 ----------
+  // ---------- Markdown 渲染（带异常捕获） ----------
   let markedConfigured = false;
 
   function renderMarkdown(text) {
+    // 如果文本为空或未定义，返回空字符串
+    if (!text) return '';
+
+    // 检查 marked 是否可用
     if (typeof marked === 'undefined' || typeof marked.parse !== 'function') {
       console.warn('marked 未加载，使用纯文本 fallback');
       return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
     }
 
+    // 配置 marked（只执行一次）
     if (!markedConfigured) {
       try {
         marked.use({
@@ -114,55 +119,64 @@
         markedConfigured = true;
       } catch (e) {
         console.warn('marked 配置失败:', e);
+        // 即使配置失败，也尝试继续渲染
       }
     }
 
-    let html = marked.parse(text);
+    try {
+      // 尝试解析 Markdown
+      let html = marked.parse(text);
 
-    if (typeof DOMPurify !== 'undefined') {
-      html = DOMPurify.sanitize(html, {
-        ADD_TAGS: ['input', 'task-list', 'task-list-item'],
-        ADD_ATTR: ['type', 'checked', 'disabled', 'class', 'id', 'aria-label', 'data-*'],
-        FORCE_ATTR: { 'input': { 'disabled': '' } },
-        ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|geo):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
-      });
-    }
-
-    // 后处理：@提及 和 #引用
-    const linkPlaceholders = [];
-    html = html.replace(/<a\b[^>]*>.*?<\/a>/gi, function(match) {
-      const index = linkPlaceholders.length;
-      linkPlaceholders.push(match);
-      return `@@PLACEHOLDER${index}@@`;
-    });
-
-    html = html.replace(/(^|\s)@([a-zA-Z0-9\-_]+)/g, function(match, prefix, username) {
-      return `${prefix}<a href="https://github.com/${username}" target="_blank" class="mention" style="color:#0366d6;text-decoration:none;">@${username}</a>`;
-    });
-
-    html = html.replace(/(^|\s)#(\d+)/g, function(match, prefix, num) {
-      return `${prefix}<a href="/blog.html?d=${num}" class="issue-link" style="color:#0366d6;text-decoration:none;">#${num}</a>`;
-    });
-
-    html = html.replace(/@@PLACEHOLDER(\d+)@@/g, function(match, index) {
-      return linkPlaceholders[parseInt(index)];
-    });
-
-    // 图片块级显示
-    html = html.replace(/<img([^>]*)>/gi, function(match, attrs) {
-      if (/style\s*=/i.test(attrs)) {
-        attrs = attrs.replace(/style\s*=\s*(["'])([^"']*)\1/i, function(m, quote, style) {
-          return `style=${quote}${style}; display:block; margin:10px 0; max-width:100%; height:auto;${quote}`;
+      // 清洗 HTML
+      if (typeof DOMPurify !== 'undefined') {
+        html = DOMPurify.sanitize(html, {
+          ADD_TAGS: ['input', 'task-list', 'task-list-item'],
+          ADD_ATTR: ['type', 'checked', 'disabled', 'class', 'id', 'aria-label', 'data-*'],
+          FORCE_ATTR: { 'input': { 'disabled': '' } },
+          ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|geo):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
         });
-      } else {
-        attrs += ` style="display:block; margin:10px 0; max-width:100%; height:auto;"`;
       }
-      return `<img${attrs}>`;
-    });
 
-    html = html.replace(/<pre>/g, '<pre class="markdown-body">');
+      // 后处理：@提及 和 #引用
+      const linkPlaceholders = [];
+      html = html.replace(/<a\b[^>]*>.*?<\/a>/gi, function(match) {
+        const index = linkPlaceholders.length;
+        linkPlaceholders.push(match);
+        return `@@PLACEHOLDER${index}@@`;
+      });
 
-    return html;
+      html = html.replace(/(^|\s)@([a-zA-Z0-9\-_]+)/g, function(match, prefix, username) {
+        return `${prefix}<a href="https://github.com/${username}" target="_blank" class="mention" style="color:#0366d6;text-decoration:none;">@${username}</a>`;
+      });
+
+      html = html.replace(/(^|\s)#(\d+)/g, function(match, prefix, num) {
+        return `${prefix}<a href="/blog.html?d=${num}" class="issue-link" style="color:#0366d6;text-decoration:none;">#${num}</a>`;
+      });
+
+      html = html.replace(/@@PLACEHOLDER(\d+)@@/g, function(match, index) {
+        return linkPlaceholders[parseInt(index)];
+      });
+
+      // 图片块级显示
+      html = html.replace(/<img([^>]*)>/gi, function(match, attrs) {
+        if (/style\s*=/i.test(attrs)) {
+          attrs = attrs.replace(/style\s*=\s*(["'])([^"']*)\1/i, function(m, quote, style) {
+            return `style=${quote}${style}; display:block; margin:10px 0; max-width:100%; height:auto;${quote}`;
+          });
+        } else {
+          attrs += ` style="display:block; margin:10px 0; max-width:100%; height:auto;"`;
+        }
+        return `<img${attrs}>`;
+      });
+
+      html = html.replace(/<pre>/g, '<pre class="markdown-body">');
+
+      return html;
+    } catch (error) {
+      console.error('Markdown 渲染失败:', error, '文本片段:', text.slice(0, 200));
+      // 出错时返回转义后的原始文本
+      return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+    }
   }
 
   // ---------- 代码块复制 ----------
@@ -263,18 +277,15 @@
       } else {
         info = firstLine;
       }
-      // 正文为剩余行
       const restLines = lines.slice(1);
       bodyText = restLines.join('\n').trim();
     } catch (e) {
       isJson = false;
-      // 不是 JSON，第一行作为简介（去除 Markdown 标记）
       info = firstLine
         .replace(/!\[.*?\]\(.*?\)/g, '')
         .replace(/\[.*?\]\(.*?\)/g, '$1')
         .replace(/[#*`>_\-]/g, '')
         .trim() || '无简介';
-      // 正文为剩余行
       const restLines = lines.slice(1);
       bodyText = restLines.join('\n').trim();
     }
@@ -681,7 +692,8 @@
         infoEl.innerHTML = '';
       }
 
-      textEl.innerHTML = `<div style="padding:0 10px; text-align:left;">${sanitizeHtml(renderMarkdown(bodyText))}</div>`;
+      const renderedBody = renderMarkdown(bodyText);
+      textEl.innerHTML = `<div style="padding:0 10px; text-align:left;">${sanitizeHtml(renderedBody)}</div>`;
       addCopyButtonsToCodeBlocks();
 
       // ---------- 表情 ----------
