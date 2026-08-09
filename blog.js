@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（稳定版，禁用缓存，修复 setValue）
+// blog.js - 文章详情页（最终修复版）
 // ============================================================
 
 (function() {
@@ -697,32 +697,31 @@
     }
   }
 
-  // ---------- Vditor 初始化（修复 setValue 问题） ----------
-  // 只修改 initVditor 函数
+  // ---------- Vditor 初始化（修复后） ----------
   function initVditor() {
-  const editorContainer = document.getElementById('vditor-container');
-  if (!editorContainer) return;
-  if (!isLoggedIn) {
-    editorContainer.innerHTML = '<p style="text-align:center;color:#888;padding:20px;">登录后即可评论</p>';
-    return;
-  }
-  if (typeof Vditor === 'undefined') {
-    editorContainer.innerHTML = '<p style="color:red;">编辑器加载失败，请刷新页面重试。</p>';
-    return;
-  }
-  if (vditorInstance) {
-    vditorInstance.destroy();
-    vditorInstance = null;
-  }
-  editorContainer.innerHTML = '';
+    const editorContainer = document.getElementById('vditor-container');
+    if (!editorContainer) return;
+    if (!isLoggedIn) {
+      editorContainer.innerHTML = '<p style="text-align:center;color:#888;padding:20px;">登录后即可评论</p>';
+      return;
+    }
+    if (typeof Vditor === 'undefined') {
+      editorContainer.innerHTML = '<p style="color:red;">编辑器加载失败，请刷新页面重试。</p>';
+      return;
+    }
+    if (vditorInstance) {
+      vditorInstance.destroy();
+      vditorInstance = null;
+    }
+    editorContainer.innerHTML = '';
 
-  try {
     vditorInstance = new Vditor(editorContainer, {
       height: 200,
       mode: 'ir',
       placeholder: '写下你的评论...',
       cache: { enable: false },
       cdn: 'https://unpkg.com/vditor@3.10.6',
+      lang: 'zh_CN',
       upload: {
         url: `${UPLOAD_URL}/`,
         fieldName: 'file',
@@ -738,19 +737,11 @@
         'preview', 'fullscreen', 'outline', 'edit-mode', 'both',
         'undo', 'redo', 'more'
       ],
-      outline: { enable: true, position: 'left' }
-    });
-
-    // 延迟清空内容（确保实例已创建）
-    setTimeout(function() {
-      try {
-        if (vditorInstance && typeof vditorInstance.setValue === 'function') {
-          vditorInstance.setValue('');
-        }
-      } catch (e) {
-        console.warn('清空编辑器内容失败:', e);
+      outline: { enable: true, position: 'left' },
+      after: function (vditor) {
+        vditor.setValue('');
       }
-    }, 300);
+    });
 
     // 强制大纲左侧
     setTimeout(function() {
@@ -759,32 +750,28 @@
         outline.style.left = '0';
         outline.style.right = 'auto';
       }
-    }, 400);
-  } catch (e) {
-    console.error('Vditor 初始化失败:', e);
-    editorContainer.innerHTML = '<p style="color:red;text-align:center;padding:20px;">编辑器加载失败，请刷新页面重试。</p>';
-  }
+    }, 300);
 
-  // 提交按钮逻辑（如果有）
-  let submitBtn = document.getElementById('comment-submit');
-  if (!submitBtn) {
-    submitBtn = document.createElement('button');
-    submitBtn.id = 'comment-submit';
-    submitBtn.textContent = '发表评论';
-    submitBtn.style.cssText = `
-      margin-top: 10px;
-      padding: 8px 20px;
-      background: #2da44e;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      font-size: 16px;
-      cursor: pointer;
-    `;
-    submitBtn.addEventListener('click', submitComment);
-    editorContainer.parentNode.insertBefore(submitBtn, editorContainer.nextSibling);
+    // 提交按钮（如果不存在）
+    let submitBtn = document.getElementById('comment-submit');
+    if (!submitBtn) {
+      submitBtn = document.createElement('button');
+      submitBtn.id = 'comment-submit';
+      submitBtn.textContent = '发表评论';
+      submitBtn.style.cssText = `
+        margin-top: 10px;
+        padding: 8px 20px;
+        background: #2da44e;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 16px;
+        cursor: pointer;
+      `;
+      submitBtn.addEventListener('click', submitComment);
+      editorContainer.parentNode.insertBefore(submitBtn, editorContainer.nextSibling);
+    }
   }
-}
 
   // ---------- 加载讨论 ----------
   async function loadDiscussionFull(discussionNumber) {
