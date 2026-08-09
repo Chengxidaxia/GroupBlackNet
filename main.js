@@ -1,17 +1,15 @@
 // ============================================================
-// main.js - 文章列表加载、排序、分页（修复 info 解析）
+// main.js - 文章列表加载、排序、分页
 // ============================================================
 
 (function() {
   'use strict';
 
-  // ---------- 配置 ----------
   const API_URL = 'https://api.blacknet.cc.cd';
   const PAGE_SIZE = 20;
   const SORT_SELECT_ID = 'sort';
   const ASC_CHECK_ID = 'UP';
 
-  // ---------- 模块级变量 ----------
   let allPosts = [];
   let currentPage = 1;
   let totalPages = 1;
@@ -42,7 +40,17 @@
     return null;
   }
 
-  // ---------- 修复 parseFirstLine ----------
+  function getFirstLinePlainText(markdown) {
+    const lines = markdown.split('\n');
+    const firstLine = lines.find(line => line.trim() !== '') || '';
+    return firstLine
+      .replace(/!\[.*?\]\(.*?\)/g, '')
+      .replace(/\[.*?\]\(.*?\)/g, '$1')
+      .replace(/[#*`>_\-]/g, '')
+      .trim() || '无简介';
+  }
+
+  // 修复 parseFirstLine：正确解析 JSON 第一行
   function parseFirstLine(body) {
     const lines = body.split('\n');
     const firstLine = lines.find(line => line.trim() !== '') || '';
@@ -56,38 +64,24 @@
       if (data.info) {
         info = base64Decode(data.info);
       } else {
-        // 如果 JSON 没有 info 字段，将整个 JSON 字符串作为 info（但一般不出现）
+        // 如果 JSON 没有 info 字段，将整个 JSON 字符串作为 info（实际不会发生）
         info = firstLine;
       }
-      // 正文为剩余行
       const restLines = lines.slice(1);
       bodyText = restLines.join('\n').trim();
     } catch (e) {
       isJson = false;
-      // 不是 JSON，第一行作为简介（去除 Markdown 标记）
       info = firstLine
         .replace(/!\[.*?\]\(.*?\)/g, '')
         .replace(/\[.*?\]\(.*?\)/g, '$1')
         .replace(/[#*`>_\-]/g, '')
         .trim() || '无简介';
-      // 正文为剩余行
       const restLines = lines.slice(1);
       bodyText = restLines.join('\n').trim();
     }
 
     if (!bodyText) bodyText = '';
     return { info, bodyText, isJson };
-  }
-
-  function getFirstLinePlainText(markdown) {
-    // 此函数可能不再需要，但保留兼容
-    const lines = markdown.split('\n');
-    const firstLine = lines.find(line => line.trim() !== '') || '';
-    return firstLine
-      .replace(/!\[.*?\]\(.*?\)/g, '')
-      .replace(/\[.*?\]\(.*?\)/g, '$1')
-      .replace(/[#*`>_\-]/g, '')
-      .trim() || '无简介';
   }
 
   function formatDate(dateStr) {
@@ -135,14 +129,9 @@
     const createdAt = formatDate(post.createdAt);
     const commentsCount = post.comments.totalCount;
     const imageUrl = extractFirstImage(post.body) || 'img/pole.jpg';
-    // 使用 parseFirstLine 获取简介
-    const { info } = parseFirstLine(post.body);
-    // info 已经过 Base64 解码（如果是 JSON）或纯文本，这里直接使用
-    // 但 info 可能包含 Markdown，需要渲染
-    // 由于卡片简介不需要完整 Markdown 渲染，只显示纯文本摘要，我们简单处理
-    // 如果 info 是经过 JSON 解码的，可能包含 Markdown，但卡片只显示简短文本
-    // 我们直接截取纯文本
-    const summary = info ? info.replace(/[#*`>_\-]/g, '').trim() : '无简介';
+    const { info, bodyText, isJson } = parseFirstLine(post.body);
+    // 简介使用 info
+    const summary = info || getFirstLinePlainText(post.body);
     const reactionsHtml = renderReactions(post.reactionGroups);
     const detailLink = `/blog.html?d=${number}`;
 
@@ -382,5 +371,4 @@
   } else {
     start();
   }
-
 })();
