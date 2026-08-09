@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（乐观更新 + 修复更多菜单）
+// blog.js - 文章详情页（修复更多菜单、样式、评论400）
 // ============================================================
 
 (function() {
@@ -9,6 +9,7 @@
   const OAUTH_BASE = 'https://oauth.blacknet.cc.cd';
   const UPLOAD_URL = 'https://upload.blacknet.cc.cd';
   const COMMENTS_PER_PAGE = 20;
+  const DEFAULT_AVATAR = 'https://github.com/identicons/default.png'; // 或者一个占位图
 
   const titleEl = document.getElementById('title');
   const infoEl = document.getElementById('information');
@@ -26,7 +27,7 @@
   let userReactions = {};
   let isSubmitting = false;
 
-  // ---------- 样式注入 ----------
+  // ---------- 样式注入（优化 Vditor 外观）----------
   function injectStyles() {
     if (document.getElementById('blog-styles')) return;
     const style = document.createElement('style');
@@ -144,6 +145,13 @@
         border-left: 3px solid #2da44e;
         padding-left: 8px;
       }
+      /* 修复 Vditor 工具栏样式 */
+      .vditor-toolbar .vditor-tooltipped {
+        font-size: 14px !important;
+      }
+      .vditor-toolbar svg {
+        fill: currentColor !important;
+      }
     `;
     document.head.appendChild(style);
   }
@@ -191,6 +199,12 @@
     } catch (e) {
       return atob(str);
     }
+  }
+
+  // 安全获取头像
+  function getAvatarUrl(user) {
+    if (!user) return DEFAULT_AVATAR;
+    return user.avatarUrl || user.avatar_url || DEFAULT_AVATAR;
   }
 
   // ---------- Markdown 渲染 ----------
@@ -435,7 +449,7 @@
     const indent = level * 20;
     sorted.forEach(comment => {
       const author = comment.author.login;
-      const avatar = comment.author.avatarUrl;
+      const avatar = getAvatarUrl(comment.author);
       const createdAt = formatDate(comment.createdAt);
       const isTemp = comment.isTemp || false;
       const tempClass = isTemp ? (level === 0 ? 'temp-comment' : 'temp-reply') : '';
@@ -591,7 +605,7 @@
         createdAt: new Date().toISOString(),
         author: {
           login: currentUser ? currentUser.login : '你',
-          avatarUrl: currentUser ? currentUser.avatarUrl : ''
+          avatarUrl: currentUser ? getAvatarUrl(currentUser) : DEFAULT_AVATAR
         },
         reactionGroups: [],
         isTemp: true
@@ -758,7 +772,7 @@
       alert('请输入评论内容');
       return;
     }
-    if (!discussionData) {
+    if (!discussionData || !discussionData.id) {
       alert('讨论数据未加载');
       return;
     }
@@ -770,7 +784,7 @@
       createdAt: new Date().toISOString(),
       author: {
         login: currentUser ? currentUser.login : '你',
-        avatarUrl: currentUser ? currentUser.avatarUrl : ''
+        avatarUrl: currentUser ? getAvatarUrl(currentUser) : DEFAULT_AVATAR
       },
       reactionGroups: [],
       replies: { nodes: [] },
@@ -830,6 +844,7 @@
     }
     editorContainer.innerHTML = '';
 
+    // 使用 default 图标，避免字体依赖
     vditorInstance = new Vditor(editorContainer, {
       height: 200,
       minHeight: 150,
@@ -839,7 +854,7 @@
       cache: { enable: false },
       lang: 'zh_CN',
       cdn: 'https://unpkg.com/vditor@3.10.6',
-      icon: 'material',   // 使用 material 图标，解决 more 菜单无响应
+      icon: 'default',   // 使用 default 图标
       theme: 'classic',
       upload: {
         url: `${UPLOAD_URL}/`,
@@ -915,6 +930,7 @@
       discussionData = data.discussion;
       if (!discussionData) throw new Error('未找到该讨论');
 
+      // 清空 comment 容器（保留 #comment）
       commentContainer.innerHTML = '';
 
       const titleText = discussionData.title || '无标题';
