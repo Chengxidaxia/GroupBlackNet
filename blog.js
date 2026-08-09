@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（含 Discussion Upvote 和评论/回复的“顶”）
+// blog.js - 完整版（文章和评论都用 Upvote）
 // ============================================================
 
 (function() {
@@ -17,14 +17,13 @@
   const commentContainer = document.getElementById('comment');
 
   let discussionData = null;
-  let currentPage = 1;
-  let totalPages = 1;
   let isLoggedIn = false;
   let currentUser = null;
   let vditorInstance = null;
   let allComments = [];
   let totalComments = 0;
-  let userReactions = {};
+  let currentCommentPage = 1;
+  let totalPages = 1;
   let isSubmitting = false;
 
   // ---------- 样式 ----------
@@ -33,82 +32,33 @@
     const style = document.createElement('style');
     style.id = 'blog-styles';
     style.textContent = `
-      .image-viewer-overlay {
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0,0,0,0.85); display: flex; align-items: center;
-        justify-content: center; z-index: 9999; cursor: pointer;
-      }
-      .image-viewer-overlay img { max-width: 90%; max-height: 90%; object-fit: contain; }
-      .image-viewer-close {
-        position: fixed; top: 20px; right: 30px; font-size: 40px; color: #fff;
-        opacity: 0.7; cursor: pointer; z-index: 10000; background: none; border: none; padding: 10px;
-      }
-      .image-viewer-close:hover { opacity: 1; }
-      .temp-comment, .temp-reply {
-        opacity: 0.7; background: #f0f9f0; border-left: 3px solid #2da44e; padding-left: 8px;
-      }
+      .image-viewer-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); display:flex; align-items:center; justify-content:center; z-index:9999; cursor:pointer; }
+      .image-viewer-overlay img { max-width:90%; max-height:90%; object-fit:contain; }
+      .image-viewer-close { position:fixed; top:20px; right:30px; font-size:40px; color:#fff; opacity:0.7; cursor:pointer; z-index:10000; background:none; border:none; padding:10px; }
+      .image-viewer-close:hover { opacity:1; }
+      .temp-comment, .temp-reply { opacity:0.7; background:#f0f9f0; border-left:3px solid #2da44e; padding-left:8px; }
 
-      .pagination-btn {
-        margin: 0 2px; padding: 4px 10px; border: 1px solid #ccc; background: #fff;
-        color: #333; cursor: pointer; border-radius: 4px; font-size: 12pt;
-        transition: background 0.2s;
-      }
-      .pagination-btn:hover { background: #e9ecef; }
-      .pagination-btn.active { background: #B1782E; color: #fff; border-color: #B1782E; }
-      .pagination-btn.disabled { opacity: 0.5; cursor: not-allowed; }
-      .pagination-ellipsis {
-        margin: 0 4px; font-size: 12pt; cursor: pointer; color: #0366d6; user-select: none;
-      }
-      .pagination-ellipsis:hover { text-decoration: underline; }
+      .pagination-btn { margin:0 2px; padding:4px 10px; border:1px solid #ccc; background:#fff; color:#333; cursor:pointer; border-radius:4px; font-size:12pt; transition:background 0.2s; }
+      .pagination-btn:hover { background:#e9ecef; }
+      .pagination-btn.active { background:#B1782E; color:#fff; border-color:#B1782E; }
+      .pagination-btn.disabled { opacity:0.5; cursor:not-allowed; }
+      .pagination-ellipsis { margin:0 4px; font-size:12pt; cursor:pointer; color:#0366d6; user-select:none; }
+      .pagination-ellipsis:hover { text-decoration:underline; }
 
-      .markdown-body pre {
-        background: #F0F1F2 !important; border-radius: 8px !important;
-        padding: 16px !important; overflow: auto !important; position: relative !important;
-      }
-      .markdown-body pre code {
-        background: transparent !important; color: #000 !important; padding: 0 !important;
-        font-family: SFMono-Regular, Consolas, monospace !important; font-size: 13px !important;
-        line-height: 1.45 !important; white-space: pre !important; border-radius: 0 !important;
-      }
-      .markdown-body code:not(pre code) {
-        background: #F0F1F2 !important; padding: 0.2em 0.4em !important; border-radius: 3px !important;
-        color: #000 !important; font-size: 85% !important;
-        font-family: SFMono-Regular, Consolas, monospace !important;
-      }
-      .markdown-body img {
-        max-width: 100% !important; max-height: 500px !important;
-        width: auto !important; height: auto !important;
-        display: block !important; margin: 10px 0 !important;
-      }
-      blockquote {
-        border-left: 4px solid #dfe2e5 !important; color: #6a737d !important;
-        padding-left: 16px !important; margin-left: 0 !important;
-        margin-top: 0 !important; margin-bottom: 0 !important;
-      }
-      .task-list-item {
-        list-style-type: none !important; display: flex !important;
-        align-items: flex-start !important;
-      }
-      .task-list-item input[type="checkbox"] {
-        margin-right: 6px; margin-top: 4px; width: 16px; height: 16px;
-        flex-shrink: 0; accent-color: #2da44e;
-      }
-      .comment-item .markdown-body { font-size: 14px; line-height: 1.6; }
+      .markdown-body pre { background:#F0F1F2 !important; border-radius:8px !important; padding:16px !important; overflow:auto !important; position:relative !important; }
+      .markdown-body pre code { background:transparent !important; color:#000 !important; padding:0 !important; font-family:SFMono-Regular,Consolas,monospace !important; font-size:13px !important; line-height:1.45 !important; white-space:pre !important; border-radius:0 !important; }
+      .markdown-body code:not(pre code) { background:#F0F1F2 !important; padding:0.2em 0.4em !important; border-radius:3px !important; color:#000 !important; font-size:85% !important; font-family:SFMono-Regular,Consolas,monospace !important; }
+      .markdown-body img { max-width:100% !important; max-height:500px !important; width:auto !important; height:auto !important; display:block !important; margin:10px 0 !important; }
+      blockquote { border-left:4px solid #dfe2e5 !important; color:#6a737d !important; padding-left:16px !important; margin-left:0 !important; margin-top:0 !important; margin-bottom:0 !important; }
+      .task-list-item { list-style-type:none !important; display:flex !important; align-items:flex-start !important; }
+      .task-list-item input[type="checkbox"] { margin-right:6px; margin-top:4px; width:16px; height:16px; flex-shrink:0; accent-color:#2da44e; }
+      .comment-item .markdown-body { font-size:14px; line-height:1.6; }
 
-      .reactions-container {
-        display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; align-items: center;
-      }
-      .reaction-item {
-        display: flex; align-items: center; gap: 4px; padding: 4px 8px;
-        border: 1px solid #ddd; border-radius: 16px; background: #f6f8fa;
-        cursor: default;
-      }
-      .reaction-item.reaction-btn { cursor: pointer; }
-      .upvote-item {
-        margin-right: 16px !important;
-        border-radius: 8px; padding: 4px 12px;
-      }
-      .upvote-item .upvote-icon { font-size: 18px; line-height: 1; }
+      .reactions-container { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0; align-items:center; }
+      .reaction-item { display:flex; align-items:center; gap:4px; padding:4px 8px; border:1px solid #ddd; border-radius:16px; background:#f6f8fa; cursor:default; }
+      .reaction-item.reaction-btn { cursor:pointer; }
+      .upvote-item { margin-right:16px !important; border-radius:8px; padding:4px 12px; }
+      .upvote-item .upvote-icon { font-size:18px; line-height:1; }
     `;
     document.head.appendChild(style);
   }
@@ -294,48 +244,65 @@
   }
 
   // ============================================================
-  // 评论/回复的 Reaction 渲染（含独立的“顶”↑ 按钮，保留所有表情）
+  // 统一的 Upvote 渲染函数（文章和评论共用）
   // ============================================================
-  function renderReactionsForComment(reactionGroups, subjectId, canInteract = false) {
-    let html = '<div class="reactions-container">';
-
-    // 1. 先添加独立的“顶”按钮（↑），基于 THUMBS_UP
-    const thumbsUpGroup = reactionGroups ? reactionGroups.find(g => g.content === 'THUMBS_UP') : null;
-    const count = thumbsUpGroup ? thumbsUpGroup.users.totalCount : 0;
-    const viewerHasReacted = thumbsUpGroup ? thumbsUpGroup.viewerHasReacted : false;
-    const isActive = viewerHasReacted && canInteract;
+  function renderUpvoteButton(subjectId, upvoteCount, viewerHasUpvoted, canInteract = false) {
+    if (!canInteract) {
+      return `<span class="upvote-count">${upvoteCount}</span>`;
+    }
+    const isActive = viewerHasUpvoted;
     const borderColor = isActive ? '#0366d6' : '#ddd';
     const bgColor = isActive ? '#dbedff' : '#f6f8fa';
+    return `
+      <div class="reaction-item reaction-btn upvote-item" data-subject-id="${subjectId}"
+           style="border:1px solid ${borderColor}; border-radius:8px; background:${bgColor}; cursor:pointer; margin-right:16px;">
+        <span class="upvote-icon">↑</span>
+        <span class="upvote-count" id="upvote-count-${subjectId}">${upvoteCount}</span>
+      </div>
+    `;
+  }
+
+  // ============================================================
+  // 评论的 Reaction 渲染（含 Upvote 和表情）
+  // ============================================================
+  function renderReactionsForComment(comment) {
+    const canInteract = isLoggedIn;
+    const subjectId = comment.id;
+    const upvoteGroup = comment.reactionGroups?.find(g => g.content === 'THUMBS_UP');
+    // 注意：评论的 Upvote 数据来自 viewerHasUpvoted 和 upvoteCount，但 API 中评论的 upvote 数据是 embedded，我们需要从 reactionGroups 中获取。
+    // 但由于 GitHub 的评论 upvote 使用的是 Reaction THUMBS_UP，所以我们需要用 reactionGroups 里的 THUMBS_UP 数据。
+    const upvoteCount = upvoteGroup ? upvoteGroup.users.totalCount : 0;
+    const viewerHasUpvoted = upvoteGroup ? upvoteGroup.viewerHasReacted : false;
+    let html = '<div class="reactions-container">';
+    // Upvote 按钮（使用 Reaction THUMBS_UP）
     if (canInteract) {
+      const isActive = viewerHasUpvoted;
+      const borderColor = isActive ? '#0366d6' : '#ddd';
+      const bgColor = isActive ? '#dbedff' : '#f6f8fa';
       html += `
-        <div class="reaction-item reaction-btn upvote-item"
-             data-subject-id="${subjectId}" data-reaction="THUMBS_UP"
+        <div class="reaction-item reaction-btn upvote-item" data-subject-id="${subjectId}" data-reaction="THUMBS_UP"
              style="border:1px solid ${borderColor}; border-radius:8px; background:${bgColor}; cursor:pointer; margin-right:16px;">
           <span class="upvote-icon">↑</span>
-          <span class="upvote-count" id="reaction-count-${subjectId}-THUMBS_UP">${count}</span>
+          <span class="upvote-count" id="reaction-count-${subjectId}-THUMBS_UP">${upvoteCount}</span>
         </div>
       `;
     }
-
-    // 2. 添加所有 Reaction（包括 THUMBS_UP，显示为 👍）
-    if (reactionGroups && reactionGroups.length > 0) {
-      reactionGroups.forEach(group => {
-        const count2 = group.users.totalCount;
+    // 其他表情（包括 👍）
+    if (comment.reactionGroups && comment.reactionGroups.length > 0) {
+      comment.reactionGroups.forEach(group => {
+        const count = group.users.totalCount;
         const emoji = EMOJI_MAP[group.content] || group.content;
         const countId = `reaction-count-${subjectId}-${group.content}`;
-        const viewerReacted2 = group.viewerHasReacted === true;
-        if (canInteract) userReactions[`${subjectId}-${group.content}`] = viewerReacted2;
-        const isActive2 = viewerReacted2 && canInteract;
-        const borderColor2 = isActive2 ? '#0366d6' : '#ddd';
-        const bgColor2 = isActive2 ? '#dbedff' : '#f6f8fa';
+        const viewerReacted = group.viewerHasReacted === true;
+        const isActive = viewerReacted && canInteract;
+        const borderColor = isActive ? '#0366d6' : '#ddd';
+        const bgColor = isActive ? '#dbedff' : '#f6f8fa';
         const interactiveClass = canInteract ? 'reaction-btn' : '';
-        // 注意：这里 THUMBS_UP 也会显示为 👍
         html += `
-          <div class="reaction-item ${interactiveClass}"
-               data-subject-id="${subjectId}" data-reaction="${group.content}"
-               style="border:1px solid ${borderColor2}; border-radius:16px; background:${bgColor2}; ${canInteract ? 'cursor:pointer;' : ''}">
+          <div class="reaction-item ${interactiveClass}" data-subject-id="${subjectId}" data-reaction="${group.content}"
+               style="border:1px solid ${borderColor}; border-radius:16px; background:${bgColor}; ${canInteract ? 'cursor:pointer;' : ''}">
             <span style="font-size:18px;">${emoji}</span>
-            <span id="${countId}" style="font-weight:bold;">${count2}</span>
+            <span id="${countId}" style="font-weight:bold;">${count}</span>
           </div>
         `;
       });
@@ -357,7 +324,7 @@
       const isTemp = comment.isTemp || false;
       const tempClass = isTemp ? (level === 0 ? 'temp-comment' : 'temp-reply') : '';
       const bodyHtml = `<div class="markdown-body">${renderMarkdown(comment.body, 250)}</div>`;
-      const reactionHtml = renderReactionsForComment(comment.reactionGroups || [], comment.id, isLoggedIn && !isTemp);
+      const reactionHtml = renderReactionsForComment(comment);
       const replies = comment.replies && comment.replies.nodes ? comment.replies.nodes : [];
       const sortedReplies = replies.length ? [...replies].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)) : [];
       const hasReplies = sortedReplies.length > 0;
@@ -461,7 +428,6 @@
     return null;
   }
 
-  let currentCommentPage = 1;
   function renderCommentsPage(page) {
     const start = (page - 1) * COMMENTS_PER_PAGE;
     const end = Math.min(start + COMMENTS_PER_PAGE, allComments.length);
@@ -472,6 +438,7 @@
       addCopyButtonsToCodeBlocks();
       bindReplyEvents();
       bindReactionEvents();
+      bindUpvoteEvents(); // 绑定 Upvote 事件
     }
     const paginationTop = document.getElementById('comment-pagination-top');
     const paginationBottom = document.getElementById('comment-pagination-bottom');
@@ -559,7 +526,10 @@
     });
   }
 
-  // ---------- Reaction 交互 ----------
+  // ============================================================
+  // Reaction 事件（表情）
+  // ============================================================
+  let userReactions = {};
   function updateReactionCount(subjectId, content, delta) {
     const countId = `reaction-count-${subjectId}-${content}`;
     const el = document.getElementById(countId);
@@ -634,63 +604,79 @@
     }
   }
   function bindReactionEvents() {
-    document.querySelectorAll('.reaction-item.reaction-btn').forEach(el => {
+    document.querySelectorAll('.reaction-item.reaction-btn:not(.upvote-item)').forEach(el => {
       el.removeEventListener('click', handleReactionClick);
       el.addEventListener('click', handleReactionClick);
     });
   }
 
   // ============================================================
-  // Discussion Upvote
+  // Upvote 事件（调用 /upvote API）
   // ============================================================
-  let discussionUpvoteState = false;
-  let discussionUpvoteCount = 0;
-
-  async function toggleDiscussionUpvote() {
+  async function handleUpvoteClick(e) {
+    const item = e.currentTarget;
+    const subjectId = item.dataset.subjectId;
+    if (!subjectId) return;
     if (!isLoggedIn) { console.error('请先登录'); return; }
-    if (!discussionData) return;
-    const discussionId = discussionData.id;
-    const action = discussionUpvoteState ? 'remove' : 'add';
-    const newCount = discussionUpvoteState ? discussionUpvoteCount - 1 : discussionUpvoteCount + 1;
 
-    discussionUpvoteState = !discussionUpvoteState;
-    discussionUpvoteCount = newCount;
-    updateDiscussionUpvoteUI();
+    // 获取当前状态（从样式判断）
+    const isActive = item.style.borderColor === 'rgb(3, 102, 214)'; // #0366d6
+    const action = isActive ? 'remove' : 'add';
+    const countSpan = item.querySelector('.upvote-count');
+    const currentCount = parseInt(countSpan.textContent, 10);
+    const newCount = isActive ? currentCount - 1 : currentCount + 1;
+
+    // 乐观更新
+    countSpan.textContent = newCount;
+    if (isActive) {
+      item.style.borderColor = '#ddd';
+      item.style.background = '#f6f8fa';
+    } else {
+      item.style.borderColor = '#0366d6';
+      item.style.background = '#dbedff';
+    }
+    item.style.pointerEvents = 'none';
 
     try {
       const res = await fetch(`${OAUTH_BASE}/upvote`, {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ discussionId, action })
+        body: JSON.stringify({ subjectId, action })
       });
       const data = await res.json();
       if (!res.ok) {
-        discussionUpvoteState = !discussionUpvoteState;
-        discussionUpvoteCount = newCount;
-        updateDiscussionUpvoteUI();
+        // 回滚
+        countSpan.textContent = currentCount;
+        if (isActive) {
+          item.style.borderColor = '#0366d6';
+          item.style.background = '#dbedff';
+        } else {
+          item.style.borderColor = '#ddd';
+          item.style.background = '#f6f8fa';
+        }
         console.error('Upvote 失败:', data.error);
       }
     } catch (error) {
-      discussionUpvoteState = !discussionUpvoteState;
-      discussionUpvoteCount = newCount;
-      updateDiscussionUpvoteUI();
+      // 回滚
+      countSpan.textContent = currentCount;
+      if (isActive) {
+        item.style.borderColor = '#0366d6';
+        item.style.background = '#dbedff';
+      } else {
+        item.style.borderColor = '#ddd';
+        item.style.background = '#f6f8fa';
+      }
       console.error('Upvote 网络错误:', error);
+    } finally {
+      item.style.pointerEvents = 'auto';
     }
   }
 
-  function updateDiscussionUpvoteUI() {
-    const countSpan = document.getElementById('discussion-upvote-count');
-    const btn = document.getElementById('discussion-upvote-btn');
-    if (countSpan) countSpan.textContent = discussionUpvoteCount;
-    if (btn) {
-      if (discussionUpvoteState) {
-        btn.style.borderColor = '#0366d6';
-        btn.style.background = '#dbedff';
-      } else {
-        btn.style.borderColor = '#ddd';
-        btn.style.background = '#f6f8fa';
-      }
-    }
+  function bindUpvoteEvents() {
+    document.querySelectorAll('.upvote-item.reaction-btn').forEach(el => {
+      el.removeEventListener('click', handleUpvoteClick);
+      el.addEventListener('click', handleUpvoteClick);
+    });
   }
 
   // ---------- 提交评论 ----------
@@ -802,7 +788,6 @@
 
   // ---------- 加载讨论 ----------
   async function loadDiscussionFull(discussionNumber) {
-    userReactions = {};
     try {
       const res = await fetch(`${API_URL}/?d=${discussionNumber}&cfirst=100`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -828,21 +813,22 @@
 
       // ---- Discussion Upvote + Reaction ----
       const discussionId = discussionData.id;
-      discussionUpvoteCount = discussionData.upvoteCount || 0;
-      discussionUpvoteState = discussionData.viewerHasUpvoted || false;
+      const upvoteCount = discussionData.upvoteCount || 0;
+      const viewerHasUpvoted = discussionData.viewerHasUpvoted || false;
 
-      // 构建 Reaction 容器：先插 Upvote，再显示其他 Reaction（跳过 THUMBS_UP，因为 Upvote 已独立）
+      // 构建 Reaction 容器
       let reactionHtml = '<div class="reactions-container">';
-      // Upvote 按钮
+      // Upvote 按钮（使用独立的 /upvote API）
       const upvoteBtnHtml = `
-        <div id="discussion-upvote-btn" class="reaction-item reaction-btn upvote-item" style="border:1px solid ${discussionUpvoteState ? '#0366d6' : '#ddd'}; border-radius:8px; background:${discussionUpvoteState ? '#dbedff' : '#f6f8fa'}; cursor:pointer; margin-right:16px;">
+        <div id="discussion-upvote-btn" class="reaction-item reaction-btn upvote-item" data-subject-id="${discussionId}"
+             style="border:1px solid ${viewerHasUpvoted ? '#0366d6' : '#ddd'}; border-radius:8px; background:${viewerHasUpvoted ? '#dbedff' : '#f6f8fa'}; cursor:pointer; margin-right:16px;">
           <span class="upvote-icon">↑</span>
-          <span class="upvote-count" id="discussion-upvote-count">${discussionUpvoteCount}</span>
+          <span class="upvote-count" id="discussion-upvote-count">${upvoteCount}</span>
         </div>
       `;
       reactionHtml += upvoteBtnHtml;
 
-      // 其他 Reaction（跳过 THUMBS_UP）
+      // 其他表情（跳过 THUMBS_UP）
       if (discussionData.reactionGroups && discussionData.reactionGroups.length > 0) {
         discussionData.reactionGroups.forEach(group => {
           if (group.content === 'THUMBS_UP') return;
@@ -856,8 +842,7 @@
           const bgColor = isActive ? '#dbedff' : '#f6f8fa';
           const interactiveClass = isLoggedIn ? 'reaction-btn' : '';
           reactionHtml += `
-            <div class="reaction-item ${interactiveClass}"
-                 data-subject-id="${discussionId}" data-reaction="${group.content}"
+            <div class="reaction-item ${interactiveClass}" data-subject-id="${discussionId}" data-reaction="${group.content}"
                  style="border:1px solid ${borderColor}; border-radius:16px; background:${bgColor}; ${isLoggedIn ? 'cursor:pointer;' : ''}">
               <span style="font-size:18px;">${emoji}</span>
               <span id="${countId}" style="font-weight:bold;">${count}</span>
@@ -875,7 +860,8 @@
       // 绑定 Upvote 按钮事件
       const upvoteBtn = document.getElementById('discussion-upvote-btn');
       if (upvoteBtn) {
-        upvoteBtn.addEventListener('click', toggleDiscussionUpvote);
+        upvoteBtn.removeEventListener('click', handleUpvoteClick);
+        upvoteBtn.addEventListener('click', handleUpvoteClick);
       }
 
       // ---- 编辑器 ----
@@ -915,16 +901,7 @@
       renderCommentsPage(1);
       bindReplyEvents();
       bindReactionEvents();
-
-      // 确保 Upvote UI 更新
-      setTimeout(() => {
-        updateDiscussionUpvoteUI();
-        const btn = document.getElementById('discussion-upvote-btn');
-        if (btn) {
-          btn.removeEventListener('click', toggleDiscussionUpvote);
-          btn.addEventListener('click', toggleDiscussionUpvote);
-        }
-      }, 200);
+      bindUpvoteEvents();
 
     } catch (error) {
       console.error('加载讨论失败:', error);
