@@ -1,5 +1,5 @@
 // ============================================================
-// edit.js - 创建新讨论（含工具栏提交，宽度控制）
+// edit.js - 创建新讨论（防重复提交 + 工具栏提交按钮）
 // ============================================================
 
 (function() {
@@ -36,7 +36,7 @@
         isLoggedIn = false;
         return false;
       }
-    } catch (e) {
+    } catch(e) {
       isLoggedIn = false;
       return false;
     }
@@ -47,57 +47,19 @@
     const style = document.createElement('style');
     style.id = 'edit-styles';
     style.textContent = `
-      #editing {
-        width: 85% !important;
-        margin: 0 auto !important;
-        display: block !important;
-        min-height: 400px !important;
-      }
-      #vditor-container {
-        margin: 10px 0;
-        text-align: left;
-        width: 100% !important;
-      }
+      #editing { width:80%; max-width:1000px; margin:0 auto; display:block; min-height:400px; }
+      #vditor-container { margin:10px 0; text-align:left; width:100%; }
       .upload-area {
-        border: 2px dashed #ccc;
-        border-radius: 8px;
-        padding: 20px;
-        text-align: center;
-        cursor: pointer;
-        transition: border-color 0.3s;
-        min-height: 120px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        background: #fafafa;
+        border:2px dashed #ccc; border-radius:8px; padding:20px; text-align:center;
+        cursor:pointer; transition:border-color 0.3s; min-height:120px;
+        display:flex; flex-direction:column; align-items:center; justify-content:center;
+        background:#fafafa;
       }
-      .upload-area.dragover {
-        border-color: #2da44e;
-        background: #f0f9f0;
-      }
-      .upload-area img {
-        max-width: 100%;
-        max-height: 200px;
-        margin-top: 8px;
-        border-radius: 4px;
-      }
-      .upload-area .hint {
-        color: #888;
-        font-size: 14px;
-      }
-      .upload-area .remove-btn {
-        margin-top: 8px;
-        background: #dc3545;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        padding: 4px 12px;
-        cursor: pointer;
-      }
-      .upload-area.hidden {
-        display: none !important;
-      }
+      .upload-area.dragover { border-color:#2da44e; background:#f0f9f0; }
+      .upload-area img { max-width:100%; max-height:200px; margin-top:8px; border-radius:4px; }
+      .upload-area .hint { color:#888; font-size:14px; }
+      .upload-area .remove-btn { margin-top:8px; background:#dc3545; color:white; border:none; border-radius:4px; padding:4px 12px; cursor:pointer; }
+      .upload-area.hidden { display:none !important; }
     `;
     document.head.appendChild(style);
   }
@@ -245,8 +207,9 @@
     }
   }
 
-  // ---------- 提交讨论 ----------
+  // ========== 提交讨论（防重复提交） ==========
   async function submitDiscussion() {
+    // 防止重复提交
     if (isSubmitting) return;
     if (!vditorInstance) {
       alert('编辑器未初始化');
@@ -285,7 +248,21 @@
     const payload = { title, body: fullBody };
     console.log('创建讨论 payload:', payload);
 
+    // 禁用提交按钮（工具栏中的自定义按钮和可能存在的底部按钮）
+    const toolbarBtn = document.querySelector('.vditor-toolbar__item[data-name="submit"]');
+    const bottomBtn = document.getElementById('edit-submit-btn');
+    const disableButtons = () => {
+      if (toolbarBtn) toolbarBtn.style.pointerEvents = 'none';
+      if (bottomBtn) bottomBtn.disabled = true;
+    };
+    const enableButtons = () => {
+      if (toolbarBtn) toolbarBtn.style.pointerEvents = 'auto';
+      if (bottomBtn) bottomBtn.disabled = false;
+    };
+
     isSubmitting = true;
+    disableButtons();
+
     try {
       const res = await fetch(`${OAUTH_BASE}/discussion`, {
         method: 'POST',
@@ -303,12 +280,17 @@
         }
       } else {
         alert('创建失败: ' + (data.error || '未知错误'));
+        enableButtons();
       }
     } catch (error) {
       console.error('提交异常:', error);
       alert('网络错误，请稍后重试');
+      enableButtons();
     } finally {
       isSubmitting = false;
+      // 如果页面未跳转，重新启用按钮（但跳转后页面卸载，无需关心）
+      // 为了防止跳转前用户再次点击，跳转后页面已卸载，所以 enable 在非跳转时调用
+      // 但我们在 catch 和 else 中已经调用 enableButtons，此处不再重复
     }
   }
 
