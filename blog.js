@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（完整版，含 Upvote 与表情同行）
+// blog.js - 文章详情页（含 Upvote 数据读取）
 // ============================================================
 
 (function() {
@@ -27,62 +27,51 @@
   let userReactions = {};
   let isSubmitting = false;
 
-  // ---------- 必要样式 ----------
+  // ---------- 样式 ----------
   function injectStyles() {
     if (document.getElementById('blog-styles')) return;
     const style = document.createElement('style');
     style.id = 'blog-styles';
     style.textContent = `
       .image-viewer-overlay {
-        position: fixed;
-        top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0,0,0,0.85);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 9999;
-        cursor: pointer;
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.85); display: flex; align-items: center;
+        justify-content: center; z-index: 9999; cursor: pointer;
       }
       .image-viewer-overlay img { max-width: 90%; max-height: 90%; object-fit: contain; }
       .image-viewer-close {
         position: fixed; top: 20px; right: 30px; font-size: 40px; color: #fff;
-        opacity: 0.7; cursor: pointer; z-index: 10000; background: none; border: none;
-        padding: 10px;
+        opacity: 0.7; cursor: pointer; z-index: 10000; background: none; border: none; padding: 10px;
       }
       .image-viewer-close:hover { opacity: 1; }
       .temp-comment, .temp-reply {
-        opacity: 0.7; background: #f0f9f0;
-        border-left: 3px solid #2da44e; padding-left: 8px;
+        opacity: 0.7; background: #f0f9f0; border-left: 3px solid #2da44e; padding-left: 8px;
       }
-
       .pagination-btn {
-        margin: 0 2px; padding: 4px 10px; border: 1px solid #ccc;
-        background: #fff; color: #333; cursor: pointer; border-radius: 4px;
-        font-size: 12pt; transition: background 0.2s;
+        margin: 0 2px; padding: 4px 10px; border: 1px solid #ccc; background: #fff;
+        color: #333; cursor: pointer; border-radius: 4px; font-size: 12pt;
+        transition: background 0.2s;
       }
       .pagination-btn:hover { background: #e9ecef; }
       .pagination-btn.active { background: #B1782E; color: #fff; border-color: #B1782E; }
       .pagination-btn.disabled { opacity: 0.5; cursor: not-allowed; }
       .pagination-ellipsis {
-        margin: 0 4px; font-size: 12pt; cursor: pointer; color: #0366d6;
-        user-select: none;
+        margin: 0 4px; font-size: 12pt; cursor: pointer; color: #0366d6; user-select: none;
       }
       .pagination-ellipsis:hover { text-decoration: underline; }
-
       .markdown-body pre {
         background: #F0F1F2 !important; border-radius: 8px !important;
         padding: 16px !important; overflow: auto !important; position: relative !important;
       }
       .markdown-body pre code {
-        background: transparent !important; color: #000 !important;
-        padding: 0 !important; font-family: SFMono-Regular, Consolas, monospace !important;
-        font-size: 13px !important; line-height: 1.45 !important;
-        white-space: pre !important; border-radius: 0 !important;
+        background: transparent !important; color: #000 !important; padding: 0 !important;
+        font-family: SFMono-Regular, Consolas, monospace !important; font-size: 13px !important;
+        line-height: 1.45 !important; white-space: pre !important; border-radius: 0 !important;
       }
       .markdown-body code:not(pre code) {
-        background: #F0F1F2 !important; padding: 0.2em 0.4em !important;
-        border-radius: 3px !important; color: #000 !important;
-        font-size: 85% !important; font-family: SFMono-Regular, Consolas, monospace !important;
+        background: #F0F1F2 !important; padding: 0.2em 0.4em !important; border-radius: 3px !important;
+        color: #000 !important; font-size: 85% !important;
+        font-family: SFMono-Regular, Consolas, monospace !important;
       }
       .markdown-body img {
         max-width: 100% !important; max-height: 500px !important;
@@ -103,11 +92,8 @@
         flex-shrink: 0; accent-color: #2da44e;
       }
       .comment-item .markdown-body { font-size: 14px; line-height: 1.6; }
-
-      /* Reaction 容器 */
       .reactions-container {
-        display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0;
-        align-items: center;
+        display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; align-items: center;
       }
       .reaction-item {
         display: flex; align-items: center; gap: 4px; padding: 4px 8px;
@@ -116,7 +102,7 @@
       }
       .reaction-item.reaction-btn { cursor: pointer; }
       .reaction-item.upvote-item {
-        margin-right: 16px !important; /* 两倍间隔 */
+        margin-right: 16px !important;
         border-radius: 8px; padding: 4px 12px;
       }
       .reaction-item .upvote-icon { font-size: 18px; line-height: 1; }
@@ -226,7 +212,6 @@
         ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|geo):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
       });
     }
-    // 强制 pre 样式
     html = html.replace(/<pre>/gi, function(match) {
       if (/style\s*=/i.test(match)) {
         return match.replace(/style\s*=\s*(["'])([^"']*)\1/i, function(m, quote, style) {
@@ -237,7 +222,6 @@
       }
     });
     html = html.replace(/<pre/g, '<pre class="markdown-body"');
-    // @ 和 # 链接
     const linkPlaceholders = [];
     html = html.replace(/<a\b[^>]*>.*?<\/a>/gi, function(match) {
       const index = linkPlaceholders.length;
@@ -253,7 +237,6 @@
     html = html.replace(/@@PLACEHOLDER(\d+)@@/g, function(match, index) {
       return linkPlaceholders[parseInt(index)];
     });
-    // 图片大小
     html = html.replace(/<img([^>]*)>/gi, function(match, attrs) {
       if (/style\s*=/i.test(attrs)) {
         attrs = attrs.replace(/style\s*=\s*(["'])([^"']*)\1/i, function(m, quote, style) {
@@ -307,16 +290,10 @@
     });
   }
 
-  // ============================================================
-  // Reaction 渲染（含 Upvote 按钮）
-  // ============================================================
+  // ---------- Reaction 渲染 ----------
   function renderReactions(reactionGroups, subjectId, canInteract = false, isDiscussion = false) {
     let upvoteHtml = '';
-    if (isDiscussion) {
-      // Discussion 的 Upvote 按钮我们将在 loadDiscussionFull 中手动插入，
-      // 因此这里不重复生成，只渲染其他 Reaction
-    } else {
-      // 评论的“顶”：使用 THUMBS_UP Reaction
+    if (!isDiscussion) {
       if (canInteract && reactionGroups) {
         const thumbsUpGroup = reactionGroups.find(g => g.content === 'THUMBS_UP');
         const count = thumbsUpGroup ? thumbsUpGroup.users.totalCount : 0;
@@ -334,7 +311,6 @@
         `;
       }
     }
-
     let reactionHtml = '<div class="reactions-container">';
     if (!isDiscussion) reactionHtml += upvoteHtml;
     if (reactionGroups && reactionGroups.length > 0) {
@@ -348,7 +324,7 @@
         const borderColor = isActive ? '#0366d6' : '#ddd';
         const bgColor = isActive ? '#dbedff' : '#f6f8fa';
         const interactiveClass = canInteract ? 'reaction-btn' : '';
-        if (!isDiscussion && group.content === 'THUMBS_UP') return; // 跳过，已自定义
+        if (!isDiscussion && group.content === 'THUMBS_UP') return;
         reactionHtml += `
           <div class="reaction-item ${interactiveClass}"
                data-subject-id="${subjectId}" data-reaction="${group.content}"
@@ -846,6 +822,10 @@
 
       // ---- Discussion Reaction + Upvote ----
       const discussionId = discussionData.id;
+      // 读取 Upvote 数据
+      discussionUpvoteCount = discussionData.upvoteCount || 0;
+      discussionUpvoteState = discussionData.viewerHasUpvoted || false;
+
       // 生成表情 Reaction（不含 Upvote）
       const reactionHtml = renderReactions(
         discussionData.reactionGroups || [],
@@ -862,13 +842,12 @@
         const upvoteBtn = document.createElement('div');
         upvoteBtn.id = 'discussion-upvote-btn';
         upvoteBtn.className = 'reaction-item reaction-btn upvote-item';
-        // 暂时无法获取真实 upvoteCount，设为 0，可后续扩展 API
-        discussionUpvoteCount = 0;
-        discussionUpvoteState = false; // 可后续根据 viewerHasUpvoted 设置
         upvoteBtn.innerHTML = `<span class="upvote-icon">↑</span><span class="upvote-count" id="discussion-upvote-count">${discussionUpvoteCount}</span>`;
         upvoteBtn.style.marginRight = '16px';
         upvoteBtn.addEventListener('click', toggleDiscussionUpvote);
         container.prepend(upvoteBtn);
+        // 初始化 UI 状态
+        updateDiscussionUpvoteUI();
       }
       commentContainer.appendChild(reactionDiv);
 
@@ -910,8 +889,8 @@
       bindReplyEvents();
       bindReactionEvents();
 
-      // 初始化 Discussion Upvote UI
-      updateDiscussionUpvoteUI();
+      // 再次确保 UI 更新（以防 DOM 还没加载）
+      setTimeout(() => updateDiscussionUpvoteUI(), 100);
 
     } catch (error) {
       console.error('加载讨论失败:', error);
