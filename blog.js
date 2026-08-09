@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（修复更多菜单和回复）
+// blog.js - 文章详情页（无干扰，错误输出到控制台）
 // ============================================================
 
 (function() {
@@ -27,7 +27,7 @@
   let userReactions = {};
   let isSubmitting = false;
 
-  // ---------- 样式注入（仅保留必要的） ----------
+  // ---------- 必要样式（仅图片查看器和临时评论） ----------
   function injectStyles() {
     if (document.getElementById('blog-styles')) return;
     const style = document.createElement('style');
@@ -234,7 +234,7 @@
     return html;
   }
 
-  // ---------- 代码块复制按钮 ----------
+  // ---------- 代码块复制 ----------
   function addCopyButtonsToCodeBlocks() {
     document.querySelectorAll('.markdown-body pre, .comment-item pre, #text pre').forEach(pre => {
       if (pre.querySelector('.copy-code-btn')) return;
@@ -466,7 +466,7 @@
       const textarea = editorDiv.querySelector('textarea');
       const body = textarea.value.trim();
       if (!body) {
-        alert('请输入回复内容');
+        console.error('回复内容为空');
         return;
       }
       if (isSubmitting) return;
@@ -486,7 +486,7 @@
 
       let parentComment = findCommentById(allComments, parentId);
       if (!parentComment) {
-        alert('找不到父评论');
+        console.error('找不到父评论');
         return;
       }
       if (!parentComment.replies) parentComment.replies = { nodes: [] };
@@ -516,12 +516,12 @@
         } else {
           parentComment.replies.nodes = parentComment.replies.nodes.filter(r => r.id !== tempReply.id);
           renderCommentsPage(currentCommentPage);
-          alert(`回复失败: ${data.error || '未知错误'}\n详情: ${JSON.stringify(data.details || '')}`);
+          console.error('回复失败:', data.error, data.details);
         }
       } catch (error) {
         parentComment.replies.nodes = parentComment.replies.nodes.filter(r => r.id !== tempReply.id);
         renderCommentsPage(currentCommentPage);
-        alert('网络错误，请稍后重试');
+        console.error('回复网络错误:', error);
       } finally {
         isSubmitting = false;
       }
@@ -555,7 +555,7 @@
     if (!subjectId || !content) return;
 
     if (!isLoggedIn) {
-      alert('请先登录');
+      console.error('未登录，无法使用表情');
       return;
     }
 
@@ -601,14 +601,14 @@
       }
 
       const errData = await res.json();
-      console.error('Reaction error:', errData);
+      console.error('Reaction 错误:', errData);
       userReactions[key] = isActive;
       toggleReactionHighlight(item, isActive);
       updateReactionCount(subjectId, content, isActive ? 1 : -1);
       item.style.opacity = '1';
       item.style.pointerEvents = 'auto';
     } catch (error) {
-      console.error('Reaction exception:', error);
+      console.error('Reaction 异常:', error);
       userReactions[key] = isActive;
       toggleReactionHighlight(item, isActive);
       updateReactionCount(subjectId, content, isActive ? 1 : -1);
@@ -628,16 +628,16 @@
   async function submitComment() {
     if (isSubmitting) return;
     if (!vditorInstance) {
-      alert('编辑器未初始化');
+      console.error('编辑器未初始化');
       return;
     }
     const body = vditorInstance.getValue().trim();
     if (!body) {
-      alert('请输入评论内容');
+      console.error('评论内容为空');
       return;
     }
     if (!discussionData) {
-      alert('讨论数据未加载');
+      console.error('讨论数据未加载');
       return;
     }
 
@@ -679,19 +679,19 @@
       } else {
         allComments = allComments.filter(c => c.id !== tempComment.id);
         renderCommentsPage(currentCommentPage);
-        alert(`评论失败: ${data.error || '未知错误'}\n详情: ${JSON.stringify(data.details || '')}`);
+        console.error('评论失败:', data.error, data.details);
       }
     } catch (error) {
       allComments = allComments.filter(c => c.id !== tempComment.id);
       renderCommentsPage(currentCommentPage);
-      alert('网络错误，请稍后重试');
+      console.error('评论网络错误:', error);
     } finally {
       isSubmitting = false;
       if (toolbarBtn) toolbarBtn.style.pointerEvents = 'auto';
     }
   }
 
-  // ---------- 初始化 Vditor（关键修复） ----------
+  // ---------- 初始化 Vditor ----------
   function initVditor() {
     const editorContainer = document.getElementById('vditor-container');
     if (!editorContainer) return;
@@ -718,7 +718,7 @@
       cache: { enable: false },
       lang: 'zh_CN',
       cdn: 'https://cdn.jsdelivr.net/npm/vditor@3.10.6',
-      icon: 'ant',           // 使用 ant 图标（已内置）
+      icon: 'ant',           // 使用 ant 图标（内置）
       theme: 'classic',
       upload: {
         url: `${UPLOAD_URL}/`,
@@ -745,10 +745,7 @@
       ],
       toolbarConfig: {
         pin: true,
-        // 显式指定更多菜单中的项目
-        more: [
-          'table', 'record', 'upload', 'outline', 'fullscreen', 'edit-mode', 'both'
-        ]
+        // 不设置 more，让 Vditor 使用默认内置项目
       },
       outline: {
         enable: true,
@@ -756,7 +753,7 @@
       }
     });
 
-    // 修正大纲位置
+    // 修正大纲位置（仅当出现偏移）
     setTimeout(function() {
       const outline = document.querySelector('.vditor-outline');
       if (outline) {
