@@ -1,5 +1,5 @@
 // ============================================================
-// edit.js - 创建新讨论页面（最终修复版）
+// edit.js - 创建新讨论页面（完整稳定版）
 // ============================================================
 
 (function() {
@@ -260,78 +260,72 @@
     }
   }
 
-function initVditor() {
-  if (!editingContainer) {
-    console.error('#editing 容器未找到');
-    return;
-  }
-
-  // 创建 vditor-container
-  const vditorContainer = document.createElement('div');
-  vditorContainer.id = 'vditor-container';
-  vditorContainer.style.cssText = 'margin:10px 0; text-align:left;';
-  editingContainer.appendChild(vditorContainer);
-
-  if (typeof Vditor === 'undefined') {
-    vditorContainer.innerHTML = '<p style="color:red;text-align:center;padding:40px;">Vditor 未加载，请刷新页面重试。</p>';
-    return;
-  }
-  if (vditorInstance) {
-    vditorInstance.destroy();
-    vditorInstance = null;
-  }
-
-  vditorInstance = new Vditor(vditorContainer, {
-    height: 500,
-    mode: 'ir',
-    placeholder: '',
-    cache: { enable: false },
-    lang: 'zh_CN',
-    upload: {
-      url: `${UPLOAD_URL}/`,
-      fieldName: 'file',
-      accept: 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml',
-      max: 32 * 1024 * 1024,
-      multiple: false,
-      withCredentials: true,
-    },
-    toolbar: [
-      'emoji', 'headings', 'bold', 'italic', 'strike', 'link', 'quote',
-      'list', 'ordered-list', 'check', 'outdent', 'indent',
-      'line', 'code', 'inline-code', 'table', 'upload', 'record',
-      'preview', 'fullscreen', 'outline', 'edit-mode', 'both',
-      'undo', 'redo', 'more'
-    ],
-    outline: { enable: true, position: 'left' }
-  });
-
-  // 延迟清空
-  setTimeout(function() {
-    if (vditorInstance && typeof vditorInstance.setValue === 'function') {
-      vditorInstance.setValue('');
+  function initVditor() {
+    if (!editingContainer) {
+      console.error('#editing 容器未找到');
+      return;
     }
-  }, 300);
 
-  // 强制大纲左侧
-  setTimeout(function() {
-    const outline = document.querySelector('.vditor-outline');
-    if (outline) {
-      outline.style.left = '0';
-      outline.style.right = 'auto';
+    const vditorContainer = document.createElement('div');
+    vditorContainer.id = 'vditor-container';
+    vditorContainer.style.cssText = 'margin:10px 0; text-align:left;';
+    editingContainer.appendChild(vditorContainer);
+
+    if (typeof Vditor === 'undefined') {
+      vditorContainer.innerHTML = '<p style="color:red;text-align:center;padding:40px;">Vditor 未加载，请刷新页面重试。</p>';
+      return;
     }
-  }, 400);
+    if (vditorInstance) {
+      vditorInstance.destroy();
+      vditorInstance = null;
+    }
 
-  // 提交按钮直接创建在 editingContainer 中
-  let btn = document.getElementById('edit-submit-btn');
-  if (!btn) {
-    btn = document.createElement('button');
-    btn.id = 'edit-submit-btn';
-    btn.className = 'edit-submit-btn';
-    btn.textContent = '创建新讨论';
-    btn.addEventListener('click', submitDiscussion);
-    editingContainer.appendChild(btn);
+    vditorInstance = new Vditor(vditorContainer, {
+      height: 500,
+      mode: 'ir',
+      placeholder: '',
+      value: '',                           // 初始为空
+      cache: { enable: false },
+      lang: 'zh_CN',
+      upload: {
+        url: `${UPLOAD_URL}/`,
+        fieldName: 'file',
+        accept: 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml',
+        max: 32 * 1024 * 1024,
+        multiple: false,
+        withCredentials: true,
+      },
+      toolbar: [
+        'emoji', 'headings', 'bold', 'italic', 'strike', 'link', 'quote',
+        'list', 'ordered-list', 'check', 'outdent', 'indent',
+        'line', 'code', 'inline-code', 'table', 'upload', 'record',
+        'preview', 'fullscreen', 'outline', 'edit-mode', 'both',
+        'undo', 'redo', 'more'
+      ],
+      outline: { enable: true, position: 'left' }
+    });
+
+    // 强制大纲左侧
+    setTimeout(function() {
+      const outline = document.querySelector('.vditor-outline');
+      if (outline) {
+        outline.style.left = '0';
+        outline.style.right = 'auto';
+      }
+    }, 200);
+
+    // 提交按钮直接创建在 editingContainer 中
+    let btn = document.getElementById('edit-submit-btn');
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.id = 'edit-submit-btn';
+      btn.className = 'edit-submit-btn';
+      btn.textContent = '创建新讨论';
+      btn.addEventListener('click', submitDiscussion);
+      editingContainer.appendChild(btn);
+    }
   }
-}
+
   async function submitDiscussion() {
     if (!vditorInstance) {
       alert('编辑器未初始化');
