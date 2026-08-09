@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（完整修复：图标、更多菜单、调试、乐观更新）
+// blog.js - 文章详情页（使用 material 图标）
 // ============================================================
 
 (function() {
@@ -144,21 +144,6 @@
         background: #f0f9f0;
         border-left: 3px solid #2da44e;
         padding-left: 8px;
-      }
-      /* 修复更多菜单样式 */
-      .vditor-toolbar__item--more .vditor-toolbar__submenu {
-        display: none;
-        position: absolute;
-        background: #fff;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        padding: 4px 0;
-        min-width: 120px;
-        z-index: 1000;
-      }
-      .vditor-toolbar__item--more:hover .vditor-toolbar__submenu {
-        display: block;
       }
     `;
     document.head.appendChild(style);
@@ -357,16 +342,6 @@
   }
 
   // ---------- 其他函数 ----------
-  function sanitizeHtml(html) {
-    if (typeof DOMPurify !== 'undefined' && typeof DOMPurify.sanitize === 'function') {
-      return DOMPurify.sanitize(html, {
-        ADD_TAGS: ['pre', 'code', 'input', 'task-list', 'task-list-item', 'blockquote'],
-        ADD_ATTR: ['style', 'class', 'type', 'checked', 'disabled', 'id', 'aria-label', 'data-*'],
-      });
-    }
-    return html;
-  }
-
   function formatDate(dateStr) {
     const date = new Date(dateStr);
     return date.toLocaleString('zh-CN', {
@@ -866,8 +841,8 @@
       value: '',
       cache: { enable: false },
       lang: 'zh_CN',
-      cdn: 'https://unpkg.com/vditor@3.10.6',
-      icon: 'svg',        // 关键：使用 SVG 图标，无需加载外部文件
+      cdn: 'https://cdn.jsdelivr.net/npm/vditor@3.10.6',
+      icon: 'material',   // 使用 material 图标
       theme: 'classic',
       upload: {
         url: `${UPLOAD_URL}/`,
