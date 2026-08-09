@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（分页始终显示，带箭头和省略号）
+// blog.js - 文章详情页（完整版，包含所有已实现功能）
 // ============================================================
 
 (function() {
@@ -33,6 +33,7 @@
     const style = document.createElement('style');
     style.id = 'blog-styles';
     style.textContent = `
+      /* ===== 图片查看器 ===== */
       .image-viewer-overlay {
         position: fixed;
         top: 0; left: 0; width: 100%; height: 100%;
@@ -68,6 +69,8 @@
         border-left: 3px solid #2da44e;
         padding-left: 8px;
       }
+
+      /* ===== 分页样式 ===== */
       .pagination-btn {
         margin: 0 2px;
         padding: 4px 10px;
@@ -100,6 +103,66 @@
       }
       .pagination-ellipsis:hover {
         text-decoration: underline;
+      }
+
+      /* ===== Markdown 样式 ===== */
+      .markdown-body pre {
+        background: #F0F1F2 !important;
+        border-radius: 8px !important;
+        padding: 16px !important;
+        overflow: auto !important;
+        position: relative !important;
+      }
+      .markdown-body pre code {
+        background: transparent !important;
+        color: #000 !important;
+        padding: 0 !important;
+        font-family: SFMono-Regular, Consolas, monospace !important;
+        font-size: 13px !important;
+        line-height: 1.45 !important;
+        white-space: pre !important;
+        border-radius: 0 !important;
+      }
+      .markdown-body code:not(pre code) {
+        background: #F0F1F2 !important;
+        padding: 0.2em 0.4em !important;
+        border-radius: 3px !important;
+        color: #000 !important;
+        font-size: 85% !important;
+        font-family: SFMono-Regular, Consolas, monospace !important;
+      }
+      .markdown-body img {
+        max-width: 100% !important;
+        max-height: 500px !important;
+        width: auto !important;
+        height: auto !important;
+        display: block !important;
+        margin: 10px 0 !important;
+      }
+      blockquote {
+        border-left: 4px solid #dfe2e5 !important;
+        color: #6a737d !important;
+        padding-left: 16px !important;
+        margin-left: 0 !important;
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
+      }
+      .task-list-item {
+        list-style-type: none !important;
+        display: flex !important;
+        align-items: flex-start !important;
+      }
+      .task-list-item input[type="checkbox"] {
+        margin-right: 6px;
+        margin-top: 4px;
+        width: 16px;
+        height: 16px;
+        flex-shrink: 0;
+        accent-color: #2da44e;
+      }
+      .comment-item .markdown-body {
+        font-size: 14px;
+        line-height: 1.6;
       }
     `;
     document.head.appendChild(style);
@@ -205,7 +268,9 @@
     return { info, bodyText, isJson };
   }
 
-  // ---------- Markdown 渲染 ----------
+  // ============================================================
+  // Markdown 渲染函数（含 @ 和 # 链接）
+  // ============================================================
   let markedConfigured = false;
 
   function renderMarkdown(text, imgMaxHeight = 500) {
@@ -250,9 +315,40 @@
         ADD_TAGS: ['input', 'task-list', 'task-list-item', 'blockquote', 'pre', 'code'],
         ADD_ATTR: ['type', 'checked', 'disabled', 'class', 'id', 'style', 'aria-label', 'data-*'],
         FORCE_ATTR: { 'input': { 'disabled': '' } },
+        ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|geo):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
       });
     }
 
+    // 强制给 <pre> 添加样式
+    html = html.replace(/<pre>/gi, function(match) {
+      if (/style\s*=/i.test(match)) {
+        return match.replace(/style\s*=\s*(["'])([^"']*)\1/i, function(m, quote, style) {
+          return `style="${quote}${style}; background:#F0F1F2; border-radius:8px; padding:16px; overflow:auto; position:relative;${quote}"`;
+        });
+      } else {
+        return '<pre style="background:#F0F1F2; border-radius:8px; padding:16px; overflow:auto; position:relative;">';
+      }
+    });
+    html = html.replace(/<pre/g, '<pre class="markdown-body"');
+
+    // @ 和 # 链接转换
+    const linkPlaceholders = [];
+    html = html.replace(/<a\b[^>]*>.*?<\/a>/gi, function(match) {
+      const index = linkPlaceholders.length;
+      linkPlaceholders.push(match);
+      return `@@PLACEHOLDER${index}@@`;
+    });
+    html = html.replace(/(^|\s)@([a-zA-Z0-9\-_]+)/g, function(match, prefix, username) {
+      return `${prefix}<a href="https://github.com/${username}" target="_blank" class="mention" style="color:#0366d6;text-decoration:none;">@${username}</a>`;
+    });
+    html = html.replace(/(^|\s)#(\d+)/g, function(match, prefix, num) {
+      return `${prefix}<a href="/blog.html?d=${num}" class="issue-link" style="color:#0366d6;text-decoration:none;">#${num}</a>`;
+    });
+    html = html.replace(/@@PLACEHOLDER(\d+)@@/g, function(match, index) {
+      return linkPlaceholders[parseInt(index)];
+    });
+
+    // 图片大小限制
     html = html.replace(/<img([^>]*)>/gi, function(match, attrs) {
       if (/style\s*=/i.test(attrs)) {
         attrs = attrs.replace(/style\s*=\s*(["'])([^"']*)\1/i, function(m, quote, style) {
@@ -267,7 +363,7 @@
     return html;
   }
 
-  // ---------- 代码块复制 ----------
+  // ---------- 代码块复制按钮 ----------
   function addCopyButtonsToCodeBlocks() {
     document.querySelectorAll('.markdown-body pre, .comment-item pre, #text pre').forEach(pre => {
       if (pre.querySelector('.copy-code-btn')) return;
@@ -370,6 +466,7 @@
       const sortedReplies = replies.length ? [...replies].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)) : [];
       const hasReplies = sortedReplies.length > 0;
 
+      // 注意：这里没有“顶”按钮，只有回复按钮和表情反应
       html += `
         <div class="comment-item ${tempClass}" style="border-bottom:1px solid #e1e4e8;padding:12px 0; text-align:left; margin-left:${indent}px;">
           <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
@@ -399,9 +496,7 @@
     return `<div style="border:1px solid #ddd; border-radius:8px; padding:10px; background:#ffffff; text-align:left;">${renderCommentTree(sortedTop)}</div>`;
   }
 
-  // ============================================================
-  // ★★★ 新的分页渲染函数（始终显示，带箭头和省略号）★★★
-  // ============================================================
+  // ---------- 分页（始终显示，带省略号） ----------
   function renderPagination(container, currentPage, totalPages, onPageChange) {
     container.innerHTML = '';
     if (totalPages <= 0) return;
@@ -409,7 +504,7 @@
     const wrapper = document.createElement('div');
     wrapper.style.cssText = 'display:flex; align-items:center; justify-content:center; gap:4px; flex-wrap:wrap; padding:10px 0;';
 
-    // 上一页按钮
+    // 上一页
     const prevBtn = document.createElement('button');
     prevBtn.textContent = '‹';
     prevBtn.className = 'pagination-btn' + (currentPage <= 1 ? ' disabled' : '');
@@ -418,28 +513,22 @@
     }
     wrapper.appendChild(prevBtn);
 
-    // 页码生成逻辑（带省略号）
-    const maxVisible = 5; // 可见页码数量（不含两端）
+    // 页码 + 省略号
+    const maxVisible = 5;
     let pages = [];
     if (totalPages <= maxVisible + 2) {
-      // 总页数少，全部显示
       for (let i = 1; i <= totalPages; i++) pages.push(i);
     } else {
-      // 总是显示第一页
       pages.push(1);
       let start = Math.max(2, currentPage - 2);
       let end = Math.min(totalPages - 1, currentPage + 2);
-      // 保证显示至少 maxVisible 个中间页码
       if (end - start < maxVisible - 1) {
         if (start === 2) end = Math.min(totalPages - 1, start + maxVisible - 2);
         else if (end === totalPages - 1) start = Math.max(2, end - maxVisible + 2);
       }
-      // 添加省略号（如果 start > 2）
       if (start > 2) pages.push('…');
       for (let i = start; i <= end; i++) pages.push(i);
-      // 如果 end < totalPages - 1，添加省略号
       if (end < totalPages - 1) pages.push('…');
-      // 总是显示最后一页
       pages.push(totalPages);
     }
 
@@ -469,7 +558,7 @@
       }
     });
 
-    // 下一页按钮
+    // 下一页
     const nextBtn = document.createElement('button');
     nextBtn.textContent = '›';
     nextBtn.className = 'pagination-btn' + (currentPage >= totalPages ? ' disabled' : '');
@@ -852,6 +941,9 @@
 
   // ---------- 加载讨论 ----------
   async function loadDiscussionFull(discussionNumber) {
+    // 重置 reaction 状态，防止旧数据污染
+    userReactions = {};
+
     try {
       const res = await fetch(`${API_URL}/?d=${discussionNumber}&cfirst=100`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
