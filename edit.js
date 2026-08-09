@@ -1,5 +1,5 @@
 // ============================================================
-// edit.js - 创建新讨论页面（完整稳定版）
+// edit.js - 创建新讨论页面（完整稳定版，修复 more 子菜单）
 // ============================================================
 
 (function() {
@@ -284,9 +284,12 @@
       height: 500,
       mode: 'ir',
       placeholder: '',
-      value: '',                           // 初始为空
+      value: '',
       cache: { enable: false },
       lang: 'zh_CN',
+      cdn: 'https://unpkg.com/vditor@3.10.6',
+      icon: 'material',
+      theme: 'classic',
       upload: {
         url: `${UPLOAD_URL}/`,
         fieldName: 'file',
@@ -314,7 +317,7 @@
       }
     }, 200);
 
-    // 提交按钮直接创建在 editingContainer 中
+    // 提交按钮
     let btn = document.getElementById('edit-submit-btn');
     if (!btn) {
       btn = document.createElement('button');
