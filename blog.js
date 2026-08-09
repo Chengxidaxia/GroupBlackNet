@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（Upvote 独立，评论使用 Reaction）
+// blog.js - 文章详情页（含 Discussion Upvote + 评论 Reaction）
 // ============================================================
 
 (function() {
@@ -294,7 +294,7 @@
   }
 
   // ============================================================
-  // Reaction 渲染（评论使用 👍，Discussion 跳过 THUMBS_UP）
+  // Reaction 渲染（评论使用 👍，Discussion 不含 THUMBS_UP）
   // ============================================================
   function renderReactions(reactionGroups, subjectId, canInteract = false, isDiscussion = false) {
     let reactionHtml = '<div class="reactions-container">';
@@ -821,32 +821,24 @@
         discussionData.reactionGroups || [],
         discussionId,
         isLoggedIn,
-        true // isDiscussion: 跳过 THUMBS_UP
+        true
       );
       const reactionDiv = document.createElement('div');
       reactionDiv.id = 'discussion-reactions';
       reactionDiv.innerHTML = reactionHtml;
 
-      // 获取 Reaction 容器（即使没有 Reaction，也可能有空的容器）
-      let container = reactionDiv.querySelector('.reactions-container');
-      if (!container) {
-        // 如果没有容器，创建一个
-        container = document.createElement('div');
-        container.className = 'reactions-container';
-        reactionDiv.appendChild(container);
+      // 插入 Upvote 按钮
+      const container = reactionDiv.querySelector('.reactions-container');
+      if (container) {
+        const upvoteBtn = document.createElement('div');
+        upvoteBtn.id = 'discussion-upvote-btn';
+        upvoteBtn.className = 'reaction-item reaction-btn upvote-item';
+        upvoteBtn.innerHTML = `<span class="upvote-icon">↑</span><span class="upvote-count" id="discussion-upvote-count">${discussionUpvoteCount}</span>`;
+        upvoteBtn.style.marginRight = '16px';
+        upvoteBtn.addEventListener('click', toggleDiscussionUpvote);
+        container.prepend(upvoteBtn);
+        updateDiscussionUpvoteUI();
       }
-
-      // 插入 Upvote 按钮（第一个元素）
-      const upvoteBtn = document.createElement('div');
-      upvoteBtn.id = 'discussion-upvote-btn';
-      upvoteBtn.className = 'reaction-item reaction-btn upvote-item';
-      upvoteBtn.innerHTML = `<span class="upvote-icon">↑</span><span class="upvote-count" id="discussion-upvote-count">${discussionUpvoteCount}</span>`;
-      upvoteBtn.style.marginRight = '16px';
-      upvoteBtn.addEventListener('click', toggleDiscussionUpvote);
-      container.prepend(upvoteBtn);
-      // 初始化 UI
-      updateDiscussionUpvoteUI();
-
       commentContainer.appendChild(reactionDiv);
 
       // ---- 编辑器 ----
