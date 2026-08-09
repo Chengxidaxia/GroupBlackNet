@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（使用 material 图标）
+// blog.js - 文章详情页（使用 ant 图标，精简自定义样式，加强调试）
 // ============================================================
 
 (function() {
@@ -11,144 +11,23 @@
   const COMMENTS_PER_PAGE = 20;
   const DEFAULT_AVATAR = 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png';
 
+  // DOM 元素
   const titleEl = document.getElementById('title');
   const infoEl = document.getElementById('information');
   const textEl = document.getElementById('text');
   const commentContainer = document.getElementById('comment');
 
+  // 状态
   let discussionData = null;
-  let currentPage = 1;
-  let totalPages = 1;
   let isLoggedIn = false;
   let currentUser = null;
   let vditorInstance = null;
   let allComments = [];
   let totalComments = 0;
-  let userReactions = {};
+  let currentCommentPage = 1;
+  let totalPages = 1;
   let isSubmitting = false;
-
-  // ---------- 样式注入 ----------
-  function injectStyles() {
-    if (document.getElementById('blog-styles')) return;
-    const style = document.createElement('style');
-    style.id = 'blog-styles';
-    style.textContent = `
-      .task-list-item {
-        list-style-type: none !important;
-        display: flex !important;
-        align-items: flex-start !important;
-      }
-      .task-list-item input[type="checkbox"] {
-        margin-right: 6px;
-        margin-top: 4px;
-        width: 16px;
-        height: 16px;
-        flex-shrink: 0;
-        accent-color: #2da44e;
-      }
-      .task-list-item p { margin: 0; }
-      .comment-item ul, .comment-item ol { padding-left: 24px; }
-      blockquote {
-        border-left: 4px solid #dfe2e5 !important;
-        color: #6a737d !important;
-        padding-left: 16px !important;
-        margin-left: 0 !important;
-        margin-top: 0 !important;
-        margin-bottom: 0 !important;
-      }
-      .markdown-body code:not(pre code) {
-        background: #F0F1F2 !important;
-        padding: 0.2em 0.4em !important;
-        border-radius: 3px !important;
-        color: #000 !important;
-        font-size: 85% !important;
-        font-family: SFMono-Regular, Consolas, monospace !important;
-      }
-      .markdown-body pre {
-        background: #F0F1F2 !important;
-        border-radius: 8px !important;
-        padding: 16px !important;
-        overflow: auto !important;
-        position: relative;
-      }
-      .markdown-body pre code {
-        background: transparent !important;
-        color: #000 !important;
-        padding: 0 !important;
-        font-family: SFMono-Regular, Consolas, monospace !important;
-        font-size: 13px !important;
-        line-height: 1.45 !important;
-        white-space: pre !important;
-        border-radius: 0 !important;
-      }
-      .markdown-body img {
-        max-width: 100% !important;
-        max-height: 500px !important;
-        width: auto !important;
-        height: auto !important;
-        display: block !important;
-        margin: 10px 0 !important;
-      }
-      .comment-item { text-align: left; }
-      .comment-item .markdown-body { font-size: 14px; line-height: 1.6; }
-      .image-viewer-overlay {
-        position: fixed;
-        top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0,0,0,0.85);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 9999;
-        cursor: pointer;
-      }
-      .image-viewer-overlay img {
-        max-width: 90%;
-        max-height: 90%;
-        object-fit: contain;
-        box-shadow: 0 0 30px rgba(0,0,0,0.5);
-      }
-      .image-viewer-close {
-        position: fixed;
-        top: 20px;
-        right: 30px;
-        font-size: 40px;
-        color: #fff;
-        opacity: 0.7;
-        cursor: pointer;
-        z-index: 10000;
-        font-family: Arial, sans-serif;
-        transition: opacity 0.2s, background 0.2s;
-        background: rgba(0,0,0,0.4);
-        border: none;
-        border-radius: 8px;
-        padding: 12px 20px;
-        line-height: 1;
-        user-select: none;
-      }
-      .image-viewer-close:hover {
-        opacity: 1;
-        background: rgba(0,0,0,0.7);
-      }
-      #vditor-container .vditor {
-        border-radius: 8px;
-        border: 1px solid #ddd;
-      }
-      .temp-comment {
-        opacity: 0.7;
-        background: #f0f9f0;
-        border-left: 3px solid #2da44e;
-        padding-left: 8px;
-      }
-      .temp-reply {
-        opacity: 0.7;
-        background: #f0f9f0;
-        border-left: 3px solid #2da44e;
-        padding-left: 8px;
-      }
-    `;
-    document.head.appendChild(style);
-  }
-  injectStyles();
+  let userReactions = {};
 
   // ---------- 图片查看器 ----------
   function initImageViewer() {
@@ -195,153 +74,9 @@
   }
 
   function getAvatarUrl(user) {
-    if (user && user.avatarUrl) {
-      return user.avatarUrl;
-    }
-    return DEFAULT_AVATAR;
+    return (user && user.avatarUrl) ? user.avatarUrl : DEFAULT_AVATAR;
   }
 
-  // ---------- Markdown 渲染 ----------
-  let markedConfigured = false;
-
-  function renderMarkdown(text, imgMaxHeight = 500) {
-    if (!text) return '';
-
-    if (typeof marked === 'undefined' || typeof marked.parse !== 'function') {
-      console.warn('marked 未加载，使用纯文本 fallback');
-      return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
-    }
-
-    if (!markedConfigured) {
-      try {
-        marked.use({
-          gfm: true,
-          breaks: true,
-          pedantic: false,
-          mangle: false,
-          headerIds: false,
-          highlight: function(code, lang) {
-            if (typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) {
-              try {
-                return hljs.highlight(code, { language: lang }).value;
-              } catch (e) {}
-            }
-            return code;
-          }
-        });
-        markedConfigured = true;
-      } catch (e) {
-        console.warn('marked 配置失败:', e);
-      }
-    }
-
-    let html;
-    try {
-      html = marked.parse(text);
-    } catch (e) {
-      console.error('marked.parse 异常:', e);
-      return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
-    }
-
-    if (typeof DOMPurify !== 'undefined') {
-      html = DOMPurify.sanitize(html, {
-        ADD_TAGS: ['input', 'task-list', 'task-list-item', 'blockquote', 'pre', 'code'],
-        ADD_ATTR: ['type', 'checked', 'disabled', 'class', 'id', 'style', 'aria-label', 'data-*'],
-        FORCE_ATTR: { 'input': { 'disabled': '' } },
-        ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|geo):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
-      });
-    }
-
-    html = html.replace(/<pre>/gi, function(match) {
-      if (/style\s*=/i.test(match)) {
-        return match.replace(/style\s*=\s*(["'])([^"']*)\1/i, function(m, quote, style) {
-          return `style="${quote}${style}; background:#F0F1F2; border-radius:8px; padding:16px; overflow:auto; position:relative;${quote}"`;
-        });
-      } else {
-        return '<pre style="background:#F0F1F2; border-radius:8px; padding:16px; overflow:auto; position:relative;">';
-      }
-    });
-    html = html.replace(/<pre/g, '<pre class="markdown-body"');
-
-    const linkPlaceholders = [];
-    html = html.replace(/<a\b[^>]*>.*?<\/a>/gi, function(match) {
-      const index = linkPlaceholders.length;
-      linkPlaceholders.push(match);
-      return `@@PLACEHOLDER${index}@@`;
-    });
-    html = html.replace(/(^|\s)@([a-zA-Z0-9\-_]+)/g, function(match, prefix, username) {
-      return `${prefix}<a href="https://github.com/${username}" target="_blank" class="mention" style="color:#0366d6;text-decoration:none;">@${username}</a>`;
-    });
-    html = html.replace(/(^|\s)#(\d+)/g, function(match, prefix, num) {
-      return `${prefix}<a href="/blog.html?d=${num}" class="issue-link" style="color:#0366d6;text-decoration:none;">#${num}</a>`;
-    });
-    html = html.replace(/@@PLACEHOLDER(\d+)@@/g, function(match, index) {
-      return linkPlaceholders[parseInt(index)];
-    });
-
-    html = html.replace(/<img([^>]*)>/gi, function(match, attrs) {
-      if (/style\s*=/i.test(attrs)) {
-        attrs = attrs.replace(/style\s*=\s*(["'])([^"']*)\1/i, function(m, quote, style) {
-          return `style="${quote}${style}; display:block; margin:10px 0; max-width:100%; max-height:${imgMaxHeight}px; width:auto; height:auto;${quote}"`;
-        });
-      } else {
-        attrs += ` style="display:block; margin:10px 0; max-width:100%; max-height:${imgMaxHeight}px; width:auto; height:auto;"`;
-      }
-      return `<img${attrs}>`;
-    });
-
-    return html;
-  }
-
-  // ---------- 代码块复制按钮 ----------
-  function addCopyButtonsToCodeBlocks() {
-    document.querySelectorAll('.markdown-body pre, .comment-item pre, #text pre').forEach(pre => {
-      if (pre.querySelector('.copy-code-btn')) return;
-      const code = pre.querySelector('code');
-      if (!code) return;
-      let codeText = code.textContent;
-      const btn = document.createElement('button');
-      btn.className = 'copy-code-btn';
-      btn.textContent = '复制';
-      btn.style.cssText = `
-        position: absolute;
-        top: 8px;
-        right: 8px;
-        padding: 4px 10px;
-        background: #2da44e;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        font-size: 12px;
-        cursor: pointer;
-        opacity: 0.7;
-        transition: opacity 0.2s;
-      `;
-      btn.addEventListener('mouseenter', () => { btn.style.opacity = '1'; });
-      btn.addEventListener('mouseleave', () => { btn.style.opacity = '0.7'; });
-      btn.addEventListener('click', async function(e) {
-        e.stopPropagation();
-        try {
-          await navigator.clipboard.writeText(codeText);
-          btn.textContent = '已复制!';
-          setTimeout(() => { btn.textContent = '复制'; }, 2000);
-        } catch (err) {
-          const textarea = document.createElement('textarea');
-          textarea.value = codeText;
-          document.body.appendChild(textarea);
-          textarea.select();
-          document.execCommand('copy');
-          document.body.removeChild(textarea);
-          btn.textContent = '已复制!';
-          setTimeout(() => { btn.textContent = '复制'; }, 2000);
-        }
-      });
-      pre.style.position = 'relative';
-      pre.appendChild(btn);
-    });
-  }
-
-  // ---------- 其他函数 ----------
   function formatDate(dateStr) {
     const date = new Date(dateStr);
     return date.toLocaleString('zh-CN', {
@@ -393,7 +128,119 @@
     return { info, bodyText, isJson };
   }
 
-  // ---------- 渲染 Reaction ----------
+  // ---------- Markdown 渲染 ----------
+  let markedConfigured = false;
+
+  function renderMarkdown(text, imgMaxHeight = 500) {
+    if (!text) return '';
+
+    if (typeof marked === 'undefined' || typeof marked.parse !== 'function') {
+      return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+    }
+
+    if (!markedConfigured) {
+      try {
+        marked.use({
+          gfm: true,
+          breaks: true,
+          pedantic: false,
+          mangle: false,
+          headerIds: false,
+          highlight: function(code, lang) {
+            if (typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) {
+              try {
+                return hljs.highlight(code, { language: lang }).value;
+              } catch (e) {}
+            }
+            return code;
+          }
+        });
+        markedConfigured = true;
+      } catch (e) {
+        console.warn('marked 配置失败:', e);
+      }
+    }
+
+    let html;
+    try {
+      html = marked.parse(text);
+    } catch (e) {
+      return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+    }
+
+    if (typeof DOMPurify !== 'undefined') {
+      html = DOMPurify.sanitize(html, {
+        ADD_TAGS: ['input', 'task-list', 'task-list-item', 'blockquote', 'pre', 'code'],
+        ADD_ATTR: ['type', 'checked', 'disabled', 'class', 'id', 'style', 'aria-label', 'data-*'],
+        FORCE_ATTR: { 'input': { 'disabled': '' } },
+      });
+    }
+
+    // 调整图片高度
+    html = html.replace(/<img([^>]*)>/gi, function(match, attrs) {
+      if (/style\s*=/i.test(attrs)) {
+        attrs = attrs.replace(/style\s*=\s*(["'])([^"']*)\1/i, function(m, quote, style) {
+          return `style="${quote}${style}; display:block; margin:10px 0; max-width:100%; max-height:${imgMaxHeight}px; width:auto; height:auto;${quote}"`;
+        });
+      } else {
+        attrs += ` style="display:block; margin:10px 0; max-width:100%; max-height:${imgMaxHeight}px; width:auto; height:auto;"`;
+      }
+      return `<img${attrs}>`;
+    });
+
+    return html;
+  }
+
+  // ---------- 代码块复制按钮 ----------
+  function addCopyButtonsToCodeBlocks() {
+    document.querySelectorAll('.markdown-body pre, .comment-item pre, #text pre').forEach(pre => {
+      if (pre.querySelector('.copy-code-btn')) return;
+      const code = pre.querySelector('code');
+      if (!code) return;
+      let codeText = code.textContent;
+      const btn = document.createElement('button');
+      btn.className = 'copy-code-btn';
+      btn.textContent = '复制';
+      btn.style.cssText = `
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        padding: 4px 10px;
+        background: #2da44e;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        font-size: 12px;
+        cursor: pointer;
+        opacity: 0.7;
+        transition: opacity 0.2s;
+        z-index: 10;
+      `;
+      btn.addEventListener('mouseenter', () => { btn.style.opacity = '1'; });
+      btn.addEventListener('mouseleave', () => { btn.style.opacity = '0.7'; });
+      btn.addEventListener('click', async function(e) {
+        e.stopPropagation();
+        try {
+          await navigator.clipboard.writeText(codeText);
+          btn.textContent = '已复制!';
+          setTimeout(() => { btn.textContent = '复制'; }, 2000);
+        } catch (err) {
+          const textarea = document.createElement('textarea');
+          textarea.value = codeText;
+          document.body.appendChild(textarea);
+          textarea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textarea);
+          btn.textContent = '已复制!';
+          setTimeout(() => { btn.textContent = '复制'; }, 2000);
+        }
+      });
+      pre.style.position = 'relative';
+      pre.appendChild(btn);
+    });
+  }
+
+  // ---------- Reaction 渲染 ----------
   function renderReactions(reactionGroups, subjectId, canInteract = false) {
     if (!reactionGroups || reactionGroups.length === 0) {
       return '<div class="reactions-container" style="display:flex; flex-wrap:wrap; gap:8px; margin:10px 0;"></div>';
@@ -476,7 +323,7 @@
     return `<div style="border:1px solid #ddd; border-radius:8px; padding:10px; background:#ffffff; text-align:left;">${renderCommentTree(sortedTop)}</div>`;
   }
 
-  // ---------- 分页渲染 ----------
+  // ---------- 分页 ----------
   function renderPagination(container, currentPage, totalPages, onPageChange) {
     container.innerHTML = '';
     if (totalPages <= 1) return;
@@ -515,9 +362,7 @@
     return null;
   }
 
-  // ---------- 评论列表渲染函数（全局） ----------
-  let currentCommentPage = 1;
-
+  // ---------- 渲染评论页面 ----------
   function renderCommentsPage(page) {
     const start = (page - 1) * COMMENTS_PER_PAGE;
     const end = Math.min(start + COMMENTS_PER_PAGE, allComments.length);
@@ -536,7 +381,7 @@
     currentCommentPage = page;
   }
 
-  // ---------- 回复事件绑定 ----------
+  // ---------- 回复事件 ----------
   function bindReplyEvents() {
     document.querySelectorAll('.reply-btn').forEach(btn => {
       btn.removeEventListener('click', handleReplyClick);
@@ -582,7 +427,7 @@
       if (isSubmitting) return;
 
       const parentId = this.dataset.parentId;
-      // 构造临时回复对象
+      // 构造临时回复
       const tempReply = {
         id: 'temp-reply-' + Date.now(),
         body: body,
@@ -595,7 +440,6 @@
         isTemp: true
       };
 
-      // 查找父评论
       let parentComment = findCommentById(allComments, parentId);
       if (!parentComment) {
         alert('找不到父评论');
@@ -604,36 +448,33 @@
       if (!parentComment.replies) parentComment.replies = { nodes: [] };
       parentComment.replies.nodes.unshift(tempReply);
 
-      // 重新渲染
       renderCommentsPage(currentCommentPage);
-      // 清空回复框并关闭编辑区
-      container.innerHTML = '';
+      container.innerHTML = ''; // 关闭回复编辑区
 
       isSubmitting = true;
       try {
+        const payload = {
+          discussionId: discussionData.id,
+          body: body,
+          parentCommentId: parentId
+        };
+        console.log('[回复] 提交 payload:', payload);
         const res = await fetch(`${OAUTH_BASE}/comment`, {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            discussionId: discussionData.id,
-            body: body,
-            parentCommentId: parentId
-          })
+          body: JSON.stringify(payload)
         });
         const data = await res.json();
+        console.log('[回复] 响应:', data);
         if (res.ok) {
-          // 刷新整个讨论获取真实数据
-          const d = discussionData.number;
-          await loadDiscussionFull(d);
+          // 成功：刷新讨论
+          await loadDiscussionFull(discussionData.number);
         } else {
-          // 失败移除临时回复
+          // 失败：移除临时回复
           parentComment.replies.nodes = parentComment.replies.nodes.filter(r => r.id !== tempReply.id);
           renderCommentsPage(currentCommentPage);
-          // 显示详细错误
-          const errMsg = data.error || '回复失败';
-          const details = data.details ? '\n详情: ' + JSON.stringify(data.details) : '';
-          alert(errMsg + details);
+          alert(`回复失败: ${data.error || '未知错误'}\n详情: ${JSON.stringify(data.details || '')}`);
         }
       } catch (error) {
         parentComment.replies.nodes = parentComment.replies.nodes.filter(r => r.id !== tempReply.id);
@@ -672,7 +513,7 @@
     if (!subjectId || !content) return;
 
     if (!isLoggedIn) {
-      alert('请先登录以使用表情功能');
+      alert('请先登录');
       return;
     }
 
@@ -702,29 +543,27 @@
       }
 
       if (res.status === 409) {
+        // 冲突：可能用户已经反应，反向操作
         const reverseAction = newActive ? 'remove' : 'add';
-        const reverseRes = await fetch(`${OAUTH_BASE}/reaction`, {
+        await fetch(`${OAUTH_BASE}/reaction`, {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ subjectId, content, action: reverseAction })
         });
-        if (reverseRes.ok) {
-          userReactions[key] = !newActive;
-          toggleReactionHighlight(item, !newActive);
-          updateReactionCount(subjectId, content, newActive ? -1 : 1);
-        } else {
-          userReactions[key] = isActive;
-          toggleReactionHighlight(item, isActive);
-          updateReactionCount(subjectId, content, isActive ? 1 : -1);
-        }
+        // 重新同步状态
+        userReactions[key] = !newActive;
+        toggleReactionHighlight(item, !newActive);
+        updateReactionCount(subjectId, content, newActive ? -1 : 1);
         item.style.opacity = '1';
         item.style.pointerEvents = 'auto';
         return;
       }
 
+      // 其他错误
       const errData = await res.json();
       console.error('Reaction error:', errData);
+      // 回滚
       userReactions[key] = isActive;
       toggleReactionHighlight(item, isActive);
       updateReactionCount(subjectId, content, isActive ? 1 : -1);
@@ -781,29 +620,30 @@
     renderCommentsPage(currentCommentPage);
     vditorInstance.setValue('');
     isSubmitting = true;
-    const submitBtn = document.getElementById('comment-submit');
-    if (submitBtn) submitBtn.disabled = true;
+    // 禁用工具栏提交按钮（如果有）
+    const toolbarBtn = document.querySelector('.vditor-toolbar__item[data-name="submit"]');
+    if (toolbarBtn) toolbarBtn.style.pointerEvents = 'none';
 
     try {
+      const payload = {
+        discussionId: discussionData.id,
+        body: body
+      };
+      console.log('[评论] 提交 payload:', payload);
       const res = await fetch(`${OAUTH_BASE}/comment`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          discussionId: discussionData.id,
-          body: body
-        })
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
+      console.log('[评论] 响应:', data);
       if (res.ok) {
-        const d = discussionData.number;
-        await loadDiscussionFull(d);
+        await loadDiscussionFull(discussionData.number);
       } else {
         allComments = allComments.filter(c => c.id !== tempComment.id);
         renderCommentsPage(currentCommentPage);
-        const errMsg = data.error || '评论发表失败';
-        const details = data.details ? '\n详情: ' + JSON.stringify(data.details) : '';
-        alert(errMsg + details);
+        alert(`评论失败: ${data.error || '未知错误'}\n详情: ${JSON.stringify(data.details || '')}`);
       }
     } catch (error) {
       allComments = allComments.filter(c => c.id !== tempComment.id);
@@ -811,11 +651,11 @@
       alert('网络错误，请稍后重试');
     } finally {
       isSubmitting = false;
-      if (submitBtn) submitBtn.disabled = false;
+      if (toolbarBtn) toolbarBtn.style.pointerEvents = 'auto';
     }
   }
 
-  // ---------- Vditor 初始化 ----------
+  // ---------- 初始化 Vditor ----------
   function initVditor() {
     const editorContainer = document.getElementById('vditor-container');
     if (!editorContainer) return;
@@ -824,7 +664,7 @@
       return;
     }
     if (typeof Vditor === 'undefined') {
-      editorContainer.innerHTML = '<p style="color:red;">编辑器加载失败，请刷新页面重试。</p>';
+      editorContainer.innerHTML = '<p style="color:red;">Vditor 未加载，请刷新页面</p>';
       return;
     }
     if (vditorInstance) {
@@ -833,6 +673,7 @@
     }
     editorContainer.innerHTML = '';
 
+    // 使用 ant 图标（内置 CSS Sprite），无需额外加载
     vditorInstance = new Vditor(editorContainer, {
       height: 200,
       minHeight: 150,
@@ -842,7 +683,7 @@
       cache: { enable: false },
       lang: 'zh_CN',
       cdn: 'https://cdn.jsdelivr.net/npm/vditor@3.10.6',
-      icon: 'material',   // 使用 material 图标
+      icon: 'ant',           // 使用 ant 图标，稳定可靠
       theme: 'classic',
       upload: {
         url: `${UPLOAD_URL}/`,
@@ -869,6 +710,8 @@
       ],
       toolbarConfig: {
         pin: true,
+        // 指定 more 菜单中显示的工具
+        more: ['table', 'record', 'upload', 'outline', 'fullscreen', 'edit-mode', 'both']
       },
       outline: {
         enable: true,
@@ -876,7 +719,7 @@
       }
     });
 
-    // 强制大纲左侧
+    // 修正大纲位置（如果出现）
     setTimeout(function() {
       const outline = document.querySelector('.vditor-outline');
       if (outline) {
@@ -884,58 +727,38 @@
         outline.style.right = 'auto';
       }
     }, 200);
-
-    // 底部“发表评论”按钮（保留）
-    let submitBtn = document.getElementById('comment-submit');
-    if (!submitBtn) {
-      submitBtn = document.createElement('button');
-      submitBtn.id = 'comment-submit';
-      submitBtn.textContent = '发表评论';
-      submitBtn.style.cssText = `
-        margin-top: 10px;
-        padding: 8px 20px;
-        background: #2da44e;
-        color: white;
-        border: none;
-        border-radius: 6px;
-        font-size: 16px;
-        cursor: pointer;
-      `;
-      submitBtn.addEventListener('click', submitComment);
-      editorContainer.parentNode.insertBefore(submitBtn, editorContainer.nextSibling);
-    } else {
-      submitBtn.removeEventListener('click', submitComment);
-      submitBtn.addEventListener('click', submitComment);
-    }
   }
 
   // ---------- 加载讨论 ----------
   async function loadDiscussionFull(discussionNumber) {
     try {
       const res = await fetch(`${API_URL}/?d=${discussionNumber}&cfirst=100`);
-      if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       discussionData = data.discussion;
-      if (!discussionData) throw new Error('未找到该讨论');
+      if (!discussionData) throw new Error('Discussion not found');
 
+      // 清空评论容器（保留结构）
       commentContainer.innerHTML = '';
 
+      // 标题
       const titleText = discussionData.title || '无标题';
       document.title = titleText + ' - 群档案';
       titleEl.innerHTML = `<span style="font-size:26pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; font-weight:bold;">${titleText}</span>`;
 
-      const { info, bodyText, isJson } = parseFirstLine(discussionData.body);
-
+      // 简介
+      const { info, bodyText } = parseFirstLine(discussionData.body);
       if (info && info.trim()) {
         infoEl.innerHTML = `<span style="font-size:14pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; font-weight:bold;">${renderMarkdown(info)}</span>`;
       } else {
         infoEl.innerHTML = '';
       }
 
-      const renderedBody = `<div class="markdown-body" style="padding:0 10px; text-align:left;">${renderMarkdown(bodyText)}</div>`;
-      textEl.innerHTML = renderedBody;
+      // 正文
+      textEl.innerHTML = `<div class="markdown-body" style="padding:0 10px; text-align:left;">${renderMarkdown(bodyText)}</div>`;
       addCopyButtonsToCodeBlocks();
 
+      // Reaction
       const discussionId = discussionData.id;
       const reactionHtml = renderReactions(
         discussionData.reactionGroups || [],
@@ -947,6 +770,7 @@
       reactionDiv.innerHTML = reactionHtml;
       commentContainer.appendChild(reactionDiv);
 
+      // 编辑器容器
       const editorContainer = document.createElement('div');
       editorContainer.id = 'vditor-container';
       editorContainer.style.cssText = 'margin:10px 0; text-align:left;';
@@ -961,6 +785,7 @@
         editorContainer.innerHTML = '<p style="text-align:center;color:#888;padding:20px;">登录后即可评论</p>';
       }
 
+      // 评论列表
       const commentListDiv = document.createElement('div');
       commentListDiv.id = 'comment-list';
       commentListDiv.style.cssText = 'text-align:left; margin-top:20px;';
@@ -1003,6 +828,7 @@
     });
   }
 
+  // ---------- 登录状态 ----------
   async function checkLoginStatus() {
     try {
       const res = await fetch(`${OAUTH_BASE}/me`, { credentials: 'include' });
@@ -1018,6 +844,7 @@
     }
   }
 
+  // ---------- 初始化 ----------
   async function init() {
     const params = new URLSearchParams(window.location.search);
     const d = params.get('d');
