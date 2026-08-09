@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（修复评论排序和分页）
+// blog.js - 文章详情页（分页顺序调整为：顶部→列表→底部）
 // ============================================================
 
 (function() {
@@ -812,22 +812,23 @@
         editorContainer.innerHTML = '<p style="text-align:center;color:#888;padding:20px;">登录后即可评论</p>';
       }
 
+      // ★★★ 调整顺序：顶部翻页 → 评论列表 → 底部翻页 ★★★
+      const paginationTop = document.createElement('div');
+      paginationTop.id = 'comment-pagination-top';
+      commentContainer.appendChild(paginationTop);  // 先添加顶部
+
       const commentListDiv = document.createElement('div');
       commentListDiv.id = 'comment-list';
       commentListDiv.style.cssText = 'text-align:left; margin-top:20px;';
-      commentContainer.appendChild(commentListDiv);
+      commentContainer.appendChild(commentListDiv); // 再添加列表
 
-      const paginationTop = document.createElement('div');
-      paginationTop.id = 'comment-pagination-top';
       const paginationBottom = document.createElement('div');
       paginationBottom.id = 'comment-pagination-bottom';
-      commentContainer.appendChild(paginationTop);
-      commentContainer.appendChild(paginationBottom);
+      commentContainer.appendChild(paginationBottom); // 最后添加底部
 
-      // ===== 关键修复：按时间降序排序所有评论 =====
+      // 排序并分页
       allComments = discussionData.comments.nodes || [];
       allComments.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
       totalComments = discussionData.comments.totalCount || 0;
       totalPages = Math.ceil(totalComments / COMMENTS_PER_PAGE) || 1;
       currentCommentPage = 1;
@@ -857,7 +858,6 @@
     });
   }
 
-  // ---------- 登录状态 ----------
   async function checkLoginStatus() {
     try {
       const res = await fetch(`${OAUTH_BASE}/me`, { credentials: 'include' });
@@ -873,7 +873,6 @@
     }
   }
 
-  // ---------- 初始化 ----------
   async function init() {
     const params = new URLSearchParams(window.location.search);
     const d = params.get('d');
