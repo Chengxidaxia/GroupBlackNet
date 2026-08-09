@@ -293,9 +293,9 @@
     }
 
     vditorInstance = new Vditor(vditorContainer, {
-      height: 500,                           // ✅ 高度 500
+      height: 500,
       mode: 'ir',
-      placeholder: '',                       // ✅ 无 placeholder（无半透明字）
+      placeholder: '',   // 移除 placeholder
       cache: { enable: true, id: 'edit-vditor-cache' },
       upload: {
         url: `${UPLOAD_URL}/`,
@@ -310,13 +310,15 @@
         'list', 'ordered-list', 'check', 'outdent', 'indent',
         'line', 'code', 'inline-code', 'table', 'upload', 'record',
         'preview', 'fullscreen', 'outline', 'edit-mode', 'both',
-        'undo', 'redo', 'more'               // ✅ 包含 'more'
+        'undo', 'redo', 'more'
       ],
       outline: { enable: true, position: 'left' }
     });
 
-    // ✅ 清空内容
-    vditorInstance.setValue('');
+    // 清空内容（在 after 回调中）
+    vditorInstance.after = function() {
+      vditorInstance.setValue('');
+    };
 
     // 强制大纲左侧
     setTimeout(function() {
@@ -389,7 +391,6 @@
       });
       const data = await res.json();
       if (res.ok) {
-        // 跳转到新讨论页面
         const discussionNumber = data.discussion?.number;
         if (discussionNumber) {
           window.location.href = `/blog.html?d=${discussionNumber}`;
