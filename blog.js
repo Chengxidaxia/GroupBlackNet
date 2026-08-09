@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（使用 ant 图标，精简自定义样式，加强调试）
+// blog.js - 文章详情页（适配现有 HTML，使用 ant 图标）
 // ============================================================
 
 (function() {
@@ -11,7 +11,7 @@
   const COMMENTS_PER_PAGE = 20;
   const DEFAULT_AVATAR = 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png';
 
-  // DOM 元素
+  // DOM 元素（与 HTML 中的 id 对应）
   const titleEl = document.getElementById('title');
   const infoEl = document.getElementById('information');
   const textEl = document.getElementById('text');
@@ -29,7 +29,7 @@
   let isSubmitting = false;
   let userReactions = {};
 
-  // ---------- 图片查看器 ----------
+  // ---------- 图片查看器（必要） ----------
   function initImageViewer() {
     document.addEventListener('dblclick', function(e) {
       const img = e.target.closest('.markdown-body img, .comment-item img');
@@ -176,7 +176,7 @@
       });
     }
 
-    // 调整图片高度
+    // 调整图片大小
     html = html.replace(/<img([^>]*)>/gi, function(match, attrs) {
       if (/style\s*=/i.test(attrs)) {
         attrs = attrs.replace(/style\s*=\s*(["'])([^"']*)\1/i, function(m, quote, style) {
@@ -427,7 +427,6 @@
       if (isSubmitting) return;
 
       const parentId = this.dataset.parentId;
-      // 构造临时回复
       const tempReply = {
         id: 'temp-reply-' + Date.now(),
         body: body,
@@ -449,7 +448,7 @@
       parentComment.replies.nodes.unshift(tempReply);
 
       renderCommentsPage(currentCommentPage);
-      container.innerHTML = ''; // 关闭回复编辑区
+      container.innerHTML = '';
 
       isSubmitting = true;
       try {
@@ -468,10 +467,8 @@
         const data = await res.json();
         console.log('[回复] 响应:', data);
         if (res.ok) {
-          // 成功：刷新讨论
           await loadDiscussionFull(discussionData.number);
         } else {
-          // 失败：移除临时回复
           parentComment.replies.nodes = parentComment.replies.nodes.filter(r => r.id !== tempReply.id);
           renderCommentsPage(currentCommentPage);
           alert(`回复失败: ${data.error || '未知错误'}\n详情: ${JSON.stringify(data.details || '')}`);
@@ -543,7 +540,6 @@
       }
 
       if (res.status === 409) {
-        // 冲突：可能用户已经反应，反向操作
         const reverseAction = newActive ? 'remove' : 'add';
         await fetch(`${OAUTH_BASE}/reaction`, {
           method: 'POST',
@@ -551,7 +547,6 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ subjectId, content, action: reverseAction })
         });
-        // 重新同步状态
         userReactions[key] = !newActive;
         toggleReactionHighlight(item, !newActive);
         updateReactionCount(subjectId, content, newActive ? -1 : 1);
@@ -560,10 +555,8 @@
         return;
       }
 
-      // 其他错误
       const errData = await res.json();
       console.error('Reaction error:', errData);
-      // 回滚
       userReactions[key] = isActive;
       toggleReactionHighlight(item, isActive);
       updateReactionCount(subjectId, content, isActive ? 1 : -1);
@@ -603,7 +596,6 @@
       return;
     }
 
-    // 创建临时评论
     const tempComment = {
       id: 'temp-' + Date.now(),
       body: body,
@@ -620,7 +612,6 @@
     renderCommentsPage(currentCommentPage);
     vditorInstance.setValue('');
     isSubmitting = true;
-    // 禁用工具栏提交按钮（如果有）
     const toolbarBtn = document.querySelector('.vditor-toolbar__item[data-name="submit"]');
     if (toolbarBtn) toolbarBtn.style.pointerEvents = 'none';
 
@@ -683,7 +674,7 @@
       cache: { enable: false },
       lang: 'zh_CN',
       cdn: 'https://cdn.jsdelivr.net/npm/vditor@3.10.6',
-      icon: 'ant',           // 使用 ant 图标，稳定可靠
+      icon: 'ant',
       theme: 'classic',
       upload: {
         url: `${UPLOAD_URL}/`,
@@ -710,7 +701,6 @@
       ],
       toolbarConfig: {
         pin: true,
-        // 指定 more 菜单中显示的工具
         more: ['table', 'record', 'upload', 'outline', 'fullscreen', 'edit-mode', 'both']
       },
       outline: {
@@ -719,7 +709,7 @@
       }
     });
 
-    // 修正大纲位置（如果出现）
+    // 修正大纲位置
     setTimeout(function() {
       const outline = document.querySelector('.vditor-outline');
       if (outline) {
@@ -738,15 +728,12 @@
       discussionData = data.discussion;
       if (!discussionData) throw new Error('Discussion not found');
 
-      // 清空评论容器（保留结构）
       commentContainer.innerHTML = '';
 
-      // 标题
       const titleText = discussionData.title || '无标题';
       document.title = titleText + ' - 群档案';
       titleEl.innerHTML = `<span style="font-size:26pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; font-weight:bold;">${titleText}</span>`;
 
-      // 简介
       const { info, bodyText } = parseFirstLine(discussionData.body);
       if (info && info.trim()) {
         infoEl.innerHTML = `<span style="font-size:14pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; font-weight:bold;">${renderMarkdown(info)}</span>`;
@@ -754,11 +741,9 @@
         infoEl.innerHTML = '';
       }
 
-      // 正文
       textEl.innerHTML = `<div class="markdown-body" style="padding:0 10px; text-align:left;">${renderMarkdown(bodyText)}</div>`;
       addCopyButtonsToCodeBlocks();
 
-      // Reaction
       const discussionId = discussionData.id;
       const reactionHtml = renderReactions(
         discussionData.reactionGroups || [],
@@ -770,7 +755,6 @@
       reactionDiv.innerHTML = reactionHtml;
       commentContainer.appendChild(reactionDiv);
 
-      // 编辑器容器
       const editorContainer = document.createElement('div');
       editorContainer.id = 'vditor-container';
       editorContainer.style.cssText = 'margin:10px 0; text-align:left;';
@@ -785,7 +769,6 @@
         editorContainer.innerHTML = '<p style="text-align:center;color:#888;padding:20px;">登录后即可评论</p>';
       }
 
-      // 评论列表
       const commentListDiv = document.createElement('div');
       commentListDiv.id = 'comment-list';
       commentListDiv.style.cssText = 'text-align:left; margin-top:20px;';
