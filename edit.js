@@ -1,5 +1,5 @@
 // ============================================================
-// edit.js - 创建新讨论（防重复提交 + 工具栏提交按钮）
+// edit.js - 创建新讨论（防重复提交，CSS 宽度 85%）
 // ============================================================
 
 (function() {
@@ -47,7 +47,8 @@
     const style = document.createElement('style');
     style.id = 'edit-styles';
     style.textContent = `
-      #editing { width:80%; max-width:1000px; margin:0 auto; display:block; min-height:400px; }
+      /* 宽度 85%，无 max-width，与 container_7b322585 保持一致 */
+      #editing { width:85%; margin:0 auto; display:block; min-height:400px; }
       #vditor-container { margin:10px 0; text-align:left; width:100%; }
       .upload-area {
         border:2px dashed #ccc; border-radius:8px; padding:20px; text-align:center;
@@ -209,7 +210,7 @@
 
   // ========== 提交讨论（防重复提交） ==========
   async function submitDiscussion() {
-    // 防止重复提交
+    // 防重复提交
     if (isSubmitting) return;
     if (!vditorInstance) {
       alert('编辑器未初始化');
@@ -254,9 +255,14 @@
     const disableButtons = () => {
       if (toolbarBtn) toolbarBtn.style.pointerEvents = 'none';
       if (bottomBtn) bottomBtn.disabled = true;
+      // 增加视觉反馈
+      if (toolbarBtn) toolbarBtn.style.opacity = '0.5';
     };
     const enableButtons = () => {
-      if (toolbarBtn) toolbarBtn.style.pointerEvents = 'auto';
+      if (toolbarBtn) {
+        toolbarBtn.style.pointerEvents = 'auto';
+        toolbarBtn.style.opacity = '1';
+      }
       if (bottomBtn) bottomBtn.disabled = false;
     };
 
@@ -288,9 +294,9 @@
       enableButtons();
     } finally {
       isSubmitting = false;
-      // 如果页面未跳转，重新启用按钮（但跳转后页面卸载，无需关心）
-      // 为了防止跳转前用户再次点击，跳转后页面已卸载，所以 enable 在非跳转时调用
-      // 但我们在 catch 和 else 中已经调用 enableButtons，此处不再重复
+      // 如果页面未跳转，启用按钮；若跳转则无需操作
+      // 但为了安全，在 finally 中调用 enableButtons（若跳转则页面卸载，无影响）
+      // 但若跳转，则执行不到这里，所以不用担心
     }
   }
 
