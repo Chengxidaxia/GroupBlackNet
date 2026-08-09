@@ -1,5 +1,5 @@
 // ============================================================
-// edit.js - 创建新讨论页面（稳定版，禁用缓存）
+// edit.js - 创建新讨论页面（稳定版，禁用缓存，修复 setValue）
 // ============================================================
 
 (function() {
@@ -300,12 +300,17 @@
         'preview', 'fullscreen', 'outline', 'edit-mode', 'both',
         'undo', 'redo', 'more'
       ],
-      outline: { enable: true, position: 'left' },
-      after: function() {
-        this.setValue('');
-      }
+      outline: { enable: true, position: 'left' }
     });
 
+    // 使用 setTimeout 确保实例已完全初始化
+    setTimeout(function() {
+      if (vditorInstance && typeof vditorInstance.setValue === 'function') {
+        vditorInstance.setValue('');
+      }
+    }, 100);
+
+    // 强制大纲左侧
     setTimeout(function() {
       const outline = document.querySelector('.vditor-outline');
       if (outline) {
