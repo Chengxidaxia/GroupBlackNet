@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 完整版（文章和评论都有独立的 Upvote）
+// blog.js - 完整版（文章和评论都有独立的 Upvote，未登录只显示数字）
 // ============================================================
 
 (function() {
@@ -60,6 +60,8 @@
       .reaction-item.reaction-btn { cursor:pointer; }
       .upvote-item { margin-right:16px !important; border-radius:8px; padding:4px 12px; }
       .upvote-item .upvote-icon { font-size:18px; line-height:1; }
+      .upvote-static { display:inline-flex; align-items:center; gap:4px; color:#888; font-size:14px; margin-right:16px; }
+      .upvote-static .upvote-icon { font-size:18px; }
     `;
     document.head.appendChild(style);
   }
@@ -245,11 +247,17 @@
   }
 
   // ============================================================
-  // 渲染 Upvote 按钮（文章或评论通用）
+  // 渲染 Upvote 按钮（登录显示可交互，未登录显示静态数字）
   // ============================================================
   function renderUpvoteButton(subjectId, upvoteCount, viewerHasUpvoted, canInteract = false) {
     if (!canInteract) {
-      return `<span class="upvote-count">${upvoteCount}</span>`;
+      // 未登录：只显示静态数字 + ↑ 图标（无边框、无点击）
+      return `
+        <span class="upvote-static">
+          <span class="upvote-icon">↑</span>
+          <span class="upvote-count">${upvoteCount}</span>
+        </span>
+      `;
     }
     const isActive = viewerHasUpvoted;
     const borderColor = isActive ? '#0366d6' : '#ddd';
@@ -273,7 +281,7 @@
     const viewerHasUpvoted = comment.viewerHasUpvoted || false;
 
     let html = '<div class="reactions-container">';
-    // 1. Upvote 按钮（独立）
+    // 1. Upvote（登录可交互，未登录静态）
     html += renderUpvoteButton(subjectId, upvoteCount, viewerHasUpvoted, canInteract);
 
     // 2. 所有 Reaction（包括 THUMBS_UP 👍）
@@ -604,14 +612,12 @@
     if (!subjectId) return;
     if (!isLoggedIn) { console.error('请先登录'); return; }
 
-    // 判断当前状态
     const isActive = item.style.borderColor === 'rgb(3, 102, 214)';
     const action = isActive ? 'remove' : 'add';
     const countSpan = item.querySelector('.upvote-count');
     const currentCount = parseInt(countSpan.textContent, 10);
     const newCount = isActive ? currentCount - 1 : currentCount + 1;
 
-    // 乐观更新
     countSpan.textContent = newCount;
     if (isActive) {
       item.style.borderColor = '#ddd';
@@ -630,7 +636,6 @@
       });
       const data = await res.json();
       if (!res.ok) {
-        // 回滚
         countSpan.textContent = currentCount;
         if (isActive) {
           item.style.borderColor = '#0366d6';
@@ -642,7 +647,6 @@
         console.error('Upvote 失败:', data.error);
       }
     } catch (error) {
-      // 回滚
       countSpan.textContent = currentCount;
       if (isActive) {
         item.style.borderColor = '#0366d6';
@@ -803,8 +807,7 @@
       const viewerHasUpvoted = discussionData.viewerHasUpvoted || false;
 
       let reactionHtml = '<div class="reactions-container">';
-
-      // 1. 文章的 Upvote 按钮（独立）
+      // 1. Upvote（登录可交互，未登录静态）
       reactionHtml += renderUpvoteButton(discussionId, upvoteCount, viewerHasUpvoted, isLoggedIn);
 
       // 2. 所有 Reaction（包括 THUMBS_UP 👍）
