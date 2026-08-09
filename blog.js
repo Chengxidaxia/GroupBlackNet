@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（修复更多菜单，错误输出到控制台）
+// blog.js - 文章详情页（修复评论排序和分页）
 // ============================================================
 
 (function() {
@@ -27,7 +27,7 @@
   let userReactions = {};
   let isSubmitting = false;
 
-  // ---------- 必要样式（仅图片查看器和临时评论） ----------
+  // ---------- 必要样式 ----------
   function injectStyles() {
     if (document.getElementById('blog-styles')) return;
     const style = document.createElement('style');
@@ -709,37 +709,6 @@
     }
     editorContainer.innerHTML = '';
 
-    // 正确配置工具栏（包含 more 对象）
-    const toolbar = [
-      'emoji', 'headings', 'bold', 'italic', 'strike', 'link', '|',
-      'list', 'ordered-list', 'check', 'outdent', 'indent', '|',
-      'quote', 'line', 'code', 'inline-code', 'insert-before', 'insert-after', '|',
-      'upload', 'record', 'table', '|',
-      'undo', 'redo', '|',
-      'fullscreen', 'edit-mode',
-      {
-        name: 'more',
-        toolbar: [
-          'both',
-          'code-theme',
-          'content-theme',
-          'export',
-          'outline',
-          'preview',
-          'devtools',
-          'info',
-          'help'
-        ]
-      },
-      '|',
-      {
-        name: 'submit',
-        icon: '<svg viewBox="0 0 32 32" style="fill: #2da44e; width: 18px; height: 18px;"><path d="M6 4l20 12-20 12z"></path></svg>',
-        tip: '提交评论',
-        click: submitComment
-      }
-    ];
-
     vditorInstance = new Vditor(editorContainer, {
       height: 200,
       minHeight: 150,
@@ -759,7 +728,21 @@
         multiple: false,
         withCredentials: true,
       },
-      toolbar: toolbar,
+      toolbar: [
+        'emoji', 'headings', 'bold', 'italic', 'strike', 'link', '|',
+        'list', 'ordered-list', 'check', 'outdent', 'indent', '|',
+        'quote', 'line', 'code', 'inline-code', 'insert-before', 'insert-after', '|',
+        'upload', 'record', 'table', '|',
+        'undo', 'redo', '|',
+        'fullscreen', 'edit-mode', 'both', 'more',
+        '|',
+        {
+          name: 'submit',
+          icon: '<svg viewBox="0 0 32 32" style="fill: #2da44e; width: 18px; height: 18px;"><path d="M6 4l20 12-20 12z"></path></svg>',
+          tip: '提交评论',
+          click: submitComment
+        }
+      ],
       toolbarConfig: {
         pin: true,
       },
@@ -769,7 +752,7 @@
       }
     });
 
-    // 修正大纲位置（仅当出现偏移）
+    // 修正大纲位置
     setTimeout(function() {
       const outline = document.querySelector('.vditor-outline');
       if (outline) {
@@ -841,7 +824,10 @@
       commentContainer.appendChild(paginationTop);
       commentContainer.appendChild(paginationBottom);
 
+      // ===== 关键修复：按时间降序排序所有评论 =====
       allComments = discussionData.comments.nodes || [];
+      allComments.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
       totalComments = discussionData.comments.totalCount || 0;
       totalPages = Math.ceil(totalComments / COMMENTS_PER_PAGE) || 1;
       currentCommentPage = 1;
