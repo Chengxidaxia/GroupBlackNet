@@ -1,6 +1,6 @@
 // ============================================================
-// blog.js - 文章详情页（最终修复版）
-// 保留原生工具栏，添加自定义提交按钮，防重复提交
+// blog.js - 文章详情页（完全官方风格）
+// 采用 Vditor 官方示例配置，无 hack
 // ============================================================
 
 (function() {
@@ -25,9 +25,7 @@
   let allComments = [];
   let totalComments = 0;
   let userReactions = {};
-
-  // ---------- 防抖标志 ----------
-  let isSubmitting = false;
+  let isSubmitting = false; // 防重复提交
 
   // ---------- 样式注入 ----------
   function injectStyles() {
@@ -136,13 +134,6 @@
         border-radius: 8px;
         border: 1px solid #ddd;
       }
-      /* 自定义提交按钮样式（绿色播放键） */
-      .vditor-toolbar__item--submit .vditor-toolbar__item svg {
-        fill: #2da44e !important;
-      }
-      .vditor-toolbar__item--submit .vditor-toolbar__item svg:hover {
-        fill: #22863a !important;
-      }
     `;
     document.head.appendChild(style);
   }
@@ -243,6 +234,7 @@
       });
     }
 
+    // 给 <pre> 添加内联样式
     html = html.replace(/<pre>/gi, function(match) {
       if (/style\s*=/i.test(match)) {
         return match.replace(/style\s*=\s*(["'])([^"']*)\1/i, function(m, quote, style) {
@@ -254,6 +246,7 @@
     });
     html = html.replace(/<pre/g, '<pre class="markdown-body"');
 
+    // 后处理 @ 和 #
     const linkPlaceholders = [];
     html = html.replace(/<a\b[^>]*>.*?<\/a>/gi, function(match) {
       const index = linkPlaceholders.length;
@@ -270,6 +263,7 @@
       return linkPlaceholders[parseInt(index)];
     });
 
+    // 图片限制高度
     html = html.replace(/<img([^>]*)>/gi, function(match, attrs) {
       if (/style\s*=/i.test(attrs)) {
         attrs = attrs.replace(/style\s*=\s*(["'])([^"']*)\1/i, function(m, quote, style) {
@@ -675,7 +669,7 @@
     container.appendChild(wrapper);
   }
 
-  // ---------- 提交评论（带防抖） ----------
+  // ---------- 提交评论（防重复） ----------
   async function submitComment() {
     if (isSubmitting) return;
     if (!vditorInstance) {
@@ -718,7 +712,7 @@
     }
   }
 
-  // ---------- Vditor 初始化（原生工具栏 + 自定义提交按钮） ----------
+  // ---------- Vditor 初始化（完全官方风格） ----------
   function initVditor() {
     const editorContainer = document.getElementById('vditor-container');
     if (!editorContainer) return;
@@ -736,6 +730,7 @@
     }
     editorContainer.innerHTML = '';
 
+    // 官方示例配置
     vditorInstance = new Vditor(editorContainer, {
       height: 200,
       minHeight: 150,
@@ -761,7 +756,7 @@
         'line', 'code', 'inline-code', 'table', 'upload', 'record',
         'preview', 'fullscreen', 'outline', 'edit-mode', 'both',
         'undo', 'redo', 'more',
-        '|', // 分隔符
+        '|',
         {
           name: 'submit',
           icon: '<svg viewBox="0 0 32 32" style="fill: #2da44e; width: 18px; height: 18px;"><path d="M6 4l20 12-20 12z"></path></svg>',
@@ -787,7 +782,7 @@
       }
     }, 200);
 
-    // 下方“发表评论”按钮（已存在则复用，否则创建）
+    // 底部“发表评论”按钮（可选，也可省略，但为了兼容保留）
     let submitBtn = document.getElementById('comment-submit');
     if (!submitBtn) {
       submitBtn = document.createElement('button');
@@ -806,7 +801,7 @@
       submitBtn.addEventListener('click', submitComment);
       editorContainer.parentNode.insertBefore(submitBtn, editorContainer.nextSibling);
     } else {
-      // 如果已存在，确保事件绑定正确（移除旧监听，添加新监听）
+      // 确保事件绑定
       submitBtn.removeEventListener('click', submitComment);
       submitBtn.addEventListener('click', submitComment);
     }
