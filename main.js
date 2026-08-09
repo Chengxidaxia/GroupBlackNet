@@ -1,5 +1,5 @@
 // ============================================================
-// main.js - 首页文章列表（分页始终显示，带箭头和省略号）
+// main.js - 首页文章列表（搜索 + 公告置顶）
 // ============================================================
 
 (function() {
@@ -11,13 +11,17 @@
   const ASC_CHECK_ID = 'UP';
 
   let allPosts = [];
+  let filteredPosts = [];       // 当前显示的数据（搜索过滤后）
   let currentPage = 1;
   let totalPages = 1;
   let currentSort = 'Default';
   let isAscending = false;
+  let searchQuery = '';         // 搜索关键词
+  let isSearching = false;      // 是否处于搜索状态
   let cardsContainer = null;
   let sortSelect = null;
   let ascCheck = null;
+  let searchInput = null;
   const CONTAINER = document.getElementById('main');
 
   // ---------- 辅助函数 ----------
@@ -120,6 +124,11 @@
     return group ? group.users.totalCount : 0;
   }
 
+  // 判断是否为公告
+  function isAnnouncement(post) {
+    return post.category && post.category.name === 'Announcement';
+  }
+
   // ---------- 生成卡片 ----------
   function createCard(post) {
     const number = post.number;
@@ -132,7 +141,9 @@
     const detailLink = `/blog.html?d=${number}`;
 
     const { info, icon, bodyText, isJson } = parseFirstLine(post.body);
-    const summary = info || getFirstLinePlainText(post.body);
+    // 公告不显示简介
+    const isAnn = isAnnouncement(post);
+    const summary = (isAnn || !info) ? '' : info;
     let imageUrl = icon;
     if (!imageUrl || !imageUrl.startsWith('http')) {
       imageUrl = extractFirstImage(post.body) || 'img/pole.jpg';
@@ -147,7 +158,7 @@
             <div style="vertical-align: top; position:relative; display: inline-block; width:100%; min-height:150px; background:none;">
               <div style="margin: 10px; display: block;">
                 <div style="text-align:left;">
-                  <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000; line-height: 1.5;">${summary}</span>
+                  ${summary ? `<span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000; line-height: 1.5;">${summary}</span>` : ''}
                 </div>
                 <div style="text-align:right;">
                   <img src="${imageUrl}" style="vertical-align: bottom; position:relative; display: inline-block; height:150px; background:none;" alt="" onerror="this.src='img/pole.jpg'" />
@@ -189,10 +200,25 @@
     `;
   }
 
-  // ---------- 排序 ----------
+  // ---------- 排序（公告置顶仅默认排序） ----------
   function sortPosts(posts, sortType, ascending) {
-    if (sortType === 'Default') return posts.slice();
-    const sorted = posts.slice();
+    // 先复制一份
+    let sorted = posts.slice();
+
+    // 默认排序时，公告置顶
+    if (sortType === 'Default' && !isSearching) {
+      const announcements = sorted.filter(p => isAnnouncement(p));
+      const others = sorted.filter(p => !isAnnouncement(p));
+      // 公告内部保持原顺序（或按创建时间降序）
+      // 按创建时间降序排列公告
+      announcements.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      // 其他帖子按默认排序（按创建时间降序）
+      others.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      sorted = announcements.concat(others);
+      return sorted;
+    }
+
+    // 其他排序方式
     if (sortType === 'CREATE_AT') {
       sorted.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
     } else if (sortType === 'UPDATED_AT') {
@@ -204,11 +230,24 @@
     return sorted;
   }
 
+  // ---------- 过滤（搜索） ----------
+  function filterPosts(posts, query) {
+    if (!query.trim()) return posts;
+    const q = query.trim().toLowerCase();
+    return posts.filter(post => {
+      const title = (post.title || '').toLowerCase();
+      const body = (post.body || '').toLowerCase();
+      return title.includes(q) || body.includes(q);
+    });
+  }
+
   // ---------- 渲染 ----------
   function renderCards() {
     if (!cardsContainer) return;
 
-    if (!allPosts || allPosts.length === 0) {
+    // 根据搜索状态决定数据源
+    const dataSource = isSearching ? filteredPosts : allPosts;
+    if (!dataSource || dataSource.length === 0) {
       cardsContainer.innerHTML = '<p style="text-align:center;padding:20px;">暂无文章</p>';
       const topEl = document.getElementById('pagination-top');
       const bottomEl = document.getElementById('pagination-bottom');
@@ -217,7 +256,8 @@
       return;
     }
 
-    const sorted = sortPosts(allPosts, currentSort, isAscending);
+    // 排序
+    const sorted = sortPosts(dataSource, currentSort, isAscending);
     totalPages = Math.ceil(sorted.length / PAGE_SIZE) || 1;
     if (currentPage > totalPages) currentPage = totalPages;
     const start = (currentPage - 1) * PAGE_SIZE;
@@ -231,88 +271,56 @@
     renderPagination();
   }
 
-  // ============================================================
-  // ★★★ 新的分页渲染函数（始终显示，带箭头和省略号）★★★
-  // ============================================================
+  // ---------- 分页 ----------
   function renderPagination() {
     const topEl = document.getElementById('pagination-top');
     const bottomEl = document.getElementById('pagination-bottom');
-    if (topEl) buildPagination(topEl);
-    if (bottomEl) buildPagination(bottomEl);
+    if (topEl) createPaginationButtons(topEl);
+    if (bottomEl) createPaginationButtons(bottomEl);
   }
 
-  function buildPagination(container) {
+  function createPaginationButtons(container) {
     container.innerHTML = '';
-    if (totalPages <= 0) return;
-
+    if (totalPages <= 1) return;
     const wrapper = document.createElement('div');
-    wrapper.style.cssText = 'display:flex; align-items:center; justify-content:center; gap:4px; flex-wrap:wrap; padding:10px 0;';
-
-    // 上一页
-    const prevBtn = document.createElement('button');
-    prevBtn.textContent = '‹';
-    prevBtn.className = 'pagination-btn' + (currentPage <= 1 ? ' disabled' : '');
-    if (currentPage > 1) {
-      prevBtn.addEventListener('click', () => { currentPage--; renderCards(); });
-    }
-    wrapper.appendChild(prevBtn);
-
-    // 页码
-    const maxVisible = 5;
-    let pages = [];
-    if (totalPages <= maxVisible + 2) {
-      for (let i = 1; i <= totalPages; i++) pages.push(i);
-    } else {
-      pages.push(1);
-      let start = Math.max(2, currentPage - 2);
-      let end = Math.min(totalPages - 1, currentPage + 2);
-      if (end - start < maxVisible - 1) {
-        if (start === 2) end = Math.min(totalPages - 1, start + maxVisible - 2);
-        else if (end === totalPages - 1) start = Math.max(2, end - maxVisible + 2);
-      }
-      if (start > 2) pages.push('…');
-      for (let i = start; i <= end; i++) pages.push(i);
-      if (end < totalPages - 1) pages.push('…');
-      pages.push(totalPages);
-    }
-
-    pages.forEach(item => {
-      if (item === '…') {
-        const span = document.createElement('span');
-        span.textContent = '…';
-        span.className = 'pagination-ellipsis';
-        span.title = '点击跳转至指定页';
-        span.addEventListener('click', function() {
-          const input = prompt('请输入要跳转的页码（1-' + totalPages + '）:', currentPage);
-          if (input === null) return;
-          const page = parseInt(input, 10);
-          if (isNaN(page) || page < 1 || page > totalPages) {
-            alert('请输入有效页码（1-' + totalPages + '）');
-            return;
-          }
+    wrapper.style.cssText = 'text-align:center; padding:10px 0;';
+    for (let i = 1; i <= totalPages; i++) {
+      const btn = document.createElement('button');
+      btn.textContent = i;
+      btn.style.cssText = `
+        margin: 0 4px;
+        padding: 4px 10px;
+        border: 1px solid #ccc;
+        background: ${i === currentPage ? '#B1782E' : '#fff'};
+        color: ${i === currentPage ? '#fff' : '#333'};
+        cursor: pointer;
+        border-radius: 4px;
+        font-size: 12pt;
+      `;
+      btn.addEventListener('click', (function(page) {
+        return function() {
           currentPage = page;
           renderCards();
-        });
-        wrapper.appendChild(span);
-      } else {
-        const btn = document.createElement('button');
-        btn.textContent = item;
-        btn.className = 'pagination-btn' + (item === currentPage ? ' active' : '');
-        btn.addEventListener('click', () => { currentPage = item; renderCards(); });
-        wrapper.appendChild(btn);
-      }
-    });
-
-    // 下一页
-    const nextBtn = document.createElement('button');
-    nextBtn.textContent = '›';
-    nextBtn.className = 'pagination-btn' + (currentPage >= totalPages ? ' disabled' : '');
-    if (currentPage < totalPages) {
-      nextBtn.addEventListener('click', () => { currentPage++; renderCards(); });
+        };
+      })(i));
+      wrapper.appendChild(btn);
     }
-    wrapper.appendChild(nextBtn);
-
     container.appendChild(wrapper);
+  }
+
+  // ---------- 搜索框事件 ----------
+  function handleSearch(e) {
+    const query = e.target.value;
+    searchQuery = query;
+    if (query.trim()) {
+      isSearching = true;
+      filteredPosts = filterPosts(allPosts, query);
+    } else {
+      isSearching = false;
+      filteredPosts = [];
+    }
+    currentPage = 1;
+    renderCards();
   }
 
   // ---------- 加载数据 ----------
@@ -325,6 +333,9 @@
       if (!res.ok) throw new Error(`HTTP error ${res.status}`);
       const data = await res.json();
       allPosts = data.nodes || [];
+      // 默认显示所有
+      filteredPosts = [];
+      isSearching = false;
       console.log(`✅ 成功获取 ${allPosts.length} 篇文章`);
     } catch (error) {
       console.error('❌ 加载失败:', error);
@@ -355,6 +366,19 @@
   function buildStructure() {
     if (!CONTAINER) return;
     CONTAINER.innerHTML = '';
+
+    // ----- 搜索框（在顶部分页上方）-----
+    const searchWrapper = document.createElement('div');
+    searchWrapper.style.cssText = 'text-align:center; padding:10px 0;';
+    searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.placeholder = '搜索文章...';
+    searchInput.style.cssText = 'width:50%; padding:8px 12px; font-size:14px; border:1px solid #ccc; border-radius:4px;';
+    searchInput.addEventListener('input', handleSearch);
+    searchWrapper.appendChild(searchInput);
+    CONTAINER.appendChild(searchWrapper);
+
+    // 顶部翻页
     const topControls = document.createElement('div');
     topControls.style.cssText = 'text-align:center; padding:10px 0;';
     const topPagination = document.createElement('div');
@@ -362,11 +386,13 @@
     topControls.appendChild(topPagination);
     CONTAINER.appendChild(topControls);
 
+    // 卡片容器
     cardsContainer = document.createElement('div');
     cardsContainer.id = 'cards-container';
     cardsContainer.style.cssText = 'text-align:center;';
     CONTAINER.appendChild(cardsContainer);
 
+    // 底部翻页
     const bottomControls = document.createElement('div');
     bottomControls.style.cssText = 'text-align:center; padding:10px 0;';
     const bottomPagination = document.createElement('div');
