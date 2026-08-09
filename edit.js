@@ -1,5 +1,5 @@
 // ============================================================
-// edit.js - 创建新讨论（防重复提交，CSS 宽度 85%）
+// edit.js - 创建新讨论（防重复提交，封面默认图使用完整 URL）
 // ============================================================
 
 (function() {
@@ -7,7 +7,7 @@
 
   const OAUTH_BASE = 'https://oauth.blacknet.cc.cd';
   const UPLOAD_URL = 'https://upload.blacknet.cc.cd';
-  const DEFAULT_ICON = 'img/pole.jpg';
+  const DEFAULT_ICON = 'https://grp.blacknet.cc.cd/img/pole.jpg';
 
   const titleInput = document.getElementById('title');
   const infoInput = document.getElementById('info');
