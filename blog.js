@@ -1,5 +1,6 @@
 // ============================================================
-// blog.js - 文章详情页（完整版，叉号加大点击区域）
+// blog.js - 文章详情页（最终稳定版）
+// 包含：清空内容、工具栏 more、大纲左侧
 // ============================================================
 
 (function() {
@@ -79,9 +80,16 @@
         white-space: pre !important;
         border-radius: 0 !important;
       }
+      .markdown-body img {
+        max-width: 100% !important;
+        max-height: 500px !important;
+        width: auto !important;
+        height: auto !important;
+        display: block !important;
+        margin: 10px 0 !important;
+      }
       .comment-item { text-align: left; }
       .comment-item .markdown-body { font-size: 14px; line-height: 1.6; }
-
       /* 编辑器高度限制 */
       #vditor-container .vditor {
         min-height: 200px !important;
@@ -91,85 +99,10 @@
         max-height: 420px !important;
         overflow: auto !important;
       }
-
-      /* 图片查看器 */
-      .image-viewer-overlay {
-        position: fixed;
-        top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0,0,0,0.85);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 9999;
-        cursor: pointer;
-      }
-      .image-viewer-overlay img {
-        max-width: 90%;
-        max-height: 90%;
-        object-fit: contain;
-        box-shadow: 0 0 30px rgba(0,0,0,0.5);
-      }
-      .image-viewer-close {
-        position: fixed;
-        top: 20px;
-        right: 30px;
-        font-size: 40px;
-        color: #fff;
-        opacity: 0.7;
-        cursor: pointer;
-        z-index: 10000;
-        font-family: Arial, sans-serif;
-        transition: opacity 0.2s, background 0.2s;
-        background: rgba(0,0,0,0.4);
-        border: none;
-        border-radius: 8px;
-        padding: 12px 20px;
-        line-height: 1;
-        user-select: none;
-      }
-      .image-viewer-close:hover {
-        opacity: 1;
-        background: rgba(0,0,0,0.7);
-      }
     `;
     document.head.appendChild(style);
   }
   injectStyles();
-
-  // ---------- 图片查看器 ----------
-  function initImageViewer() {
-    document.addEventListener('dblclick', function(e) {
-      const img = e.target.closest('.markdown-body img, .comment-item img');
-      if (!img) return;
-      const src = img.getAttribute('src');
-      if (!src) return;
-      e.preventDefault();
-      showImageViewer(src);
-    });
-  }
-
-  function showImageViewer(src) {
-    const overlay = document.createElement('div');
-    overlay.className = 'image-viewer-overlay';
-    overlay.innerHTML = `
-      <img src="${src}" alt="查看大图" />
-      <button class="image-viewer-close" title="关闭">✕</button>
-    `;
-    document.body.appendChild(overlay);
-    overlay.querySelector('.image-viewer-close').addEventListener('click', function(e) {
-      e.stopPropagation();
-      overlay.remove();
-    });
-    overlay.addEventListener('click', function(e) {
-      if (e.target === overlay) overlay.remove();
-    });
-    document.addEventListener('keydown', function escHandler(e) {
-      if (e.key === 'Escape') {
-        overlay.remove();
-        document.removeEventListener('keydown', escHandler);
-      }
-    });
-  }
 
   // ---------- 辅助函数 ----------
   function base64Decode(str) {
@@ -180,10 +113,10 @@
     }
   }
 
-  // ---------- Markdown 渲染（支持图片高度参数） ----------
+  // ---------- Markdown 渲染 ----------
   let markedConfigured = false;
 
-  function renderMarkdown(text, imgMaxHeight = 500) {
+  function renderMarkdown(text) {
     if (!text) return '';
 
     if (typeof marked === 'undefined' || typeof marked.parse !== 'function') {
@@ -260,14 +193,14 @@
       return linkPlaceholders[parseInt(index)];
     });
 
-    // 图片：根据参数设置 max-height
+    // 图片限制高度
     html = html.replace(/<img([^>]*)>/gi, function(match, attrs) {
       if (/style\s*=/i.test(attrs)) {
         attrs = attrs.replace(/style\s*=\s*(["'])([^"']*)\1/i, function(m, quote, style) {
-          return `style="${quote}${style}; display:block; margin:10px 0; max-width:100%; max-height:${imgMaxHeight}px; width:auto; height:auto;${quote}"`;
+          return `style="${quote}${style}; display:block; margin:10px 0; max-width:100%; max-height:500px; width:auto; height:auto;${quote}"`;
         });
       } else {
-        attrs += ` style="display:block; margin:10px 0; max-width:100%; max-height:${imgMaxHeight}px; width:auto; height:auto;"`;
+        attrs += ` style="display:block; margin:10px 0; max-width:100%; max-height:500px; width:auto; height:auto;"`;
       }
       return `<img${attrs}>`;
     });
@@ -417,28 +350,23 @@
     return html;
   }
 
-  // ---------- 评论树渲染（排序 + 回复图片高度 250） ----------
+  // ---------- 评论树 ----------
   function renderCommentTree(comments, level = 0) {
     if (!comments || comments.length === 0) return '';
-    // 对当前层级的评论按时间降序排序（最新在前）
-    const sorted = [...comments].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     let html = '';
     const indent = level * 20;
-    sorted.forEach(comment => {
+    comments.forEach(comment => {
       const author = comment.author.login;
       const avatar = comment.author.avatarUrl;
       const createdAt = formatDate(comment.createdAt);
-      // 回复的图片高度限制为 250
-      const bodyHtml = `<div class="markdown-body">${renderMarkdown(comment.body, 250)}</div>`;
+      const bodyHtml = `<div class="markdown-body">${renderMarkdown(comment.body)}</div>`;
       const reactionHtml = renderReactions(
         comment.reactionGroups || [],
         comment.id,
         isLoggedIn
       );
-      // 对回复也排序（如果存在）
-      const replies = comment.replies && comment.replies.nodes ? comment.replies.nodes : [];
-      const sortedReplies = replies.length ? [...replies].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)) : [];
-      const hasReplies = sortedReplies.length > 0;
+      const replyCount = comment.replies ? comment.replies.totalCount || 0 : 0;
+      const hasReplies = replyCount > 0;
 
       html += `
         <div class="comment-item" style="border-bottom:1px solid #e1e4e8;padding:12px 0; text-align:left; margin-left:${indent}px;">
@@ -453,24 +381,21 @@
           <div style="margin-left:40px; font-size:14px; line-height:1.6;">${bodyHtml}</div>
           ${reactionHtml}
           <div class="reply-container" data-parent-id="${comment.id}" style="margin-top:8px;"></div>
-          ${hasReplies ? `<div class="replies-container" style="margin-left:20px;">${renderCommentTree(sortedReplies, level + 1)}</div>` : ''}
+          ${hasReplies ? `<div class="replies-container" style="margin-left:20px;">${renderCommentTree(comment.replies.nodes, level + 1)}</div>` : ''}
         </div>
       `;
     });
     return html;
   }
 
-  // ---------- 渲染评论列表 ----------
   function renderComments(comments) {
     if (!comments || comments.length === 0) {
       return '<p style="text-align:center;color:#888;">暂无评论</p>';
     }
-    // 对顶层评论排序
-    const sortedTop = [...comments].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    return `<div style="border:1px solid #ddd; border-radius:8px; padding:10px; background:#ffffff; text-align:left;">${renderCommentTree(sortedTop)}</div>`;
+    return `<div style="border:1px solid #ddd; border-radius:8px; padding:10px; background:#ffffff; text-align:left;">${renderCommentTree(comments)}</div>`;
   }
 
-  // ---------- 回复事件（无 alert） ----------
+  // ---------- 回复事件 ----------
   function bindReplyEvents() {
     document.querySelectorAll('.reply-btn').forEach(btn => {
       btn.removeEventListener('click', handleReplyClick);
@@ -685,7 +610,6 @@
     }
     const discussionId = discussionData.id;
     const payload = { discussionId, body };
-    console.log('提交顶层评论 payload:', payload);
     try {
       const res = await fetch(`${OAUTH_BASE}/comment`, {
         method: 'POST',
@@ -695,11 +619,11 @@
       });
       const data = await res.json();
       if (res.ok) {
+        // 清空编辑器内容
         vditorInstance.setValue('');
         const d = discussionData.number;
         await loadDiscussionFull(d);
       } else {
-        console.error('评论提交失败:', data);
         alert(data.error || '评论发表失败');
       }
     } catch (error) {
@@ -708,7 +632,7 @@
     }
   }
 
-  // ---------- Vditor 初始化 ----------
+  // ---------- Vditor 初始化（包含清空、more） ----------
   function initVditor() {
     const editorContainer = document.getElementById('vditor-container');
     if (!editorContainer) return;
@@ -743,28 +667,13 @@
         'list', 'ordered-list', 'check', 'outdent', 'indent',
         'line', 'code', 'inline-code', 'table', 'upload', 'record',
         'preview', 'fullscreen', 'outline', 'edit-mode', 'both',
-        'undo', 'redo', 'more'
+        'undo', 'redo', 'more'          // ✅ 包含 'more'
       ],
       outline: { enable: true, position: 'left' }
     });
-    let submitBtn = document.getElementById('comment-submit');
-    if (!submitBtn) {
-      submitBtn = document.createElement('button');
-      submitBtn.id = 'comment-submit';
-      submitBtn.textContent = '发表评论';
-      submitBtn.style.cssText = `
-        margin-top: 10px;
-        padding: 8px 20px;
-        background: #2da44e;
-        color: white;
-        border: none;
-        border-radius: 6px;
-        font-size: 16px;
-        cursor: pointer;
-      `;
-      submitBtn.addEventListener('click', submitComment);
-      editorContainer.parentNode.insertBefore(submitBtn, editorContainer.nextSibling);
-    }
+    // ✅ 清空内容
+    vditorInstance.setValue('');
+    // 提交按钮已存在，不需要重复创建
   }
 
   // ---------- 加载讨论 ----------
@@ -907,8 +816,6 @@
     }
     await checkLoginStatus();
     await loadDiscussionFull(number);
-    // 初始化图片查看器
-    initImageViewer();
   }
 
   if (document.readyState === 'loading') {
