@@ -1,5 +1,6 @@
 // ============================================================
-// blog.js - 文章详情页（完全官方风格 + 调试）
+// blog.js - 文章详情页（最终修复版）
+// CDN: jsdelivr, 回复字段名: replyToId, 更多菜单完整
 // ============================================================
 
 (function() {
@@ -509,11 +510,10 @@
       if (isSubmitting) return;
       isSubmitting = true;
 
-      // 调试信息
       console.log('[回复] 提交 payload:', {
         discussionId: discussionData.id,
         body: body,
-        parentCommentId: parentId
+        replyToId: parentId   // 修改字段名
       });
 
       try {
@@ -524,7 +524,7 @@
           body: JSON.stringify({
             discussionId: discussionData.id,
             body: body,
-            parentCommentId: parentId
+            replyToId: parentId   // 修改字段名
           })
         });
         const data = await res.json();
@@ -736,7 +736,6 @@
     }
     editorContainer.innerHTML = '';
 
-    // 完全官方工具栏配置
     vditorInstance = new Vditor(editorContainer, {
       height: 200,
       minHeight: 150,
@@ -745,7 +744,7 @@
       value: '',
       cache: { enable: false },
       lang: 'zh_CN',
-      cdn: 'https://unpkg.com/vditor@3.10.6',
+      cdn: 'https://cdn.jsdelivr.net/npm/vditor@3.10.6', // 改用 jsdelivr
       icon: 'ant',
       theme: 'classic',
       upload: {
@@ -756,7 +755,6 @@
         multiple: false,
         withCredentials: true,
       },
-      // 官方工具栏顺序 + 自定义提交按钮
       toolbar: [
         'emoji', 'headings', 'bold', 'italic', 'strike', 'link', '|',
         'list', 'ordered-list', 'check', 'outdent', 'indent', '|',
@@ -790,7 +788,7 @@
       }
     }, 200);
 
-    // 底部“发表评论”按钮（保留，但可复用）
+    // 底部“发表评论”按钮
     let submitBtn = document.getElementById('comment-submit');
     if (!submitBtn) {
       submitBtn = document.createElement('button');
