@@ -1,5 +1,5 @@
 // ============================================================
-// main.js - 文章列表加载、排序、分页
+// main.js - 文章列表加载、排序、分页（修复封面图）
 // ============================================================
 
 (function() {
@@ -50,11 +50,12 @@
       .trim() || '无简介';
   }
 
-  // 修复 parseFirstLine：正确解析 JSON 第一行
+  // 修复 parseFirstLine：返回 info 和 icon
   function parseFirstLine(body) {
     const lines = body.split('\n');
     const firstLine = lines.find(line => line.trim() !== '') || '';
     let info = null;
+    let icon = null;
     let bodyText = '';
     let isJson = false;
 
@@ -63,9 +64,9 @@
       isJson = true;
       if (data.info) {
         info = base64Decode(data.info);
-      } else {
-        // 如果 JSON 没有 info 字段，将整个 JSON 字符串作为 info（实际不会发生）
-        info = firstLine;
+      }
+      if (data.icon) {
+        icon = base64Decode(data.icon);
       }
       const restLines = lines.slice(1);
       bodyText = restLines.join('\n').trim();
@@ -81,7 +82,7 @@
     }
 
     if (!bodyText) bodyText = '';
-    return { info, bodyText, isJson };
+    return { info, icon, bodyText, isJson };
   }
 
   function formatDate(dateStr) {
@@ -128,12 +129,18 @@
     const avatar = post.author.avatarUrl;
     const createdAt = formatDate(post.createdAt);
     const commentsCount = post.comments.totalCount;
-    const imageUrl = extractFirstImage(post.body) || 'img/pole.jpg';
-    const { info, bodyText, isJson } = parseFirstLine(post.body);
-    // 简介使用 info
-    const summary = info || getFirstLinePlainText(post.body);
     const reactionsHtml = renderReactions(post.reactionGroups);
     const detailLink = `/blog.html?d=${number}`;
+
+    // 解析第一行获取 info 和 icon
+    const { info, icon, bodyText, isJson } = parseFirstLine(post.body);
+    // 简介使用 info
+    const summary = info || getFirstLinePlainText(post.body);
+    // 封面图：优先使用 icon（解码后的 URL），否则从正文提取，否则默认
+    let imageUrl = icon;
+    if (!imageUrl || !imageUrl.startsWith('http')) {
+      imageUrl = extractFirstImage(post.body) || 'img/pole.jpg';
+    }
 
     return `
       <div style="box-sizing: border-box; vertical-align: top; border-radius: 15px; position:relative; display: inline-block; margin:10px; width:80%; min-height:320px; max-width:1000px; background-color:#FFFFFF; border: 1px solid #404040; text-align:left;">
@@ -186,7 +193,11 @@
     `;
   }
 
-  // ---------- 排序 ----------
+  // ---------- 排序、分页、加载等保持不变 ----------
+  // 由于篇幅，以下省略排序、分页等函数（与之前相同）
+  // 实际使用时请确保包含所有必要函数
+
+  // 此处为了完整性，保留以下关键函数（复制之前版本）
   function sortPosts(posts, sortType, ascending) {
     if (sortType === 'Default') return posts.slice();
     const sorted = posts.slice();
@@ -201,10 +212,8 @@
     return sorted;
   }
 
-  // ---------- 渲染 ----------
   function renderCards() {
     if (!cardsContainer) return;
-
     if (!allPosts || allPosts.length === 0) {
       cardsContainer.innerHTML = '<p style="text-align:center;padding:20px;">暂无文章</p>';
       const topEl = document.getElementById('pagination-top');
@@ -213,14 +222,12 @@
       if (bottomEl) bottomEl.innerHTML = '';
       return;
     }
-
     const sorted = sortPosts(allPosts, currentSort, isAscending);
     totalPages = Math.ceil(sorted.length / PAGE_SIZE) || 1;
     if (currentPage > totalPages) currentPage = totalPages;
     const start = (currentPage - 1) * PAGE_SIZE;
     const end = Math.min(start + PAGE_SIZE, sorted.length);
     const pagePosts = sorted.slice(start, end);
-
     cardsContainer.innerHTML = '';
     pagePosts.forEach(post => {
       cardsContainer.innerHTML += createCard(post);
@@ -228,7 +235,6 @@
     renderPagination();
   }
 
-  // ---------- 分页 ----------
   function renderPagination() {
     const topEl = document.getElementById('pagination-top');
     const bottomEl = document.getElementById('pagination-bottom');
@@ -265,7 +271,6 @@
     container.appendChild(wrapper);
   }
 
-  // ---------- 加载数据 ----------
   async function fetchAllPosts() {
     if (cardsContainer) {
       cardsContainer.innerHTML = '<p style="text-align:center;padding:20px;">加载中...</p>';
@@ -285,7 +290,6 @@
     }
   }
 
-  // ---------- 读取控件 ----------
   function readControls() {
     sortSelect = document.getElementById(SORT_SELECT_ID);
     ascCheck = document.getElementById(ASC_CHECK_ID);
@@ -301,7 +305,6 @@
     }
   }
 
-  // ---------- 构建 #main ----------
   function buildStructure() {
     if (!CONTAINER) return;
     CONTAINER.innerHTML = '';
@@ -325,7 +328,6 @@
     CONTAINER.appendChild(bottomControls);
   }
 
-  // ---------- 绑定控件 ----------
   function bindControls() {
     if (sortSelect) {
       sortSelect.addEventListener('change', function() {
@@ -343,7 +345,6 @@
     }
   }
 
-  // ---------- 主初始化 ----------
   async function initMain() {
     if (!CONTAINER) {
       console.warn('main.js: 未找到 id="main" 的容器');
@@ -357,7 +358,6 @@
     renderCards();
   }
 
-  // ---------- 等待公共部分加载 ----------
   function start() {
     if (window.commonsLoaded) {
       initMain();
