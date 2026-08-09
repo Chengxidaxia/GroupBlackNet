@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（完整稳定版）
+// blog.js - 文章详情页（完整稳定版，修复 more 子菜单）
 // ============================================================
 
 (function() {
@@ -697,7 +697,7 @@
     }
   }
 
-  // ---------- Vditor 初始化（使用 value: '' ） ----------
+  // ---------- Vditor 初始化（添加 cdn，修复 more 子菜单） ----------
   function initVditor() {
     const editorContainer = document.getElementById('vditor-container');
     if (!editorContainer) return;
@@ -719,9 +719,12 @@
       height: 200,
       mode: 'ir',
       placeholder: '写下你的评论...',
-      value: '',                           // 初始为空，无需 after 清空
+      value: '',
       cache: { enable: false },
       lang: 'zh_CN',
+      cdn: 'https://unpkg.com/vditor@3.10.6',  // 指定 CDN，确保资源完整
+      icon: 'material',                       // 使用 material 图标
+      theme: 'classic',
       upload: {
         url: `${UPLOAD_URL}/`,
         fieldName: 'file',
@@ -740,7 +743,7 @@
       outline: { enable: true, position: 'left' }
     });
 
-    // 强制大纲左侧（无需清空操作）
+    // 强制大纲左侧
     setTimeout(function() {
       const outline = document.querySelector('.vditor-outline');
       if (outline) {
@@ -749,7 +752,7 @@
       }
     }, 200);
 
-    // 提交按钮（如果不存在）
+    // 提交按钮
     let submitBtn = document.getElementById('comment-submit');
     if (!submitBtn) {
       submitBtn = document.createElement('button');
