@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（完整稳定版，修复 more 子菜单）
+// blog.js - 文章详情页（采用官方实例编辑器配置）
 // ============================================================
 
 (function() {
@@ -126,6 +126,19 @@
       .image-viewer-close:hover {
         opacity: 1;
         background: rgba(0,0,0,0.7);
+      }
+      /* 官方编辑器样式微调 */
+      #vditor-container .vditor {
+        border-radius: 8px;
+        border: 1px solid #ddd;
+      }
+      #vditor-container .vditor-toolbar {
+        border-top-left-radius: 8px;
+        border-top-right-radius: 8px;
+      }
+      #vditor-container .vditor-content {
+        border-bottom-left-radius: 8px;
+        border-bottom-right-radius: 8px;
       }
     `;
     document.head.appendChild(style);
@@ -697,7 +710,7 @@
     }
   }
 
-  // ---------- Vditor 初始化（添加 cdn，修复 more 子菜单） ----------
+  // ---------- Vditor 初始化（官方实例配置） ----------
   function initVditor() {
     const editorContainer = document.getElementById('vditor-container');
     if (!editorContainer) return;
@@ -715,15 +728,17 @@
     }
     editorContainer.innerHTML = '';
 
+    // 官方实例配置
     vditorInstance = new Vditor(editorContainer, {
       height: 200,
-      mode: 'ir',
+      minHeight: 150,
+      mode: 'wysiwyg',
       placeholder: '写下你的评论...',
       value: '',
       cache: { enable: false },
       lang: 'zh_CN',
-      cdn: 'https://unpkg.com/vditor@3.10.6',  // 指定 CDN，确保资源完整
-      icon: 'material',                       // 使用 material 图标
+      cdn: 'https://unpkg.com/vditor@3.10.6',
+      icon: 'material',
       theme: 'classic',
       upload: {
         url: `${UPLOAD_URL}/`,
@@ -740,7 +755,17 @@
         'preview', 'fullscreen', 'outline', 'edit-mode', 'both',
         'undo', 'redo', 'more'
       ],
-      outline: { enable: true, position: 'left' }
+      toolbarConfig: {
+        pin: true,
+      },
+      outline: {
+        enable: true,
+        position: 'left',
+      },
+      after: function(vditor) {
+        // 确保初始为空
+        vditor.setValue('');
+      }
     });
 
     // 强制大纲左侧
