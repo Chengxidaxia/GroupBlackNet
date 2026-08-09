@@ -1,5 +1,5 @@
 // ============================================================
-// edit.js - 创建新讨论页面（完全复用评论页面结构）
+// edit.js - 创建新讨论页面（完整修复版）
 // ============================================================
 
 (function() {
@@ -58,7 +58,7 @@
         display: block !important;
         min-height: 400px !important;
       }
-      /* Vditor 容器与评论页面一致 */
+      /* Vditor 容器 */
       #vditor-container {
         margin: 10px 0;
         text-align: left;
@@ -270,14 +270,14 @@
     }
   }
 
-  // ---------- 初始化 Vditor（完全复用评论页面方式） ----------
+  // ---------- 初始化 Vditor ----------
   function initVditor() {
     if (!editingContainer) {
       console.error('#editing 容器未找到');
       return;
     }
 
-    // 创建 vditor-container（与评论页面一致）
+    // 创建 vditor-container
     const vditorContainer = document.createElement('div');
     vditorContainer.id = 'vditor-container';
     vditorContainer.style.cssText = 'margin:10px 0; text-align:left;';
@@ -293,9 +293,9 @@
     }
 
     vditorInstance = new Vditor(vditorContainer, {
-      height: 200,
+      height: 500,                           // ✅ 高度 500
       mode: 'ir',
-      placeholder: '写下你的评论...',
+      placeholder: '',                       // ✅ 无 placeholder（无半透明字）
       cache: { enable: true, id: 'edit-vditor-cache' },
       upload: {
         url: `${UPLOAD_URL}/`,
@@ -310,16 +310,27 @@
         'list', 'ordered-list', 'check', 'outdent', 'indent',
         'line', 'code', 'inline-code', 'table', 'upload', 'record',
         'preview', 'fullscreen', 'outline', 'edit-mode', 'both',
-        'undo', 'redo', 'more'
+        'undo', 'redo', 'more'               // ✅ 包含 'more'
       ],
       outline: { enable: true, position: 'left' }
     });
+
+    // ✅ 清空内容
+    vditorInstance.setValue('');
+
+    // 强制大纲左侧
+    setTimeout(function() {
+      const outline = document.querySelector('.vditor-outline');
+      if (outline) {
+        outline.style.left = '0';
+        outline.style.right = 'auto';
+      }
+    }, 200);
   }
 
   // ---------- 创建提交按钮 ----------
   function buildSubmitButton() {
     if (!editingContainer) return;
-    // 检查是否已有按钮，避免重复
     let btn = document.getElementById('edit-submit-btn');
     if (btn) btn.remove();
 
@@ -378,12 +389,11 @@
       });
       const data = await res.json();
       if (res.ok) {
-        // 跳转到新创建的讨论页面
+        // 跳转到新讨论页面
         const discussionNumber = data.discussion?.number;
         if (discussionNumber) {
           window.location.href = `/blog.html?d=${discussionNumber}`;
         } else {
-          // 如果没有返回 number，跳转到首页
           window.location.href = '/index.html';
         }
       } else {
@@ -413,10 +423,8 @@
 
     buildUploadUI();
 
-    // 初始化 Vditor（会创建 vditor-container）
     initVditor();
 
-    // 在 vditor-container 之后添加按钮
     buildSubmitButton();
 
     noiconCheck.addEventListener('change', function() {
