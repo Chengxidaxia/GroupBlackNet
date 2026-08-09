@@ -1,5 +1,5 @@
 // ============================================================
-// edit.js - 创建新讨论（Vditor 官方 more 配置）
+// edit.js - 创建新讨论（工具栏含提交按钮，更多菜单正常）
 // ============================================================
 
 (function() {
@@ -36,7 +36,7 @@
         isLoggedIn = false;
         return false;
       }
-    } catch (e) {
+    } catch(e) {
       isLoggedIn = false;
       return false;
     }
@@ -47,57 +47,19 @@
     const style = document.createElement('style');
     style.id = 'edit-styles';
     style.textContent = `
-      #editing {
-        width: 80% !important;
-        max-width: 1000px !important;
-        margin: 0 auto !important;
-        display: block !important;
-        min-height: 400px !important;
-      }
-      #vditor-container {
-        margin: 10px 0;
-        text-align: left;
-      }
+      #editing { width:80%; max-width:1000px; margin:0 auto; display:block; min-height:400px; }
+      #vditor-container { margin:10px 0; text-align:left; }
       .upload-area {
-        border: 2px dashed #ccc;
-        border-radius: 8px;
-        padding: 20px;
-        text-align: center;
-        cursor: pointer;
-        transition: border-color 0.3s;
-        min-height: 120px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        background: #fafafa;
+        border:2px dashed #ccc; border-radius:8px; padding:20px; text-align:center;
+        cursor:pointer; transition:border-color 0.3s; min-height:120px;
+        display:flex; flex-direction:column; align-items:center; justify-content:center;
+        background:#fafafa;
       }
-      .upload-area.dragover {
-        border-color: #2da44e;
-        background: #f0f9f0;
-      }
-      .upload-area img {
-        max-width: 100%;
-        max-height: 200px;
-        margin-top: 8px;
-        border-radius: 4px;
-      }
-      .upload-area .hint {
-        color: #888;
-        font-size: 14px;
-      }
-      .upload-area .remove-btn {
-        margin-top: 8px;
-        background: #dc3545;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        padding: 4px 12px;
-        cursor: pointer;
-      }
-      .upload-area.hidden {
-        display: none !important;
-      }
+      .upload-area.dragover { border-color:#2da44e; background:#f0f9f0; }
+      .upload-area img { max-width:100%; max-height:200px; margin-top:8px; border-radius:4px; }
+      .upload-area .hint { color:#888; font-size:14px; }
+      .upload-area .remove-btn { margin-top:8px; background:#dc3545; color:white; border:none; border-radius:4px; padding:4px 12px; cursor:pointer; }
+      .upload-area.hidden { display:none !important; }
     `;
     document.head.appendChild(style);
   }
@@ -245,6 +207,7 @@
     }
   }
 
+  // ---------- 提交讨论 ----------
   async function submitDiscussion() {
     if (isSubmitting) return;
     if (!vditorInstance) {
@@ -311,6 +274,7 @@
     }
   }
 
+  // ---------- 初始化 Vditor ----------
   function initVditor() {
     if (!editingContainer) {
       console.error('#editing 容器未找到');
@@ -355,13 +319,7 @@
         'quote', 'line', 'code', 'inline-code', 'insert-before', 'insert-after', '|',
         'upload', 'record', 'table', '|',
         'undo', 'redo', '|',
-        'fullscreen', 'edit-mode', 'both',
-        {
-          name: 'more',
-          toolbar: [
-            'both', 'code-theme', 'content-theme', 'export', 'outline', 'preview', 'devtools', 'info', 'help'
-          ]
-        },
+        'fullscreen', 'edit-mode', 'both', 'more',
         '|',
         {
           name: 'submit',
@@ -372,6 +330,8 @@
       ],
       toolbarConfig: {
         pin: true,
+        // 确保 more 菜单包含子项
+        more: ['table', 'record', 'upload', 'outline', 'fullscreen', 'edit-mode', 'both']
       },
       outline: {
         enable: true,
