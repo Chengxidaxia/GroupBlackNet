@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（分页顺序调整为：顶部→列表→底部）
+// blog.js - 文章详情页（分页始终显示，带箭头和省略号）
 // ============================================================
 
 (function() {
@@ -67,6 +67,39 @@
         background: #f0f9f0;
         border-left: 3px solid #2da44e;
         padding-left: 8px;
+      }
+      .pagination-btn {
+        margin: 0 2px;
+        padding: 4px 10px;
+        border: 1px solid #ccc;
+        background: #fff;
+        color: #333;
+        cursor: pointer;
+        border-radius: 4px;
+        font-size: 12pt;
+        transition: background 0.2s;
+      }
+      .pagination-btn:hover {
+        background: #e9ecef;
+      }
+      .pagination-btn.active {
+        background: #B1782E;
+        color: #fff;
+        border-color: #B1782E;
+      }
+      .pagination-btn.disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .pagination-ellipsis {
+        margin: 0 4px;
+        font-size: 12pt;
+        cursor: pointer;
+        color: #0366d6;
+        user-select: none;
+      }
+      .pagination-ellipsis:hover {
+        text-decoration: underline;
       }
     `;
     document.head.appendChild(style);
@@ -366,30 +399,85 @@
     return `<div style="border:1px solid #ddd; border-radius:8px; padding:10px; background:#ffffff; text-align:left;">${renderCommentTree(sortedTop)}</div>`;
   }
 
-  // ---------- 分页 ----------
+  // ============================================================
+  // ★★★ 新的分页渲染函数（始终显示，带箭头和省略号）★★★
+  // ============================================================
   function renderPagination(container, currentPage, totalPages, onPageChange) {
     container.innerHTML = '';
-    if (totalPages <= 1) return;
+    if (totalPages <= 0) return;
+
     const wrapper = document.createElement('div');
-    wrapper.style.cssText = 'text-align:center; padding:10px 0;';
-    for (let i = 1; i <= totalPages; i++) {
-      const btn = document.createElement('button');
-      btn.textContent = i;
-      btn.style.cssText = `
-        margin: 0 4px;
-        padding: 4px 10px;
-        border: 1px solid #ccc;
-        background: ${i === currentPage ? '#B1782E' : '#fff'};
-        color: ${i === currentPage ? '#fff' : '#333'};
-        cursor: pointer;
-        border-radius: 4px;
-        font-size: 12pt;
-      `;
-      btn.addEventListener('click', (function(page) {
-        return function() { onPageChange(page); };
-      })(i));
-      wrapper.appendChild(btn);
+    wrapper.style.cssText = 'display:flex; align-items:center; justify-content:center; gap:4px; flex-wrap:wrap; padding:10px 0;';
+
+    // 上一页按钮
+    const prevBtn = document.createElement('button');
+    prevBtn.textContent = '‹';
+    prevBtn.className = 'pagination-btn' + (currentPage <= 1 ? ' disabled' : '');
+    if (currentPage > 1) {
+      prevBtn.addEventListener('click', () => onPageChange(currentPage - 1));
     }
+    wrapper.appendChild(prevBtn);
+
+    // 页码生成逻辑（带省略号）
+    const maxVisible = 5; // 可见页码数量（不含两端）
+    let pages = [];
+    if (totalPages <= maxVisible + 2) {
+      // 总页数少，全部显示
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      // 总是显示第一页
+      pages.push(1);
+      let start = Math.max(2, currentPage - 2);
+      let end = Math.min(totalPages - 1, currentPage + 2);
+      // 保证显示至少 maxVisible 个中间页码
+      if (end - start < maxVisible - 1) {
+        if (start === 2) end = Math.min(totalPages - 1, start + maxVisible - 2);
+        else if (end === totalPages - 1) start = Math.max(2, end - maxVisible + 2);
+      }
+      // 添加省略号（如果 start > 2）
+      if (start > 2) pages.push('…');
+      for (let i = start; i <= end; i++) pages.push(i);
+      // 如果 end < totalPages - 1，添加省略号
+      if (end < totalPages - 1) pages.push('…');
+      // 总是显示最后一页
+      pages.push(totalPages);
+    }
+
+    pages.forEach(item => {
+      if (item === '…') {
+        const span = document.createElement('span');
+        span.textContent = '…';
+        span.className = 'pagination-ellipsis';
+        span.title = '点击跳转至指定页';
+        span.addEventListener('click', function() {
+          const input = prompt('请输入要跳转的页码（1-' + totalPages + '）:', currentPage);
+          if (input === null) return;
+          const page = parseInt(input, 10);
+          if (isNaN(page) || page < 1 || page > totalPages) {
+            alert('请输入有效页码（1-' + totalPages + '）');
+            return;
+          }
+          onPageChange(page);
+        });
+        wrapper.appendChild(span);
+      } else {
+        const btn = document.createElement('button');
+        btn.textContent = item;
+        btn.className = 'pagination-btn' + (item === currentPage ? ' active' : '');
+        btn.addEventListener('click', () => onPageChange(item));
+        wrapper.appendChild(btn);
+      }
+    });
+
+    // 下一页按钮
+    const nextBtn = document.createElement('button');
+    nextBtn.textContent = '›';
+    nextBtn.className = 'pagination-btn' + (currentPage >= totalPages ? ' disabled' : '');
+    if (currentPage < totalPages) {
+      nextBtn.addEventListener('click', () => onPageChange(currentPage + 1));
+    }
+    wrapper.appendChild(nextBtn);
+
     container.appendChild(wrapper);
   }
 
@@ -812,21 +900,20 @@
         editorContainer.innerHTML = '<p style="text-align:center;color:#888;padding:20px;">登录后即可评论</p>';
       }
 
-      // ★★★ 调整顺序：顶部翻页 → 评论列表 → 底部翻页 ★★★
+      // 分页顶
       const paginationTop = document.createElement('div');
       paginationTop.id = 'comment-pagination-top';
-      commentContainer.appendChild(paginationTop);  // 先添加顶部
+      commentContainer.appendChild(paginationTop);
 
       const commentListDiv = document.createElement('div');
       commentListDiv.id = 'comment-list';
       commentListDiv.style.cssText = 'text-align:left; margin-top:20px;';
-      commentContainer.appendChild(commentListDiv); // 再添加列表
+      commentContainer.appendChild(commentListDiv);
 
       const paginationBottom = document.createElement('div');
       paginationBottom.id = 'comment-pagination-bottom';
-      commentContainer.appendChild(paginationBottom); // 最后添加底部
+      commentContainer.appendChild(paginationBottom);
 
-      // 排序并分页
       allComments = discussionData.comments.nodes || [];
       allComments.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       totalComments = discussionData.comments.totalCount || 0;
