@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（稳定版，工具栏正常）
+// blog.js - 文章详情页（最终稳定版，more 子菜单完整）
 // ============================================================
 
 (function() {
@@ -127,7 +127,7 @@
         opacity: 1;
         background: rgba(0,0,0,0.7);
       }
-      /* 编辑器容器样式 */
+      /* 编辑器容器 */
       #vditor-container .vditor {
         border-radius: 8px;
         border: 1px solid #ddd;
@@ -699,7 +699,7 @@
     }
   }
 
-  // ---------- Vditor 初始化（稳定配置） ----------
+  // ---------- Vditor 初始化（官方配置，确保 more 完整） ----------
   function initVditor() {
     const editorContainer = document.getElementById('vditor-container');
     if (!editorContainer) return;
@@ -717,16 +717,17 @@
     }
     editorContainer.innerHTML = '';
 
-    // 稳定配置：使用 ir 模式，material 图标，指定 CDN
+    // 官方实例配置
     vditorInstance = new Vditor(editorContainer, {
       height: 200,
-      mode: 'ir',                     // 即时渲染模式，工具栏完整
+      minHeight: 150,
+      mode: 'wysiwyg',        // 官方示例使用 wysiwyg
       placeholder: '写下你的评论...',
-      value: '',                      // 初始为空，无需 after 清空
+      value: '',
       cache: { enable: false },
       lang: 'zh_CN',
       cdn: 'https://unpkg.com/vditor@3.10.6',
-      icon: 'material',               // material 图标集
+      icon: 'ant',            // 使用 ant 图标（官方默认）
       theme: 'classic',
       upload: {
         url: `${UPLOAD_URL}/`,
