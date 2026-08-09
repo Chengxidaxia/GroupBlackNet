@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（含 Discussion Upvote + 评论 Reaction）
+// blog.js - 文章详情页（含 Discussion Upvote 和评论/回复 Upvote）
 // ============================================================
 
 (function() {
@@ -294,38 +294,55 @@
   }
 
   // ============================================================
-  // Reaction 渲染（评论使用 👍，Discussion 不含 THUMBS_UP）
+  // 评论/回复的 Reaction 渲染（含自定义 ↑ 按钮）
   // ============================================================
-  function renderReactions(reactionGroups, subjectId, canInteract = false, isDiscussion = false) {
-    let reactionHtml = '<div class="reactions-container">';
+  function renderReactionsForComment(reactionGroups, subjectId, canInteract = false) {
+    let html = '<div class="reactions-container">';
 
+    // 1. 先添加自定义 ↑ 按钮（基于 THUMBS_UP）
+    const thumbsUpGroup = reactionGroups ? reactionGroups.find(g => g.content === 'THUMBS_UP') : null;
+    const count = thumbsUpGroup ? thumbsUpGroup.users.totalCount : 0;
+    const viewerHasReacted = thumbsUpGroup ? thumbsUpGroup.viewerHasReacted : false;
+    const isActive = viewerHasReacted && canInteract;
+    const borderColor = isActive ? '#0366d6' : '#ddd';
+    const bgColor = isActive ? '#dbedff' : '#f6f8fa';
+    // 只有登录用户才能交互
+    if (canInteract) {
+      html += `
+        <div class="reaction-item reaction-btn upvote-item"
+             data-subject-id="${subjectId}" data-reaction="THUMBS_UP"
+             style="border:1px solid ${borderColor}; border-radius:8px; background:${bgColor}; cursor:pointer; margin-right:16px;">
+          <span class="upvote-icon">↑</span>
+          <span class="upvote-count" id="reaction-count-${subjectId}-THUMBS_UP">${count}</span>
+        </div>
+      `;
+    }
+
+    // 2. 添加其它 Reaction（跳过 THUMBS_UP，因为已自定义）
     if (reactionGroups && reactionGroups.length > 0) {
       reactionGroups.forEach(group => {
-        const count = group.users.totalCount;
+        if (group.content === 'THUMBS_UP') return;
+        const count2 = group.users.totalCount;
         const emoji = EMOJI_MAP[group.content] || group.content;
         const countId = `reaction-count-${subjectId}-${group.content}`;
-        const viewerReacted = group.viewerHasReacted === true;
-        if (canInteract) userReactions[`${subjectId}-${group.content}`] = viewerReacted;
-        const isActive = viewerReacted && canInteract;
-        const borderColor = isActive ? '#0366d6' : '#ddd';
-        const bgColor = isActive ? '#dbedff' : '#f6f8fa';
+        const viewerReacted2 = group.viewerHasReacted === true;
+        if (canInteract) userReactions[`${subjectId}-${group.content}`] = viewerReacted2;
+        const isActive2 = viewerReacted2 && canInteract;
+        const borderColor2 = isActive2 ? '#0366d6' : '#ddd';
+        const bgColor2 = isActive2 ? '#dbedff' : '#f6f8fa';
         const interactiveClass = canInteract ? 'reaction-btn' : '';
-
-        // Discussion 跳过 THUMBS_UP（Upvote 按钮独立）
-        if (isDiscussion && group.content === 'THUMBS_UP') return;
-
-        reactionHtml += `
+        html += `
           <div class="reaction-item ${interactiveClass}"
                data-subject-id="${subjectId}" data-reaction="${group.content}"
-               style="border:1px solid ${borderColor}; border-radius:16px; background:${bgColor}; ${canInteract ? 'cursor:pointer;' : ''}">
+               style="border:1px solid ${borderColor2}; border-radius:16px; background:${bgColor2}; ${canInteract ? 'cursor:pointer;' : ''}">
             <span style="font-size:18px;">${emoji}</span>
-            <span id="${countId}" style="font-weight:bold;">${count}</span>
+            <span id="${countId}" style="font-weight:bold;">${count2}</span>
           </div>
         `;
       });
     }
-    reactionHtml += '</div>';
-    return reactionHtml;
+    html += '</div>';
+    return html;
   }
 
   // ---------- 评论树渲染 ----------
@@ -341,7 +358,8 @@
       const isTemp = comment.isTemp || false;
       const tempClass = isTemp ? (level === 0 ? 'temp-comment' : 'temp-reply') : '';
       const bodyHtml = `<div class="markdown-body">${renderMarkdown(comment.body, 250)}</div>`;
-      const reactionHtml = renderReactions(comment.reactionGroups || [], comment.id, isLoggedIn && !isTemp, false);
+      // 使用新的渲染函数（含 ↑）
+      const reactionHtml = renderReactionsForComment(comment.reactionGroups || [], comment.id, isLoggedIn && !isTemp);
       const replies = comment.replies && comment.replies.nodes ? comment.replies.nodes : [];
       const sortedReplies = replies.length ? [...replies].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)) : [];
       const hasReplies = sortedReplies.length > 0;
@@ -543,7 +561,7 @@
     });
   }
 
-  // ---------- Reaction 交互 ----------
+  // ---------- Reaction 交互（通用） ----------
   function updateReactionCount(subjectId, content, delta) {
     const countId = `reaction-count-${subjectId}-${content}`;
     const el = document.getElementById(countId);
@@ -813,33 +831,57 @@
       // ---- Discussion Upvote + Reaction ----
       const discussionId = discussionData.id;
 
+      // 读取 Upvote 数据
       discussionUpvoteCount = discussionData.upvoteCount || 0;
       discussionUpvoteState = discussionData.viewerHasUpvoted || false;
 
-      // 生成 Reaction（不含 THUMBS_UP）
-      const reactionHtml = renderReactions(
-        discussionData.reactionGroups || [],
-        discussionId,
-        isLoggedIn,
-        true
-      );
+      // 构建 Reaction 容器：先插入 Upvote 按钮，再添加其他 Reaction（跳过 THUMBS_UP）
+      let reactionHtml = '<div class="reactions-container">';
+
+      // Upvote 按钮
+      const upvoteBtnHtml = `
+        <div id="discussion-upvote-btn" class="reaction-item reaction-btn upvote-item" style="border:1px solid ${discussionUpvoteState ? '#0366d6' : '#ddd'}; border-radius:8px; background:${discussionUpvoteState ? '#dbedff' : '#f6f8fa'}; cursor:pointer; margin-right:16px;">
+          <span class="upvote-icon">↑</span>
+          <span class="upvote-count" id="discussion-upvote-count">${discussionUpvoteCount}</span>
+        </div>
+      `;
+      reactionHtml += upvoteBtnHtml;
+
+      // 其他 Reaction（跳过 THUMBS_UP）
+      if (discussionData.reactionGroups && discussionData.reactionGroups.length > 0) {
+        discussionData.reactionGroups.forEach(group => {
+          if (group.content === 'THUMBS_UP') return;
+          const count = group.users.totalCount;
+          const emoji = EMOJI_MAP[group.content] || group.content;
+          const countId = `reaction-count-${discussionId}-${group.content}`;
+          const viewerReacted = group.viewerHasReacted === true;
+          if (isLoggedIn) userReactions[`${discussionId}-${group.content}`] = viewerReacted;
+          const isActive = viewerReacted && isLoggedIn;
+          const borderColor = isActive ? '#0366d6' : '#ddd';
+          const bgColor = isActive ? '#dbedff' : '#f6f8fa';
+          const interactiveClass = isLoggedIn ? 'reaction-btn' : '';
+          reactionHtml += `
+            <div class="reaction-item ${interactiveClass}"
+                 data-subject-id="${discussionId}" data-reaction="${group.content}"
+                 style="border:1px solid ${borderColor}; border-radius:16px; background:${bgColor}; ${isLoggedIn ? 'cursor:pointer;' : ''}">
+              <span style="font-size:18px;">${emoji}</span>
+              <span id="${countId}" style="font-weight:bold;">${count}</span>
+            </div>
+          `;
+        });
+      }
+      reactionHtml += '</div>';
+
       const reactionDiv = document.createElement('div');
       reactionDiv.id = 'discussion-reactions';
       reactionDiv.innerHTML = reactionHtml;
-
-      // 插入 Upvote 按钮
-      const container = reactionDiv.querySelector('.reactions-container');
-      if (container) {
-        const upvoteBtn = document.createElement('div');
-        upvoteBtn.id = 'discussion-upvote-btn';
-        upvoteBtn.className = 'reaction-item reaction-btn upvote-item';
-        upvoteBtn.innerHTML = `<span class="upvote-icon">↑</span><span class="upvote-count" id="discussion-upvote-count">${discussionUpvoteCount}</span>`;
-        upvoteBtn.style.marginRight = '16px';
-        upvoteBtn.addEventListener('click', toggleDiscussionUpvote);
-        container.prepend(upvoteBtn);
-        updateDiscussionUpvoteUI();
-      }
       commentContainer.appendChild(reactionDiv);
+
+      // 绑定 Upvote 按钮事件
+      const upvoteBtn = document.getElementById('discussion-upvote-btn');
+      if (upvoteBtn) {
+        upvoteBtn.addEventListener('click', toggleDiscussionUpvote);
+      }
 
       // ---- 编辑器 ----
       const editorContainer = document.createElement('div');
@@ -879,7 +921,16 @@
       bindReplyEvents();
       bindReactionEvents();
 
-      setTimeout(() => updateDiscussionUpvoteUI(), 100);
+      // 确保 Upvote UI 更新
+      setTimeout(() => {
+        updateDiscussionUpvoteUI();
+        // 重新绑定事件（以防丢失）
+        const btn = document.getElementById('discussion-upvote-btn');
+        if (btn) {
+          btn.removeEventListener('click', toggleDiscussionUpvote);
+          btn.addEventListener('click', toggleDiscussionUpvote);
+        }
+      }, 200);
 
     } catch (error) {
       console.error('加载讨论失败:', error);
