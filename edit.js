@@ -1,5 +1,5 @@
 // ============================================================
-// edit.js - 创建新讨论页面（完全复用 blog 的 vditor-container 结构）
+// edit.js - 创建新讨论页面（使用 #vditor-container）
 // ============================================================
 
 (function() {
@@ -14,7 +14,8 @@
   const infoInput = document.getElementById('info');
   const noiconCheck = document.getElementById('noicon');
   const uploadContainer = document.getElementById('upload');
-  const editingContainer = document.getElementById('editing');
+  const editorContainer = document.getElementById('vditor-container'); // 评论页面的容器
+  const parentContainer = document.getElementById('editing'); // 父容器，用于放置按钮
 
   let vditorInstance = null;
   let coverUrl = null;
@@ -44,7 +45,7 @@
     }
   }
 
-  // ---------- 样式注入（复制 blog 的样式） ----------
+  // ---------- 样式注入 ----------
   function injectStyles() {
     if (document.getElementById('edit-styles')) return;
     const style = document.createElement('style');
@@ -91,25 +92,17 @@
       .upload-area.hidden {
         display: none !important;
       }
-
-      /* 编辑器容器 - 完全复用 blog 的 #comment 样式 */
-      #editing {
-        width: 80%;
-        max-width: 1000px;
-        margin: 0 auto;
-        min-height: 400px;
-        display: block;
+      /* 编辑器容器 - 直接从评论页复制 */
+      #vditor-container {
+        margin: 10px 0;
+        text-align: left;
       }
-
-      /* 提交按钮 */
-      .editor-footer {
+      /* 提交按钮区域 */
+      .edit-footer {
         text-align: center;
         padding: 20px 0 10px 0;
-        background: #fff;
-        border-radius: 0 0 8px 8px;
-        border-top: 1px solid #eee;
       }
-      .editor-footer button {
+      .edit-footer button {
         padding: 12px 40px;
         background: #2da44e;
         color: white;
@@ -119,8 +112,12 @@
         cursor: pointer;
         font-weight: bold;
       }
-      .editor-footer button:hover {
+      .edit-footer button:hover {
         background: #22863a;
+      }
+      /* 编辑器占满宽度 */
+      #vditor-container .vditor {
+        width: 100% !important;
       }
     `;
     document.head.appendChild(style);
@@ -274,33 +271,24 @@
     }
   }
 
-  // ---------- 初始化 Vditor（完全复用 blog 方式） ----------
+  // ---------- 初始化 Vditor ----------
   function initVditor() {
-    if (!editingContainer) {
-      console.error('#editing 容器未找到');
+    if (!editorContainer) {
+      console.error('#vditor-container 未找到');
       return;
     }
     if (typeof Vditor === 'undefined') {
-      editingContainer.innerHTML = '<p style="color:red;text-align:center;padding:40px;">Vditor 未加载，请刷新页面重试。</p>';
+      editorContainer.innerHTML = '<p style="color:red;text-align:center;padding:40px;">Vditor 未加载，请刷新页面重试。</p>';
       return;
     }
     if (vditorInstance) {
       vditorInstance.destroy();
       vditorInstance = null;
     }
+    // 不清空容器，让 Vditor 自己管理
 
-    // 清空容器
-    editingContainer.innerHTML = '';
-
-    // 创建 vditor-container 容器（与 blog 结构一致）
-    const vditorContainer = document.createElement('div');
-    vditorContainer.id = 'vditor-container';
-    vditorContainer.style.cssText = 'margin:10px 0; text-align:left;';
-    editingContainer.appendChild(vditorContainer);
-
-    // 初始化 Vditor（像 blog 一样，直接传入 vditor-container）
-    vditorInstance = new Vditor(vditorContainer, {
-      height: 500,
+    vditorInstance = new Vditor(editorContainer, {
+      height: 200,
       mode: 'ir',
       placeholder: '在这里写文章内容...',
       cache: { enable: true, id: 'edit-vditor-cache' },
@@ -333,12 +321,9 @@
         outline.style.right = 'auto';
       }
     }, 200);
-
-    // 返回 vditorContainer 以便后续添加按钮
-    return vditorContainer;
   }
 
-  // ---------- 提交 ----------
+  // ---------- 提交（无 alert，跳转到 blog） ----------
   async function submitDiscussion() {
     if (!vditorInstance) {
       alert('编辑器未初始化');
@@ -387,8 +372,11 @@
         body: JSON.stringify(payload)
       });
       const data = await res.json();
-      if (res.ok) {
-        alert('讨论创建成功！');
+      if (res.ok && data.discussion && data.discussion.number) {
+        // 跳转到对应的 blog 页面
+        window.location.href = `/blog.html?d=${data.discussion.number}`;
+      } else if (res.ok) {
+        // 如果 API 没有返回 number，跳转到首页
         window.location.href = '/index.html';
       } else {
         alert('创建失败: ' + (data.error || '未知错误'));
@@ -399,22 +387,36 @@
     }
   }
 
-  // ---------- 构建提交按钮 ----------
+  // ---------- 构建底部按钮 ----------
   function buildFooter() {
-    // 在 editing 容器底部添加按钮（放在 vditor-container 后面）
+    if (!parentContainer) {
+      // 如果没有父容器，直接在 editorContainer 后添加
+      const footer = document.createElement('div');
+      footer.className = 'edit-footer';
+      const btn = document.createElement('button');
+      btn.textContent = '创建新讨论';
+      btn.addEventListener('click', submitDiscussion);
+      footer.appendChild(btn);
+      editorContainer.parentNode.insertBefore(footer, editorContainer.nextSibling);
+      return;
+    }
+    // 在 parentContainer 内添加按钮（在 editorContainer 之后）
+    const oldFooter = parentContainer.querySelector('.edit-footer');
+    if (oldFooter) oldFooter.remove();
+
     const footer = document.createElement('div');
-    footer.className = 'editor-footer';
+    footer.className = 'edit-footer';
     const btn = document.createElement('button');
     btn.textContent = '创建新讨论';
     btn.addEventListener('click', submitDiscussion);
     footer.appendChild(btn);
-    editingContainer.appendChild(footer);
+    parentContainer.appendChild(footer);
   }
 
   // ---------- 初始化 ----------
   async function init() {
-    if (!editingContainer) {
-      console.error('#editing 容器未找到');
+    if (!editorContainer) {
+      console.error('#vditor-container 未找到');
       return;
     }
 
@@ -433,7 +435,9 @@
     initVditor();
 
     // 在编辑器底部添加提交按钮（延迟确保 Vditor 渲染完成）
-    setTimeout(buildFooter, 300);
+    setTimeout(function() {
+      buildFooter();
+    }, 300);
 
     // noicon 切换
     noiconCheck.addEventListener('change', function() {
