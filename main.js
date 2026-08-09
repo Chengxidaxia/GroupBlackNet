@@ -1,5 +1,5 @@
 // ============================================================
-// main.js - 文章列表加载、排序、分页（修复封面图）
+// main.js - 首页文章列表（分页始终显示，带箭头和省略号）
 // ============================================================
 
 (function() {
@@ -50,7 +50,6 @@
       .trim() || '无简介';
   }
 
-  // 修复 parseFirstLine：返回 info 和 icon
   function parseFirstLine(body) {
     const lines = body.split('\n');
     const firstLine = lines.find(line => line.trim() !== '') || '';
@@ -132,11 +131,8 @@
     const reactionsHtml = renderReactions(post.reactionGroups);
     const detailLink = `/blog.html?d=${number}`;
 
-    // 解析第一行获取 info 和 icon
     const { info, icon, bodyText, isJson } = parseFirstLine(post.body);
-    // 简介使用 info
     const summary = info || getFirstLinePlainText(post.body);
-    // 封面图：优先使用 icon（解码后的 URL），否则从正文提取，否则默认
     let imageUrl = icon;
     if (!imageUrl || !imageUrl.startsWith('http')) {
       imageUrl = extractFirstImage(post.body) || 'img/pole.jpg';
@@ -193,11 +189,7 @@
     `;
   }
 
-  // ---------- 排序、分页、加载等保持不变 ----------
-  // 由于篇幅，以下省略排序、分页等函数（与之前相同）
-  // 实际使用时请确保包含所有必要函数
-
-  // 此处为了完整性，保留以下关键函数（复制之前版本）
+  // ---------- 排序 ----------
   function sortPosts(posts, sortType, ascending) {
     if (sortType === 'Default') return posts.slice();
     const sorted = posts.slice();
@@ -212,8 +204,10 @@
     return sorted;
   }
 
+  // ---------- 渲染 ----------
   function renderCards() {
     if (!cardsContainer) return;
+
     if (!allPosts || allPosts.length === 0) {
       cardsContainer.innerHTML = '<p style="text-align:center;padding:20px;">暂无文章</p>';
       const topEl = document.getElementById('pagination-top');
@@ -222,12 +216,14 @@
       if (bottomEl) bottomEl.innerHTML = '';
       return;
     }
+
     const sorted = sortPosts(allPosts, currentSort, isAscending);
     totalPages = Math.ceil(sorted.length / PAGE_SIZE) || 1;
     if (currentPage > totalPages) currentPage = totalPages;
     const start = (currentPage - 1) * PAGE_SIZE;
     const end = Math.min(start + PAGE_SIZE, sorted.length);
     const pagePosts = sorted.slice(start, end);
+
     cardsContainer.innerHTML = '';
     pagePosts.forEach(post => {
       cardsContainer.innerHTML += createCard(post);
@@ -235,42 +231,91 @@
     renderPagination();
   }
 
+  // ============================================================
+  // ★★★ 新的分页渲染函数（始终显示，带箭头和省略号）★★★
+  // ============================================================
   function renderPagination() {
     const topEl = document.getElementById('pagination-top');
     const bottomEl = document.getElementById('pagination-bottom');
-    if (topEl) createPaginationButtons(topEl);
-    if (bottomEl) createPaginationButtons(bottomEl);
+    if (topEl) buildPagination(topEl);
+    if (bottomEl) buildPagination(bottomEl);
   }
 
-  function createPaginationButtons(container) {
+  function buildPagination(container) {
     container.innerHTML = '';
-    if (totalPages <= 1) return;
+    if (totalPages <= 0) return;
+
     const wrapper = document.createElement('div');
-    wrapper.style.cssText = 'text-align:center; padding:10px 0;';
-    for (let i = 1; i <= totalPages; i++) {
-      const btn = document.createElement('button');
-      btn.textContent = i;
-      btn.style.cssText = `
-        margin: 0 4px;
-        padding: 4px 10px;
-        border: 1px solid #ccc;
-        background: ${i === currentPage ? '#B1782E' : '#fff'};
-        color: ${i === currentPage ? '#fff' : '#333'};
-        cursor: pointer;
-        border-radius: 4px;
-        font-size: 12pt;
-      `;
-      btn.addEventListener('click', (function(page) {
-        return function() {
+    wrapper.style.cssText = 'display:flex; align-items:center; justify-content:center; gap:4px; flex-wrap:wrap; padding:10px 0;';
+
+    // 上一页
+    const prevBtn = document.createElement('button');
+    prevBtn.textContent = '‹';
+    prevBtn.className = 'pagination-btn' + (currentPage <= 1 ? ' disabled' : '');
+    if (currentPage > 1) {
+      prevBtn.addEventListener('click', () => { currentPage--; renderCards(); });
+    }
+    wrapper.appendChild(prevBtn);
+
+    // 页码
+    const maxVisible = 5;
+    let pages = [];
+    if (totalPages <= maxVisible + 2) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      let start = Math.max(2, currentPage - 2);
+      let end = Math.min(totalPages - 1, currentPage + 2);
+      if (end - start < maxVisible - 1) {
+        if (start === 2) end = Math.min(totalPages - 1, start + maxVisible - 2);
+        else if (end === totalPages - 1) start = Math.max(2, end - maxVisible + 2);
+      }
+      if (start > 2) pages.push('…');
+      for (let i = start; i <= end; i++) pages.push(i);
+      if (end < totalPages - 1) pages.push('…');
+      pages.push(totalPages);
+    }
+
+    pages.forEach(item => {
+      if (item === '…') {
+        const span = document.createElement('span');
+        span.textContent = '…';
+        span.className = 'pagination-ellipsis';
+        span.title = '点击跳转至指定页';
+        span.addEventListener('click', function() {
+          const input = prompt('请输入要跳转的页码（1-' + totalPages + '）:', currentPage);
+          if (input === null) return;
+          const page = parseInt(input, 10);
+          if (isNaN(page) || page < 1 || page > totalPages) {
+            alert('请输入有效页码（1-' + totalPages + '）');
+            return;
+          }
           currentPage = page;
           renderCards();
-        };
-      })(i));
-      wrapper.appendChild(btn);
+        });
+        wrapper.appendChild(span);
+      } else {
+        const btn = document.createElement('button');
+        btn.textContent = item;
+        btn.className = 'pagination-btn' + (item === currentPage ? ' active' : '');
+        btn.addEventListener('click', () => { currentPage = item; renderCards(); });
+        wrapper.appendChild(btn);
+      }
+    });
+
+    // 下一页
+    const nextBtn = document.createElement('button');
+    nextBtn.textContent = '›';
+    nextBtn.className = 'pagination-btn' + (currentPage >= totalPages ? ' disabled' : '');
+    if (currentPage < totalPages) {
+      nextBtn.addEventListener('click', () => { currentPage++; renderCards(); });
     }
+    wrapper.appendChild(nextBtn);
+
     container.appendChild(wrapper);
   }
 
+  // ---------- 加载数据 ----------
   async function fetchAllPosts() {
     if (cardsContainer) {
       cardsContainer.innerHTML = '<p style="text-align:center;padding:20px;">加载中...</p>';
@@ -290,6 +335,7 @@
     }
   }
 
+  // ---------- 读取控件 ----------
   function readControls() {
     sortSelect = document.getElementById(SORT_SELECT_ID);
     ascCheck = document.getElementById(ASC_CHECK_ID);
@@ -305,6 +351,7 @@
     }
   }
 
+  // ---------- 构建 #main ----------
   function buildStructure() {
     if (!CONTAINER) return;
     CONTAINER.innerHTML = '';
@@ -328,6 +375,7 @@
     CONTAINER.appendChild(bottomControls);
   }
 
+  // ---------- 绑定控件 ----------
   function bindControls() {
     if (sortSelect) {
       sortSelect.addEventListener('change', function() {
@@ -345,6 +393,7 @@
     }
   }
 
+  // ---------- 主初始化 ----------
   async function initMain() {
     if (!CONTAINER) {
       console.warn('main.js: 未找到 id="main" 的容器');
@@ -358,6 +407,7 @@
     renderCards();
   }
 
+  // ---------- 等待公共部分加载 ----------
   function start() {
     if (window.commonsLoaded) {
       initMain();
