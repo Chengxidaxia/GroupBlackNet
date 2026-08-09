@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（最终修复版）
+// blog.js - 文章详情页（完整稳定版）
 // ============================================================
 
 (function() {
@@ -697,85 +697,78 @@
     }
   }
 
-  // ---------- Vditor 初始化（修复后） ----------
-function initVditor() {
-  const editorContainer = document.getElementById('vditor-container');
-  if (!editorContainer) return;
-  if (!isLoggedIn) {
-    editorContainer.innerHTML = '<p style="text-align:center;color:#888;padding:20px;">登录后即可评论</p>';
-    return;
-  }
-  if (typeof Vditor === 'undefined') {
-    editorContainer.innerHTML = '<p style="color:red;">编辑器加载失败，请刷新页面重试。</p>';
-    return;
-  }
-  if (vditorInstance) {
-    vditorInstance.destroy();
-    vditorInstance = null;
-  }
-  editorContainer.innerHTML = '';
-
-  // 简化配置，只保留必要项
-  vditorInstance = new Vditor(editorContainer, {
-    height: 200,
-    mode: 'ir',
-    placeholder: '写下你的评论...',
-    cache: { enable: false },
-    lang: 'zh_CN',
-    upload: {
-      url: `${UPLOAD_URL}/`,
-      fieldName: 'file',
-      accept: 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml',
-      max: 32 * 1024 * 1024,
-      multiple: false,
-      withCredentials: true,
-    },
-    toolbar: [
-      'emoji', 'headings', 'bold', 'italic', 'strike', 'link', 'quote',
-      'list', 'ordered-list', 'check', 'outdent', 'indent',
-      'line', 'code', 'inline-code', 'table', 'upload', 'record',
-      'preview', 'fullscreen', 'outline', 'edit-mode', 'both',
-      'undo', 'redo', 'more'
-    ],
-    outline: { enable: true, position: 'left' }
-  });
-
-  // 延迟清空内容，确保实例已完全初始化
-  setTimeout(function() {
-    if (vditorInstance && typeof vditorInstance.setValue === 'function') {
-      vditorInstance.setValue('');
+  // ---------- Vditor 初始化（使用 value: '' ） ----------
+  function initVditor() {
+    const editorContainer = document.getElementById('vditor-container');
+    if (!editorContainer) return;
+    if (!isLoggedIn) {
+      editorContainer.innerHTML = '<p style="text-align:center;color:#888;padding:20px;">登录后即可评论</p>';
+      return;
     }
-  }, 300);
-
-  // 强制大纲左侧
-  setTimeout(function() {
-    const outline = document.querySelector('.vditor-outline');
-    if (outline) {
-      outline.style.left = '0';
-      outline.style.right = 'auto';
+    if (typeof Vditor === 'undefined') {
+      editorContainer.innerHTML = '<p style="color:red;">编辑器加载失败，请刷新页面重试。</p>';
+      return;
     }
-  }, 400);
+    if (vditorInstance) {
+      vditorInstance.destroy();
+      vditorInstance = null;
+    }
+    editorContainer.innerHTML = '';
 
-  // 提交按钮（如果不存在）
-  let submitBtn = document.getElementById('comment-submit');
-  if (!submitBtn) {
-    submitBtn = document.createElement('button');
-    submitBtn.id = 'comment-submit';
-    submitBtn.textContent = '发表评论';
-    submitBtn.style.cssText = `
-      margin-top: 10px;
-      padding: 8px 20px;
-      background: #2da44e;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      font-size: 16px;
-      cursor: pointer;
-    `;
-    submitBtn.addEventListener('click', submitComment);
-    editorContainer.parentNode.insertBefore(submitBtn, editorContainer.nextSibling);
+    vditorInstance = new Vditor(editorContainer, {
+      height: 200,
+      mode: 'ir',
+      placeholder: '写下你的评论...',
+      value: '',                           // 初始为空，无需 after 清空
+      cache: { enable: false },
+      lang: 'zh_CN',
+      upload: {
+        url: `${UPLOAD_URL}/`,
+        fieldName: 'file',
+        accept: 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml',
+        max: 32 * 1024 * 1024,
+        multiple: false,
+        withCredentials: true,
+      },
+      toolbar: [
+        'emoji', 'headings', 'bold', 'italic', 'strike', 'link', 'quote',
+        'list', 'ordered-list', 'check', 'outdent', 'indent',
+        'line', 'code', 'inline-code', 'table', 'upload', 'record',
+        'preview', 'fullscreen', 'outline', 'edit-mode', 'both',
+        'undo', 'redo', 'more'
+      ],
+      outline: { enable: true, position: 'left' }
+    });
+
+    // 强制大纲左侧（无需清空操作）
+    setTimeout(function() {
+      const outline = document.querySelector('.vditor-outline');
+      if (outline) {
+        outline.style.left = '0';
+        outline.style.right = 'auto';
+      }
+    }, 200);
+
+    // 提交按钮（如果不存在）
+    let submitBtn = document.getElementById('comment-submit');
+    if (!submitBtn) {
+      submitBtn = document.createElement('button');
+      submitBtn.id = 'comment-submit';
+      submitBtn.textContent = '发表评论';
+      submitBtn.style.cssText = `
+        margin-top: 10px;
+        padding: 8px 20px;
+        background: #2da44e;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 16px;
+        cursor: pointer;
+      `;
+      submitBtn.addEventListener('click', submitComment);
+      editorContainer.parentNode.insertBefore(submitBtn, editorContainer.nextSibling);
+    }
   }
-}
 
   // ---------- 加载讨论 ----------
   async function loadDiscussionFull(discussionNumber) {
