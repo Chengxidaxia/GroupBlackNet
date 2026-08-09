@@ -1,5 +1,5 @@
 // ============================================================
-// edit.js - 创建新讨论（工具栏含提交按钮，更多菜单正常）
+// edit.js - 创建新讨论（宽度 100%，工具栏含提交）
 // ============================================================
 
 (function() {
@@ -48,7 +48,7 @@
     style.id = 'edit-styles';
     style.textContent = `
       #editing { width:80%; max-width:1000px; margin:0 auto; display:block; min-height:400px; }
-      #vditor-container { margin:10px 0; text-align:left; }
+      #vditor-container { margin:10px 0; text-align:left; width:100%; }
       .upload-area {
         border:2px dashed #ccc; border-radius:8px; padding:20px; text-align:center;
         cursor:pointer; transition:border-color 0.3s; min-height:120px;
@@ -283,7 +283,7 @@
 
     const vditorContainer = document.createElement('div');
     vditorContainer.id = 'vditor-container';
-    vditorContainer.style.cssText = 'margin:10px 0; text-align:left;';
+    vditorContainer.style.cssText = 'margin:10px 0; text-align:left; width:100%;';
     editingContainer.appendChild(vditorContainer);
 
     if (typeof Vditor === 'undefined') {
@@ -330,7 +330,6 @@
       ],
       toolbarConfig: {
         pin: true,
-        // 确保 more 菜单包含子项
         more: ['table', 'record', 'upload', 'outline', 'fullscreen', 'edit-mode', 'both']
       },
       outline: {
