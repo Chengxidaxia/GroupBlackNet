@@ -1,5 +1,5 @@
 // ============================================================
-// edit.js - 创建新讨论（编辑器工具栏含提交按钮）
+// edit.js - 创建新讨论（Vditor 官方 more 配置）
 // ============================================================
 
 (function() {
@@ -245,7 +245,6 @@
     }
   }
 
-  // ---------- 提交讨论 ----------
   async function submitDiscussion() {
     if (isSubmitting) return;
     if (!vditorInstance) {
@@ -312,7 +311,6 @@
     }
   }
 
-  // ---------- 初始化 Vditor ----------
   function initVditor() {
     if (!editingContainer) {
       console.error('#editing 容器未找到');
@@ -335,7 +333,7 @@
 
     vditorInstance = new Vditor(vditorContainer, {
       height: 500,
-      mode: 'ir',  // 即时渲染模式，适合写作
+      mode: 'ir',
       placeholder: '',
       value: '',
       cache: { enable: false },
@@ -357,7 +355,13 @@
         'quote', 'line', 'code', 'inline-code', 'insert-before', 'insert-after', '|',
         'upload', 'record', 'table', '|',
         'undo', 'redo', '|',
-        'fullscreen', 'edit-mode', 'both', 'more',
+        'fullscreen', 'edit-mode', 'both',
+        {
+          name: 'more',
+          toolbar: [
+            'both', 'code-theme', 'content-theme', 'export', 'outline', 'preview', 'devtools', 'info', 'help'
+          ]
+        },
         '|',
         {
           name: 'submit',
@@ -375,7 +379,6 @@
       }
     });
 
-    // 修正大纲位置
     setTimeout(function() {
       const outline = document.querySelector('.vditor-outline');
       if (outline) {
