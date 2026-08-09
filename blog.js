@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（完整版，包含所有已实现功能）
+// blog.js - 文章详情页（含自定义“顶”按钮）
 // ============================================================
 
 (function() {
@@ -163,6 +163,11 @@
       .comment-item .markdown-body {
         font-size: 14px;
         line-height: 1.6;
+      }
+
+      /* ===== 自定义“顶”按钮 ===== */
+      .custom-thumbs-up {
+        margin-right: 16px !important; /* 两倍于普通表情的间隔 */
       }
     `;
     document.head.appendChild(style);
@@ -412,36 +417,64 @@
     });
   }
 
-  // ---------- Reaction 渲染 ----------
+  // ============================================================
+  // Reaction 渲染（含自定义“顶”按钮）
+  // ============================================================
   function renderReactions(reactionGroups, subjectId, canInteract = false) {
-    if (!reactionGroups || reactionGroups.length === 0) {
-      return '<div class="reactions-container" style="display:flex; flex-wrap:wrap; gap:8px; margin:10px 0;"></div>';
-    }
-    let html = '<div class="reactions-container" style="display:flex; flex-wrap:wrap; gap:8px; margin:10px 0;">';
-    reactionGroups.forEach(group => {
-      const count = group.users.totalCount;
-      const emoji = EMOJI_MAP[group.content] || group.content;
-      const countId = `reaction-count-${subjectId}-${group.content}`;
-      const viewerReacted = group.viewerHasReacted === true;
-      if (canInteract) {
-        userReactions[`${subjectId}-${group.content}`] = viewerReacted;
-      }
-      const isActive = viewerReacted && canInteract;
+    // 从 reactionGroups 中提取 THUMBS_UP 数据
+    const thumbsUpGroup = reactionGroups ? reactionGroups.find(g => g.content === 'THUMBS_UP') : null;
+    const thumbsUpCount = thumbsUpGroup ? thumbsUpGroup.users.totalCount : 0;
+    const viewerHasReacted = thumbsUpGroup ? thumbsUpGroup.viewerHasReacted : false;
+
+    // 构建自定义“顶”按钮（仅在可交互时显示，且登录用户可见）
+    let customThumbsUpHtml = '';
+    if (canInteract) {
+      const isActive = viewerHasReacted && canInteract;
       const borderColor = isActive ? '#0366d6' : '#ddd';
       const bgColor = isActive ? '#dbedff' : '#f6f8fa';
-      const interactiveClass = canInteract ? 'reaction-btn' : '';
-      html += `
-        <div class="reaction-item ${interactiveClass}" 
+      customThumbsUpHtml = `
+        <div class="reaction-item reaction-btn custom-thumbs-up" 
              data-subject-id="${subjectId}" 
-             data-reaction="${group.content}"
-             style="display:flex; align-items:center; gap:4px; padding:4px 8px; border:1px solid ${borderColor}; border-radius:16px; background:${bgColor}; ${canInteract ? 'cursor:pointer;' : ''}">
-          <span style="font-size:18px;">${emoji}</span>
-          <span id="${countId}" style="font-weight:bold;">${count}</span>
+             data-reaction="THUMBS_UP"
+             style="display:flex; align-items:center; gap:4px; padding:4px 12px; border:1px solid ${borderColor}; border-radius:8px; background:${bgColor}; cursor:pointer; margin-right:16px;">
+          <span style="font-size:18px;">↑</span>
+          <span id="reaction-count-${subjectId}-THUMBS_UP" style="font-weight:bold;">${thumbsUpCount}</span>
         </div>
       `;
-    });
-    html += '</div>';
-    return html;
+    }
+
+    // 构建原有的 reaction 列表
+    let reactionHtml = '<div class="reactions-container" style="display:flex; flex-wrap:wrap; gap:8px; margin:10px 0;">';
+    // 先添加自定义顶按钮（在列表最前面）
+    reactionHtml += customThumbsUpHtml;
+
+    // 然后添加其他表情（包括原有的 👍）
+    if (reactionGroups && reactionGroups.length > 0) {
+      reactionGroups.forEach(group => {
+        const count = group.users.totalCount;
+        const emoji = EMOJI_MAP[group.content] || group.content;
+        const countId = `reaction-count-${subjectId}-${group.content}`;
+        const viewerReacted = group.viewerHasReacted === true;
+        if (canInteract) {
+          userReactions[`${subjectId}-${group.content}`] = viewerReacted;
+        }
+        const isActive = viewerReacted && canInteract;
+        const borderColor = isActive ? '#0366d6' : '#ddd';
+        const bgColor = isActive ? '#dbedff' : '#f6f8fa';
+        const interactiveClass = canInteract ? 'reaction-btn' : '';
+        reactionHtml += `
+          <div class="reaction-item ${interactiveClass}" 
+               data-subject-id="${subjectId}" 
+               data-reaction="${group.content}"
+               style="display:flex; align-items:center; gap:4px; padding:4px 8px; border:1px solid ${borderColor}; border-radius:16px; background:${bgColor}; ${canInteract ? 'cursor:pointer;' : ''}">
+            <span style="font-size:18px;">${emoji}</span>
+            <span id="${countId}" style="font-weight:bold;">${count}</span>
+          </div>
+        `;
+      });
+    }
+    reactionHtml += '</div>';
+    return reactionHtml;
   }
 
   // ---------- 评论树渲染 ----------
