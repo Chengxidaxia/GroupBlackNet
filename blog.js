@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（稳定版，禁用缓存，修复更多）
+// blog.js - 文章详情页（稳定版，禁用缓存，修复 setValue）
 // ============================================================
 
 (function() {
@@ -697,7 +697,7 @@
     }
   }
 
-  // ---------- Vditor 初始化（禁用缓存，修复更多） ----------
+  // ---------- Vditor 初始化（修复 setValue 问题） ----------
   function initVditor() {
     const editorContainer = document.getElementById('vditor-container');
     if (!editorContainer) return;
@@ -719,7 +719,7 @@
       height: 200,
       mode: 'ir',
       placeholder: '写下你的评论...',
-      cache: { enable: false },  // 禁用缓存，消除残留
+      cache: { enable: false },
       upload: {
         url: `${UPLOAD_URL}/`,
         fieldName: 'file',
@@ -733,13 +733,17 @@
         'list', 'ordered-list', 'check', 'outdent', 'indent',
         'line', 'code', 'inline-code', 'table', 'upload', 'record',
         'preview', 'fullscreen', 'outline', 'edit-mode', 'both',
-        'undo', 'redo', 'more'  // 确保 more 存在
+        'undo', 'redo', 'more'
       ],
-      outline: { enable: true, position: 'left' },
-      after: function() {
-        this.setValue(''); // 确保初始为空
-      }
+      outline: { enable: true, position: 'left' }
     });
+
+    // 使用 setTimeout 确保实例已完全初始化
+    setTimeout(function() {
+      if (vditorInstance && typeof vditorInstance.setValue === 'function') {
+        vditorInstance.setValue('');
+      }
+    }, 100);
 
     let submitBtn = document.getElementById('comment-submit');
     if (!submitBtn) {
