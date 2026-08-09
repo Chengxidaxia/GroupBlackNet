@@ -1,5 +1,5 @@
 // ============================================================
-// edit.js - 创建新讨论页面（使用 #vditor-container）
+// edit.js - 创建新讨论页面（完全复用评论页面结构）
 // ============================================================
 
 (function() {
@@ -14,8 +14,7 @@
   const infoInput = document.getElementById('info');
   const noiconCheck = document.getElementById('noicon');
   const uploadContainer = document.getElementById('upload');
-  const editorContainer = document.getElementById('vditor-container'); // 评论页面的容器
-  const parentContainer = document.getElementById('editing'); // 父容器，用于放置按钮
+  const editingContainer = document.getElementById('editing');
 
   let vditorInstance = null;
   let coverUrl = null;
@@ -51,6 +50,36 @@
     const style = document.createElement('style');
     style.id = 'edit-styles';
     style.textContent = `
+      /* 确保 #editing 容器居中 */
+      #editing {
+        width: 80% !important;
+        max-width: 1000px !important;
+        margin: 0 auto !important;
+        display: block !important;
+        min-height: 400px !important;
+      }
+      /* Vditor 容器与评论页面一致 */
+      #vditor-container {
+        margin: 10px 0;
+        text-align: left;
+      }
+      /* 提交按钮样式 */
+      .edit-submit-btn {
+        margin-top: 10px;
+        padding: 8px 20px;
+        background: #2da44e;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 16px;
+        cursor: pointer;
+        display: block;
+        margin-left: auto;
+        margin-right: auto;
+      }
+      .edit-submit-btn:hover {
+        background: #22863a;
+      }
       /* 封面上传区域 */
       .upload-area {
         border: 2px dashed #ccc;
@@ -91,33 +120,6 @@
       }
       .upload-area.hidden {
         display: none !important;
-      }
-      /* 编辑器容器 - 直接从评论页复制 */
-      #vditor-container {
-        margin: 10px 0;
-        text-align: left;
-      }
-      /* 提交按钮区域 */
-      .edit-footer {
-        text-align: center;
-        padding: 20px 0 10px 0;
-      }
-      .edit-footer button {
-        padding: 12px 40px;
-        background: #2da44e;
-        color: white;
-        border: none;
-        border-radius: 6px;
-        font-size: 18px;
-        cursor: pointer;
-        font-weight: bold;
-      }
-      .edit-footer button:hover {
-        background: #22863a;
-      }
-      /* 编辑器占满宽度 */
-      #vditor-container .vditor {
-        width: 100% !important;
       }
     `;
     document.head.appendChild(style);
@@ -165,8 +167,8 @@
       fileInput.click();
     });
 
-    fileInput.addEventListener('change', function(e) {
-      const file = e.target.files[0];
+    fileInput.addEventListener('change', function() {
+      const file = fileInput.files[0];
       if (file) handleCoverFile(file);
       fileInput.value = '';
     });
@@ -175,21 +177,18 @@
       e.preventDefault();
       area.classList.add('dragover');
     });
-    area.addEventListener('dragleave', function(e) {
-      e.preventDefault();
+    area.addEventListener('dragleave', function() {
       area.classList.remove('dragover');
     });
     area.addEventListener('drop', function(e) {
       e.preventDefault();
       area.classList.remove('dragover');
-      const files = e.dataTransfer.files;
-      if (files.length > 0) {
-        const file = files[0];
-        if (file.type.startsWith('image/') || file.type === 'image/x-icon' || file.type === 'image/vnd.microsoft.icon') {
-          handleCoverFile(file);
-        } else {
-          alert('仅支持图片格式（JPEG、PNG、GIF、WEBP、SVG、ICO）');
-        }
+      const file = e.dataTransfer.files[0];
+      if (!file) return;
+      if (file.type.startsWith('image/') || file.type === 'image/x-icon' || file.type === 'image/vnd.microsoft.icon') {
+        handleCoverFile(file);
+      } else {
+        alert('仅支持图片格式（JPEG、PNG、GIF、WEBP、SVG、ICO）');
       }
     });
 
@@ -271,26 +270,32 @@
     }
   }
 
-  // ---------- 初始化 Vditor ----------
+  // ---------- 初始化 Vditor（完全复用评论页面方式） ----------
   function initVditor() {
-    if (!editorContainer) {
-      console.error('#vditor-container 未找到');
+    if (!editingContainer) {
+      console.error('#editing 容器未找到');
       return;
     }
+
+    // 创建 vditor-container（与评论页面一致）
+    const vditorContainer = document.createElement('div');
+    vditorContainer.id = 'vditor-container';
+    vditorContainer.style.cssText = 'margin:10px 0; text-align:left;';
+    editingContainer.appendChild(vditorContainer);
+
     if (typeof Vditor === 'undefined') {
-      editorContainer.innerHTML = '<p style="color:red;text-align:center;padding:40px;">Vditor 未加载，请刷新页面重试。</p>';
+      vditorContainer.innerHTML = '<p style="color:red;text-align:center;padding:40px;">Vditor 未加载，请刷新页面重试。</p>';
       return;
     }
     if (vditorInstance) {
       vditorInstance.destroy();
       vditorInstance = null;
     }
-    // 不清空容器，让 Vditor 自己管理
 
-    vditorInstance = new Vditor(editorContainer, {
+    vditorInstance = new Vditor(vditorContainer, {
       height: 200,
       mode: 'ir',
-      placeholder: '在这里写文章内容...',
+      placeholder: '写下你的评论...',
       cache: { enable: true, id: 'edit-vditor-cache' },
       upload: {
         url: `${UPLOAD_URL}/`,
@@ -307,23 +312,26 @@
         'preview', 'fullscreen', 'outline', 'edit-mode', 'both',
         'undo', 'redo', 'more'
       ],
-      outline: {
-        enable: true,
-        position: 'left'
-      }
+      outline: { enable: true, position: 'left' }
     });
-
-    // 强制大纲左侧
-    setTimeout(function() {
-      const outline = document.querySelector('.vditor-outline');
-      if (outline) {
-        outline.style.left = '0';
-        outline.style.right = 'auto';
-      }
-    }, 200);
   }
 
-  // ---------- 提交（无 alert，跳转到 blog） ----------
+  // ---------- 创建提交按钮 ----------
+  function buildSubmitButton() {
+    if (!editingContainer) return;
+    // 检查是否已有按钮，避免重复
+    let btn = document.getElementById('edit-submit-btn');
+    if (btn) btn.remove();
+
+    btn = document.createElement('button');
+    btn.id = 'edit-submit-btn';
+    btn.className = 'edit-submit-btn';
+    btn.textContent = '创建新讨论';
+    btn.addEventListener('click', submitDiscussion);
+    editingContainer.appendChild(btn);
+  }
+
+  // ---------- 提交 ----------
   async function submitDiscussion() {
     if (!vditorInstance) {
       alert('编辑器未初始化');
@@ -347,13 +355,10 @@
     let iconUrl;
     if (noiconCheck.checked) {
       iconUrl = DEFAULT_ICON;
+    } else if (coverUrl) {
+      iconUrl = coverUrl;
     } else {
-      if (coverUrl) {
-        iconUrl = coverUrl;
-      } else {
-        const extracted = extractFirstImage(body);
-        iconUrl = extracted || DEFAULT_ICON;
-      }
+      iconUrl = extractFirstImage(body) || DEFAULT_ICON;
     }
 
     const firstLine = JSON.stringify({
@@ -372,12 +377,15 @@
         body: JSON.stringify(payload)
       });
       const data = await res.json();
-      if (res.ok && data.discussion && data.discussion.number) {
-        // 跳转到对应的 blog 页面
-        window.location.href = `/blog.html?d=${data.discussion.number}`;
-      } else if (res.ok) {
-        // 如果 API 没有返回 number，跳转到首页
-        window.location.href = '/index.html';
+      if (res.ok) {
+        // 跳转到新创建的讨论页面
+        const discussionNumber = data.discussion?.number;
+        if (discussionNumber) {
+          window.location.href = `/blog.html?d=${discussionNumber}`;
+        } else {
+          // 如果没有返回 number，跳转到首页
+          window.location.href = '/index.html';
+        }
       } else {
         alert('创建失败: ' + (data.error || '未知错误'));
       }
@@ -387,36 +395,10 @@
     }
   }
 
-  // ---------- 构建底部按钮 ----------
-  function buildFooter() {
-    if (!parentContainer) {
-      // 如果没有父容器，直接在 editorContainer 后添加
-      const footer = document.createElement('div');
-      footer.className = 'edit-footer';
-      const btn = document.createElement('button');
-      btn.textContent = '创建新讨论';
-      btn.addEventListener('click', submitDiscussion);
-      footer.appendChild(btn);
-      editorContainer.parentNode.insertBefore(footer, editorContainer.nextSibling);
-      return;
-    }
-    // 在 parentContainer 内添加按钮（在 editorContainer 之后）
-    const oldFooter = parentContainer.querySelector('.edit-footer');
-    if (oldFooter) oldFooter.remove();
-
-    const footer = document.createElement('div');
-    footer.className = 'edit-footer';
-    const btn = document.createElement('button');
-    btn.textContent = '创建新讨论';
-    btn.addEventListener('click', submitDiscussion);
-    footer.appendChild(btn);
-    parentContainer.appendChild(footer);
-  }
-
   // ---------- 初始化 ----------
   async function init() {
-    if (!editorContainer) {
-      console.error('#vditor-container 未找到');
+    if (!editingContainer) {
+      console.error('#editing 容器未找到');
       return;
     }
 
@@ -431,15 +413,12 @@
 
     buildUploadUI();
 
-    // 初始化 Vditor
+    // 初始化 Vditor（会创建 vditor-container）
     initVditor();
 
-    // 在编辑器底部添加提交按钮（延迟确保 Vditor 渲染完成）
-    setTimeout(function() {
-      buildFooter();
-    }, 300);
+    // 在 vditor-container 之后添加按钮
+    buildSubmitButton();
 
-    // noicon 切换
     noiconCheck.addEventListener('change', function() {
       if (this.checked) {
         coverUrl = null;
