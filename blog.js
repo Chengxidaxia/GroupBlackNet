@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（完整功能 + 修复工具栏）
+// blog.js - 文章详情页（修复更多菜单和回复）
 // ============================================================
 
 (function() {
@@ -27,7 +27,7 @@
   let userReactions = {};
   let isSubmitting = false;
 
-  // ---------- 样式注入（不影响 Vditor 外观） ----------
+  // ---------- 样式注入（仅保留必要的） ----------
   function injectStyles() {
     if (document.getElementById('blog-styles')) return;
     const style = document.createElement('style');
@@ -67,20 +67,6 @@
         background: #f0f9f0;
         border-left: 3px solid #2da44e;
         padding-left: 8px;
-      }
-      .vditor-toolbar__item--more .vditor-toolbar__submenu {
-        display: none;
-        position: absolute;
-        background: #fff;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        padding: 4px 0;
-        min-width: 120px;
-        z-index: 1000;
-      }
-      .vditor-toolbar__item--more:hover .vditor-toolbar__submenu {
-        display: block;
       }
     `;
     document.head.appendChild(style);
@@ -248,7 +234,7 @@
     return html;
   }
 
-  // ---------- 代码块复制 ----------
+  // ---------- 代码块复制按钮 ----------
   function addCopyButtonsToCodeBlocks() {
     document.querySelectorAll('.markdown-body pre, .comment-item pre, #text pre').forEach(pre => {
       if (pre.querySelector('.copy-code-btn')) return;
@@ -732,7 +718,7 @@
       cache: { enable: false },
       lang: 'zh_CN',
       cdn: 'https://cdn.jsdelivr.net/npm/vditor@3.10.6',
-      icon: 'ant',           // 使用 ant 图标
+      icon: 'ant',           // 使用 ant 图标（已内置）
       theme: 'classic',
       upload: {
         url: `${UPLOAD_URL}/`,
@@ -759,7 +745,10 @@
       ],
       toolbarConfig: {
         pin: true,
-        more: ['table', 'record', 'upload', 'outline', 'fullscreen', 'edit-mode', 'both']
+        // 显式指定更多菜单中的项目
+        more: [
+          'table', 'record', 'upload', 'outline', 'fullscreen', 'edit-mode', 'both'
+        ]
       },
       outline: {
         enable: true,
