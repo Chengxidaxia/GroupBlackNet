@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（无干扰，错误输出到控制台）
+// blog.js - 文章详情页（修复更多菜单，错误输出到控制台）
 // ============================================================
 
 (function() {
@@ -709,6 +709,37 @@
     }
     editorContainer.innerHTML = '';
 
+    // 正确配置工具栏（包含 more 对象）
+    const toolbar = [
+      'emoji', 'headings', 'bold', 'italic', 'strike', 'link', '|',
+      'list', 'ordered-list', 'check', 'outdent', 'indent', '|',
+      'quote', 'line', 'code', 'inline-code', 'insert-before', 'insert-after', '|',
+      'upload', 'record', 'table', '|',
+      'undo', 'redo', '|',
+      'fullscreen', 'edit-mode',
+      {
+        name: 'more',
+        toolbar: [
+          'both',
+          'code-theme',
+          'content-theme',
+          'export',
+          'outline',
+          'preview',
+          'devtools',
+          'info',
+          'help'
+        ]
+      },
+      '|',
+      {
+        name: 'submit',
+        icon: '<svg viewBox="0 0 32 32" style="fill: #2da44e; width: 18px; height: 18px;"><path d="M6 4l20 12-20 12z"></path></svg>',
+        tip: '提交评论',
+        click: submitComment
+      }
+    ];
+
     vditorInstance = new Vditor(editorContainer, {
       height: 200,
       minHeight: 150,
@@ -718,7 +749,7 @@
       cache: { enable: false },
       lang: 'zh_CN',
       cdn: 'https://cdn.jsdelivr.net/npm/vditor@3.10.6',
-      icon: 'ant',           // 使用 ant 图标（内置）
+      icon: 'ant',
       theme: 'classic',
       upload: {
         url: `${UPLOAD_URL}/`,
@@ -728,24 +759,9 @@
         multiple: false,
         withCredentials: true,
       },
-      toolbar: [
-        'emoji', 'headings', 'bold', 'italic', 'strike', 'link', '|',
-        'list', 'ordered-list', 'check', 'outdent', 'indent', '|',
-        'quote', 'line', 'code', 'inline-code', 'insert-before', 'insert-after', '|',
-        'upload', 'record', 'table', '|',
-        'undo', 'redo', '|',
-        'fullscreen', 'edit-mode', 'both', 'more',
-        '|',
-        {
-          name: 'submit',
-          icon: '<svg viewBox="0 0 32 32" style="fill: #2da44e; width: 18px; height: 18px;"><path d="M6 4l20 12-20 12z"></path></svg>',
-          tip: '提交评论',
-          click: submitComment
-        }
-      ],
+      toolbar: toolbar,
       toolbarConfig: {
         pin: true,
-        // 不设置 more，让 Vditor 使用默认内置项目
       },
       outline: {
         enable: true,
