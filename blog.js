@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（含 Upvote 数据读取）
+// blog.js - 文章详情页（含 Upvote 数据读取，与表情同行）
 // ============================================================
 
 (function() {
@@ -290,10 +290,13 @@
     });
   }
 
-  // ---------- Reaction 渲染 ----------
+  // ============================================================
+  // Reaction 渲染（含 Upvote 按钮，用 THUMBS_UP Reaction）
+  // ============================================================
   function renderReactions(reactionGroups, subjectId, canInteract = false, isDiscussion = false) {
     let upvoteHtml = '';
     if (!isDiscussion) {
+      // 评论的“顶”：使用 THUMBS_UP Reaction
       if (canInteract && reactionGroups) {
         const thumbsUpGroup = reactionGroups.find(g => g.content === 'THUMBS_UP');
         const count = thumbsUpGroup ? thumbsUpGroup.users.totalCount : 0;
@@ -324,7 +327,7 @@
         const borderColor = isActive ? '#0366d6' : '#ddd';
         const bgColor = isActive ? '#dbedff' : '#f6f8fa';
         const interactiveClass = canInteract ? 'reaction-btn' : '';
-        if (!isDiscussion && group.content === 'THUMBS_UP') return;
+        if (!isDiscussion && group.content === 'THUMBS_UP') return; // 跳过，已自定义
         reactionHtml += `
           <div class="reaction-item ${interactiveClass}"
                data-subject-id="${subjectId}" data-reaction="${group.content}"
@@ -635,7 +638,7 @@
   }
 
   // ============================================================
-  // Discussion Upvote
+  // Discussion Upvote（使用 /upvote API，数据来自 API）
   // ============================================================
   let discussionUpvoteState = false;
   let discussionUpvoteCount = 0;
@@ -822,7 +825,7 @@
 
       // ---- Discussion Reaction + Upvote ----
       const discussionId = discussionData.id;
-      // 读取 Upvote 数据
+      // 读取 Upvote 数据（来自 API）
       discussionUpvoteCount = discussionData.upvoteCount || 0;
       discussionUpvoteState = discussionData.viewerHasUpvoted || false;
 
