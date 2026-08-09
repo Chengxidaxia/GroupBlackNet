@@ -1,6 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（最终稳定版）
-// 包含：清空内容、工具栏 more、大纲左侧
+// blog.js - 文章详情页（最终修复版）
 // ============================================================
 
 (function() {
@@ -90,15 +89,6 @@
       }
       .comment-item { text-align: left; }
       .comment-item .markdown-body { font-size: 14px; line-height: 1.6; }
-      /* 编辑器高度限制 */
-      #vditor-container .vditor {
-        min-height: 200px !important;
-        max-height: 500px !important;
-      }
-      #vditor-container .vditor-content {
-        max-height: 420px !important;
-        overflow: auto !important;
-      }
     `;
     document.head.appendChild(style);
   }
@@ -116,7 +106,7 @@
   // ---------- Markdown 渲染 ----------
   let markedConfigured = false;
 
-  function renderMarkdown(text) {
+  function renderMarkdown(text, imgMaxHeight = 500) {
     if (!text) return '';
 
     if (typeof marked === 'undefined' || typeof marked.parse !== 'function') {
@@ -197,10 +187,10 @@
     html = html.replace(/<img([^>]*)>/gi, function(match, attrs) {
       if (/style\s*=/i.test(attrs)) {
         attrs = attrs.replace(/style\s*=\s*(["'])([^"']*)\1/i, function(m, quote, style) {
-          return `style="${quote}${style}; display:block; margin:10px 0; max-width:100%; max-height:500px; width:auto; height:auto;${quote}"`;
+          return `style="${quote}${style}; display:block; margin:10px 0; max-width:100%; max-height:${imgMaxHeight}px; width:auto; height:auto;${quote}"`;
         });
       } else {
-        attrs += ` style="display:block; margin:10px 0; max-width:100%; max-height:500px; width:auto; height:auto;"`;
+        attrs += ` style="display:block; margin:10px 0; max-width:100%; max-height:${imgMaxHeight}px; width:auto; height:auto;"`;
       }
       return `<img${attrs}>`;
     });
@@ -286,6 +276,7 @@
     'EYES': '👀'
   };
 
+  // ---------- 解析第一行 ----------
   function parseFirstLine(body) {
     const lines = body.split('\n');
     const firstLine = lines.find(line => line.trim() !== '') || '';
@@ -359,14 +350,15 @@
       const author = comment.author.login;
       const avatar = comment.author.avatarUrl;
       const createdAt = formatDate(comment.createdAt);
-      const bodyHtml = `<div class="markdown-body">${renderMarkdown(comment.body)}</div>`;
+      const bodyHtml = `<div class="markdown-body">${renderMarkdown(comment.body, 250)}</div>`;
       const reactionHtml = renderReactions(
         comment.reactionGroups || [],
         comment.id,
         isLoggedIn
       );
-      const replyCount = comment.replies ? comment.replies.totalCount || 0 : 0;
-      const hasReplies = replyCount > 0;
+      const replies = comment.replies && comment.replies.nodes ? comment.replies.nodes : [];
+      const sortedReplies = replies.length ? [...replies].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)) : [];
+      const hasReplies = sortedReplies.length > 0;
 
       html += `
         <div class="comment-item" style="border-bottom:1px solid #e1e4e8;padding:12px 0; text-align:left; margin-left:${indent}px;">
@@ -381,7 +373,7 @@
           <div style="margin-left:40px; font-size:14px; line-height:1.6;">${bodyHtml}</div>
           ${reactionHtml}
           <div class="reply-container" data-parent-id="${comment.id}" style="margin-top:8px;"></div>
-          ${hasReplies ? `<div class="replies-container" style="margin-left:20px;">${renderCommentTree(comment.replies.nodes, level + 1)}</div>` : ''}
+          ${hasReplies ? `<div class="replies-container" style="margin-left:20px;">${renderCommentTree(sortedReplies, level + 1)}</div>` : ''}
         </div>
       `;
     });
@@ -392,7 +384,8 @@
     if (!comments || comments.length === 0) {
       return '<p style="text-align:center;color:#888;">暂无评论</p>';
     }
-    return `<div style="border:1px solid #ddd; border-radius:8px; padding:10px; background:#ffffff; text-align:left;">${renderCommentTree(comments)}</div>`;
+    const sortedTop = [...comments].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    return `<div style="border:1px solid #ddd; border-radius:8px; padding:10px; background:#ffffff; text-align:left;">${renderCommentTree(sortedTop)}</div>`;
   }
 
   // ---------- 回复事件 ----------
@@ -451,7 +444,6 @@
         });
         const data = await res.json();
         if (res.ok) {
-          // 静默刷新，不弹 alert
           const d = discussionData.number;
           await loadDiscussionFull(d);
         } else {
@@ -610,6 +602,7 @@
     }
     const discussionId = discussionData.id;
     const payload = { discussionId, body };
+    console.log('提交顶层评论 payload:', payload);
     try {
       const res = await fetch(`${OAUTH_BASE}/comment`, {
         method: 'POST',
@@ -619,11 +612,11 @@
       });
       const data = await res.json();
       if (res.ok) {
-        // 清空编辑器内容
         vditorInstance.setValue('');
         const d = discussionData.number;
         await loadDiscussionFull(d);
       } else {
+        console.error('评论提交失败:', data);
         alert(data.error || '评论发表失败');
       }
     } catch (error) {
@@ -632,7 +625,7 @@
     }
   }
 
-  // ---------- Vditor 初始化（包含清空、more） ----------
+  // ---------- Vditor 初始化 ----------
   function initVditor() {
     const editorContainer = document.getElementById('vditor-container');
     if (!editorContainer) return;
@@ -661,19 +654,54 @@
         max: 32 * 1024 * 1024,
         multiple: false,
         withCredentials: true,
+        format: function (files, responseText) {
+          console.log('上传文件列表:', files);
+          console.log('服务器响应原文:', responseText);
+          let data = responseText;
+          if (typeof responseText === 'string') {
+            try {
+              data = JSON.parse(responseText);
+            } catch (e) {
+              console.error('JSON 解析失败:', e);
+              return { code: 1, msg: '服务器返回格式错误' };
+            }
+          }
+          return data;
+        }
       },
       toolbar: [
         'emoji', 'headings', 'bold', 'italic', 'strike', 'link', 'quote',
         'list', 'ordered-list', 'check', 'outdent', 'indent',
         'line', 'code', 'inline-code', 'table', 'upload', 'record',
         'preview', 'fullscreen', 'outline', 'edit-mode', 'both',
-        'undo', 'redo', 'more'          // ✅ 包含 'more'
+        'undo', 'redo', 'more'
       ],
       outline: { enable: true, position: 'left' }
     });
-    // ✅ 清空内容
-    vditorInstance.setValue('');
-    // 提交按钮已存在，不需要重复创建
+
+    // 在 after 回调中清空内容
+    vditorInstance.after = function() {
+      vditorInstance.setValue('');
+    };
+
+    let submitBtn = document.getElementById('comment-submit');
+    if (!submitBtn) {
+      submitBtn = document.createElement('button');
+      submitBtn.id = 'comment-submit';
+      submitBtn.textContent = '发表评论';
+      submitBtn.style.cssText = `
+        margin-top: 10px;
+        padding: 8px 20px;
+        background: #2da44e;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 16px;
+        cursor: pointer;
+      `;
+      submitBtn.addEventListener('click', submitComment);
+      editorContainer.parentNode.insertBefore(submitBtn, editorContainer.nextSibling);
+    }
   }
 
   // ---------- 加载讨论 ----------
@@ -816,6 +844,47 @@
     }
     await checkLoginStatus();
     await loadDiscussionFull(number);
+    initImageViewer();
+  }
+
+  // ---------- 图片查看器 ----------
+  function initImageViewer() {
+    document.addEventListener('dblclick', function(e) {
+      const img = e.target.closest('.markdown-body img, .comment-item img');
+      if (!img) return;
+      const src = img.getAttribute('src');
+      if (!src) return;
+      e.preventDefault();
+      showImageViewer(src);
+    });
+  }
+
+  function showImageViewer(src) {
+    const overlay = document.createElement('div');
+    overlay.className = 'image-viewer-overlay';
+    overlay.style.cssText = `
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.85); display: flex; align-items: center;
+      justify-content: center; z-index: 9999; cursor: pointer;
+    `;
+    overlay.innerHTML = `
+      <img src="${src}" style="max-width:90%; max-height:90%; object-fit:contain; box-shadow:0 0 30px rgba(0,0,0,0.5);" />
+      <button style="position:fixed; top:20px; right:30px; font-size:40px; color:#fff; opacity:0.7; cursor:pointer; background:rgba(0,0,0,0.4); border:none; border-radius:8px; padding:12px 20px; line-height:1; user-select:none;">✕</button>
+    `;
+    document.body.appendChild(overlay);
+    overlay.querySelector('button').addEventListener('click', function(e) {
+      e.stopPropagation();
+      overlay.remove();
+    });
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) overlay.remove();
+    });
+    document.addEventListener('keydown', function escHandler(e) {
+      if (e.key === 'Escape') {
+        overlay.remove();
+        document.removeEventListener('keydown', escHandler);
+      }
+    });
   }
 
   if (document.readyState === 'loading') {
@@ -823,5 +892,4 @@
   } else {
     init();
   }
-
 })();
