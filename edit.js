@@ -1,5 +1,5 @@
 // ============================================================
-// edit.js - 创建新讨论页面（稳定版，禁用缓存，修复 setValue）
+// edit.js - 创建新讨论页面（最终修复版）
 // ============================================================
 
 (function() {
@@ -260,37 +260,33 @@
     }
   }
 
-function initVditor() {
-  if (!editingContainer) {
-    console.error('#editing 容器未找到');
-    return;
-  }
+  function initVditor() {
+    if (!editingContainer) {
+      console.error('#editing 容器未找到');
+      return;
+    }
 
-  // 移除可能存在的旧容器
-  const oldContainer = document.getElementById('vditor-container');
-  if (oldContainer) oldContainer.remove();
+    const vditorContainer = document.createElement('div');
+    vditorContainer.id = 'vditor-container';
+    vditorContainer.style.cssText = 'margin:10px 0; text-align:left;';
+    editingContainer.appendChild(vditorContainer);
 
-  const vditorContainer = document.createElement('div');
-  vditorContainer.id = 'vditor-container';
-  vditorContainer.style.cssText = 'margin:10px 0; text-align:left;';
-  editingContainer.appendChild(vditorContainer);
+    if (typeof Vditor === 'undefined') {
+      vditorContainer.innerHTML = '<p style="color:red;text-align:center;padding:40px;">Vditor 未加载，请刷新页面重试。</p>';
+      return;
+    }
+    if (vditorInstance) {
+      vditorInstance.destroy();
+      vditorInstance = null;
+    }
 
-  if (typeof Vditor === 'undefined') {
-    vditorContainer.innerHTML = '<p style="color:red;text-align:center;padding:40px;">Vditor 未加载，请刷新页面重试。</p>';
-    return;
-  }
-  if (vditorInstance) {
-    vditorInstance.destroy();
-    vditorInstance = null;
-  }
-
-  try {
     vditorInstance = new Vditor(vditorContainer, {
       height: 500,
       mode: 'ir',
       placeholder: '',
       cache: { enable: false },
       cdn: 'https://unpkg.com/vditor@3.10.6',
+      lang: 'zh_CN',
       upload: {
         url: `${UPLOAD_URL}/`,
         fieldName: 'file',
@@ -306,19 +302,11 @@ function initVditor() {
         'preview', 'fullscreen', 'outline', 'edit-mode', 'both',
         'undo', 'redo', 'more'
       ],
-      outline: { enable: true, position: 'left' }
-    });
-
-    // 延迟清空
-    setTimeout(function() {
-      try {
-        if (vditorInstance && typeof vditorInstance.setValue === 'function') {
-          vditorInstance.setValue('');
-        }
-      } catch (e) {
-        console.warn('清空编辑器内容失败:', e);
+      outline: { enable: true, position: 'left' },
+      after: function (vditor) {
+        vditor.setValue('');
       }
-    }, 300);
+    });
 
     // 强制大纲左侧
     setTimeout(function() {
@@ -327,12 +315,20 @@ function initVditor() {
         outline.style.left = '0';
         outline.style.right = 'auto';
       }
-    }, 400);
-  } catch (e) {
-    console.error('Vditor 初始化失败:', e);
-    vditorContainer.innerHTML = '<p style="color:red;text-align:center;padding:20px;">编辑器加载失败，请刷新页面重试。</p>';
+    }, 300);
+
+    // 提交按钮直接创建在 editingContainer 中
+    let btn = document.getElementById('edit-submit-btn');
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.id = 'edit-submit-btn';
+      btn.className = 'edit-submit-btn';
+      btn.textContent = '创建新讨论';
+      btn.addEventListener('click', submitDiscussion);
+      editingContainer.appendChild(btn);
+    }
   }
-}
+
   async function submitDiscussion() {
     if (!vditorInstance) {
       alert('编辑器未初始化');
@@ -412,8 +408,6 @@ function initVditor() {
     buildUploadUI();
 
     initVditor();
-
-    buildSubmitButton();
 
     noiconCheck.addEventListener('change', function() {
       if (this.checked) {
