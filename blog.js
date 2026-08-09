@@ -1,6 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（最终修复版）
-// CDN: jsdelivr, 回复字段名: replyToId, 更多菜单完整
+// blog.js - 文章详情页（乐观更新 + 修复更多菜单）
 // ============================================================
 
 (function() {
@@ -132,6 +131,18 @@
       #vditor-container .vditor {
         border-radius: 8px;
         border: 1px solid #ddd;
+      }
+      .temp-comment {
+        opacity: 0.7;
+        background: #f0f9f0;
+        border-left: 3px solid #2da44e;
+        padding-left: 8px;
+      }
+      .temp-reply {
+        opacity: 0.7;
+        background: #f0f9f0;
+        border-left: 3px solid #2da44e;
+        padding-left: 8px;
       }
     `;
     document.head.appendChild(style);
@@ -426,25 +437,28 @@
       const author = comment.author.login;
       const avatar = comment.author.avatarUrl;
       const createdAt = formatDate(comment.createdAt);
+      const isTemp = comment.isTemp || false;
+      const tempClass = isTemp ? (level === 0 ? 'temp-comment' : 'temp-reply') : '';
       const bodyHtml = `<div class="markdown-body">${renderMarkdown(comment.body, 250)}</div>`;
       const reactionHtml = renderReactions(
         comment.reactionGroups || [],
         comment.id,
-        isLoggedIn
+        isLoggedIn && !isTemp
       );
       const replies = comment.replies && comment.replies.nodes ? comment.replies.nodes : [];
       const sortedReplies = replies.length ? [...replies].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)) : [];
       const hasReplies = sortedReplies.length > 0;
 
       html += `
-        <div class="comment-item" style="border-bottom:1px solid #e1e4e8;padding:12px 0; text-align:left; margin-left:${indent}px;">
+        <div class="comment-item ${tempClass}" style="border-bottom:1px solid #e1e4e8;padding:12px 0; text-align:left; margin-left:${indent}px;">
           <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
             <a href="https://github.com/${author}" target="_blank" style="display:flex; align-items:center; gap:8px; text-decoration:none; color:inherit;">
               <img src="${avatar}" style="width:32px; height:32px; border-radius:50%;" alt="avatar" />
               <span style="font-weight:bold;">${author}</span>
             </a>
             <span style="color:#888;font-size:12px;">${createdAt}</span>
-            ${isLoggedIn ? `<button class="reply-btn" data-comment-id="${comment.id}" style="border:none;background:none;cursor:pointer;color:#0366d6;font-size:12px;">回复</button>` : ''}
+            ${isLoggedIn && !isTemp ? `<button class="reply-btn" data-comment-id="${comment.id}" style="border:none;background:none;cursor:pointer;color:#0366d6;font-size:12px;">回复</button>` : ''}
+            ${isTemp ? '<span style="color:#2da44e;font-size:12px;margin-left:8px;">⏳ 发送中...</span>' : ''}
           </div>
           <div style="margin-left:40px; font-size:14px; line-height:1.6;">${bodyHtml}</div>
           ${reactionHtml}
@@ -464,7 +478,67 @@
     return `<div style="border:1px solid #ddd; border-radius:8px; padding:10px; background:#ffffff; text-align:left;">${renderCommentTree(sortedTop)}</div>`;
   }
 
-  // ---------- 回复事件 ----------
+  // ---------- 分页渲染 ----------
+  function renderPagination(container, currentPage, totalPages, onPageChange) {
+    container.innerHTML = '';
+    if (totalPages <= 1) return;
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'text-align:center; padding:10px 0;';
+    for (let i = 1; i <= totalPages; i++) {
+      const btn = document.createElement('button');
+      btn.textContent = i;
+      btn.style.cssText = `
+        margin: 0 4px;
+        padding: 4px 10px;
+        border: 1px solid #ccc;
+        background: ${i === currentPage ? '#B1782E' : '#fff'};
+        color: ${i === currentPage ? '#fff' : '#333'};
+        cursor: pointer;
+        border-radius: 4px;
+        font-size: 12pt;
+      `;
+      btn.addEventListener('click', (function(page) {
+        return function() { onPageChange(page); };
+      })(i));
+      wrapper.appendChild(btn);
+    }
+    container.appendChild(wrapper);
+  }
+
+  // ---------- 查找嵌套评论 ----------
+  function findCommentById(comments, id) {
+    for (let c of comments) {
+      if (c.id === id) return c;
+      if (c.replies && c.replies.nodes) {
+        const found = findCommentById(c.replies.nodes, id);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+
+  // ---------- 评论列表渲染函数（全局） ----------
+  let currentCommentPage = 1;
+
+  function renderCommentsPage(page) {
+    const start = (page - 1) * COMMENTS_PER_PAGE;
+    const end = Math.min(start + COMMENTS_PER_PAGE, allComments.length);
+    const pageComments = allComments.slice(start, end);
+    const listDiv = document.getElementById('comment-list');
+    if (listDiv) {
+      listDiv.innerHTML = renderComments(pageComments);
+      addCopyButtonsToCodeBlocks();
+      bindReplyEvents();
+      bindReactionEvents();
+    }
+    const paginationTop = document.getElementById('comment-pagination-top');
+    const paginationBottom = document.getElementById('comment-pagination-bottom');
+    if (paginationTop) renderPagination(paginationTop, page, totalPages, (newPage) => renderCommentsPage(newPage));
+    if (paginationBottom) renderPagination(paginationBottom, page, totalPages, (newPage) => renderCommentsPage(newPage));
+    currentCommentPage = page;
+  }
+
+  // ---------- 回复事件绑定 ----------
   function bindReplyEvents() {
     document.querySelectorAll('.reply-btn').forEach(btn => {
       btn.removeEventListener('click', handleReplyClick);
@@ -508,14 +582,36 @@
         return;
       }
       if (isSubmitting) return;
-      isSubmitting = true;
 
-      console.log('[回复] 提交 payload:', {
-        discussionId: discussionData.id,
+      const parentId = this.dataset.parentId;
+      // 构造临时回复对象
+      const tempReply = {
+        id: 'temp-reply-' + Date.now(),
         body: body,
-        replyToId: parentId   // 修改字段名
-      });
+        createdAt: new Date().toISOString(),
+        author: {
+          login: currentUser ? currentUser.login : '你',
+          avatarUrl: currentUser ? currentUser.avatarUrl : ''
+        },
+        reactionGroups: [],
+        isTemp: true
+      };
 
+      // 查找父评论
+      let parentComment = findCommentById(allComments, parentId);
+      if (!parentComment) {
+        alert('找不到父评论');
+        return;
+      }
+      if (!parentComment.replies) parentComment.replies = { nodes: [] };
+      parentComment.replies.nodes.unshift(tempReply);
+
+      // 重新渲染
+      renderCommentsPage(currentCommentPage);
+      // 清空回复框并关闭编辑区
+      container.innerHTML = '';
+
+      isSubmitting = true;
       try {
         const res = await fetch(`${OAUTH_BASE}/comment`, {
           method: 'POST',
@@ -524,19 +620,23 @@
           body: JSON.stringify({
             discussionId: discussionData.id,
             body: body,
-            replyToId: parentId   // 修改字段名
+            parentCommentId: parentId
           })
         });
         const data = await res.json();
-        console.log('[回复] 响应:', data);
         if (res.ok) {
+          // 刷新整个讨论获取真实数据
           const d = discussionData.number;
           await loadDiscussionFull(d);
         } else {
+          // 失败移除临时回复
+          parentComment.replies.nodes = parentComment.replies.nodes.filter(r => r.id !== tempReply.id);
+          renderCommentsPage(currentCommentPage);
           alert(data.error || '回复失败');
         }
       } catch (error) {
-        console.error('[回复] 异常:', error);
+        parentComment.replies.nodes = parentComment.replies.nodes.filter(r => r.id !== tempReply.id);
+        renderCommentsPage(currentCommentPage);
         alert('网络错误，请稍后重试');
       } finally {
         isSubmitting = false;
@@ -646,42 +746,15 @@
     });
   }
 
-  // ---------- 分页 ----------
-  function renderPagination(container, currentPage, totalPages, onPageChange) {
-    container.innerHTML = '';
-    if (totalPages <= 1) return;
-    const wrapper = document.createElement('div');
-    wrapper.style.cssText = 'text-align:center; padding:10px 0;';
-    for (let i = 1; i <= totalPages; i++) {
-      const btn = document.createElement('button');
-      btn.textContent = i;
-      btn.style.cssText = `
-        margin: 0 4px;
-        padding: 4px 10px;
-        border: 1px solid #ccc;
-        background: ${i === currentPage ? '#B1782E' : '#fff'};
-        color: ${i === currentPage ? '#fff' : '#333'};
-        cursor: pointer;
-        border-radius: 4px;
-        font-size: 12pt;
-      `;
-      btn.addEventListener('click', (function(page) {
-        return function() { onPageChange(page); };
-      })(i));
-      wrapper.appendChild(btn);
-    }
-    container.appendChild(wrapper);
-  }
-
-  // ---------- 提交评论 ----------
+  // ---------- 提交评论（顶层） ----------
   async function submitComment() {
     if (isSubmitting) return;
     if (!vditorInstance) {
       alert('编辑器未初始化');
       return;
     }
-    const body = vditorInstance.getValue();
-    if (!body || body.trim() === '') {
+    const body = vditorInstance.getValue().trim();
+    if (!body) {
       alert('请输入评论内容');
       return;
     }
@@ -689,32 +762,53 @@
       alert('讨论数据未加载');
       return;
     }
+
+    // 创建临时评论
+    const tempComment = {
+      id: 'temp-' + Date.now(),
+      body: body,
+      createdAt: new Date().toISOString(),
+      author: {
+        login: currentUser ? currentUser.login : '你',
+        avatarUrl: currentUser ? currentUser.avatarUrl : ''
+      },
+      reactionGroups: [],
+      replies: { nodes: [] },
+      isTemp: true
+    };
+    allComments.unshift(tempComment);
+    renderCommentsPage(currentCommentPage);
+    vditorInstance.setValue('');
     isSubmitting = true;
-    const discussionId = discussionData.id;
-    const payload = { discussionId, body };
-    console.log('[评论] 提交 payload:', payload);
+    const submitBtn = document.getElementById('comment-submit');
+    if (submitBtn) submitBtn.disabled = true;
+
     try {
       const res = await fetch(`${OAUTH_BASE}/comment`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          discussionId: discussionData.id,
+          body: body
+        })
       });
       const data = await res.json();
-      console.log('[评论] 响应:', data);
       if (res.ok) {
-        vditorInstance.setValue('');
         const d = discussionData.number;
         await loadDiscussionFull(d);
       } else {
-        console.error('评论提交失败:', data);
+        allComments = allComments.filter(c => c.id !== tempComment.id);
+        renderCommentsPage(currentCommentPage);
         alert(data.error || '评论发表失败');
       }
     } catch (error) {
-      console.error('提交评论异常:', error);
+      allComments = allComments.filter(c => c.id !== tempComment.id);
+      renderCommentsPage(currentCommentPage);
       alert('网络错误，请稍后重试');
     } finally {
       isSubmitting = false;
+      if (submitBtn) submitBtn.disabled = false;
     }
   }
 
@@ -744,8 +838,8 @@
       value: '',
       cache: { enable: false },
       lang: 'zh_CN',
-      cdn: 'https://cdn.jsdelivr.net/npm/vditor@3.10.6', // 改用 jsdelivr
-      icon: 'ant',
+      cdn: 'https://unpkg.com/vditor@3.10.6',
+      icon: 'material',   // 使用 material 图标，解决 more 菜单无响应
       theme: 'classic',
       upload: {
         url: `${UPLOAD_URL}/`,
@@ -788,7 +882,7 @@
       }
     }, 200);
 
-    // 底部“发表评论”按钮
+    // 底部“发表评论”按钮（保留）
     let submitBtn = document.getElementById('comment-submit');
     if (!submitBtn) {
       submitBtn = document.createElement('button');
@@ -879,24 +973,7 @@
       allComments = discussionData.comments.nodes || [];
       totalComments = discussionData.comments.totalCount || 0;
       totalPages = Math.ceil(totalComments / COMMENTS_PER_PAGE) || 1;
-      let currentPage = 1;
-
-      function renderCommentsPage(page) {
-        const start = (page - 1) * COMMENTS_PER_PAGE;
-        const end = Math.min(start + COMMENTS_PER_PAGE, allComments.length);
-        const pageComments = allComments.slice(start, end);
-        const html = renderComments(pageComments);
-        commentListDiv.innerHTML = html;
-        addCopyButtonsToCodeBlocks();
-        renderPagination(paginationTop, page, totalPages, (newPage) => {
-          renderCommentsPage(newPage);
-        });
-        renderPagination(paginationBottom, page, totalPages, (newPage) => {
-          renderCommentsPage(newPage);
-        });
-        bindReplyEvents();
-        bindReactionEvents();
-      }
+      currentCommentPage = 1;
 
       renderCommentsPage(1);
       bindReplyEvents();
