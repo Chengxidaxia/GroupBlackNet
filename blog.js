@@ -698,6 +698,7 @@
   }
 
   // ---------- Vditor 初始化（修复 setValue 问题） ----------
+  // 只修改 initVditor 函数
   function initVditor() {
     const editorContainer = document.getElementById('vditor-container');
     if (!editorContainer) return;
@@ -714,12 +715,13 @@
       vditorInstance = null;
     }
     editorContainer.innerHTML = '';
-
+  
     vditorInstance = new Vditor(editorContainer, {
       height: 200,
       mode: 'ir',
       placeholder: '写下你的评论...',
       cache: { enable: false },
+      cdn: 'https://unpkg.com/vditor@3.10.6', // 指定 CDN，确保资源完整
       upload: {
         url: `${UPLOAD_URL}/`,
         fieldName: 'file',
@@ -733,17 +735,29 @@
         'list', 'ordered-list', 'check', 'outdent', 'indent',
         'line', 'code', 'inline-code', 'table', 'upload', 'record',
         'preview', 'fullscreen', 'outline', 'edit-mode', 'both',
-        'undo', 'redo', 'more'
+        'undo', 'redo', 'more' // 保留 more
       ],
       outline: { enable: true, position: 'left' }
     });
-
-    // 使用 setTimeout 确保实例已完全初始化
+  
+    // 延迟清空，确保实例完全初始化
     setTimeout(function() {
       if (vditorInstance && typeof vditorInstance.setValue === 'function') {
         vditorInstance.setValue('');
       }
-    }, 100);
+    }, 200);
+  
+    // 强制大纲左侧
+    setTimeout(function() {
+      const outline = document.querySelector('.vditor-outline');
+      if (outline) {
+        outline.style.left = '0';
+        outline.style.right = 'auto';
+      }
+    }, 300);
+  
+    // 提交按钮逻辑保持不变...
+
 
     let submitBtn = document.getElementById('comment-submit');
     if (!submitBtn) {
