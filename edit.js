@@ -1,5 +1,5 @@
 // ============================================================
-// edit.js - 创建新讨论（宽度 100%，工具栏含提交）
+// edit.js - 创建新讨论（含工具栏提交，宽度控制）
 // ============================================================
 
 (function() {
@@ -36,7 +36,7 @@
         isLoggedIn = false;
         return false;
       }
-    } catch(e) {
+    } catch (e) {
       isLoggedIn = false;
       return false;
     }
@@ -47,19 +47,57 @@
     const style = document.createElement('style');
     style.id = 'edit-styles';
     style.textContent = `
-      #editing { width:80%; max-width:1000px; margin:0 auto; display:block; min-height:400px; }
-      #vditor-container { margin:10px 0; text-align:left; width:100%; }
-      .upload-area {
-        border:2px dashed #ccc; border-radius:8px; padding:20px; text-align:center;
-        cursor:pointer; transition:border-color 0.3s; min-height:120px;
-        display:flex; flex-direction:column; align-items:center; justify-content:center;
-        background:#fafafa;
+      #editing {
+        width: 85% !important;
+        margin: 0 auto !important;
+        display: block !important;
+        min-height: 400px !important;
       }
-      .upload-area.dragover { border-color:#2da44e; background:#f0f9f0; }
-      .upload-area img { max-width:100%; max-height:200px; margin-top:8px; border-radius:4px; }
-      .upload-area .hint { color:#888; font-size:14px; }
-      .upload-area .remove-btn { margin-top:8px; background:#dc3545; color:white; border:none; border-radius:4px; padding:4px 12px; cursor:pointer; }
-      .upload-area.hidden { display:none !important; }
+      #vditor-container {
+        margin: 10px 0;
+        text-align: left;
+        width: 100% !important;
+      }
+      .upload-area {
+        border: 2px dashed #ccc;
+        border-radius: 8px;
+        padding: 20px;
+        text-align: center;
+        cursor: pointer;
+        transition: border-color 0.3s;
+        min-height: 120px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: #fafafa;
+      }
+      .upload-area.dragover {
+        border-color: #2da44e;
+        background: #f0f9f0;
+      }
+      .upload-area img {
+        max-width: 100%;
+        max-height: 200px;
+        margin-top: 8px;
+        border-radius: 4px;
+      }
+      .upload-area .hint {
+        color: #888;
+        font-size: 14px;
+      }
+      .upload-area .remove-btn {
+        margin-top: 8px;
+        background: #dc3545;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        padding: 4px 12px;
+        cursor: pointer;
+      }
+      .upload-area.hidden {
+        display: none !important;
+      }
     `;
     document.head.appendChild(style);
   }
