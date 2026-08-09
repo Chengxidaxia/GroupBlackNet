@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（最终修复版）
+// blog.js - 文章详情页（修复编辑器残留、更多按钮、setValue 报错）
 // ============================================================
 
 (function() {
@@ -89,10 +89,83 @@
       }
       .comment-item { text-align: left; }
       .comment-item .markdown-body { font-size: 14px; line-height: 1.6; }
+      .image-viewer-overlay {
+        position: fixed;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.85);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        cursor: pointer;
+      }
+      .image-viewer-overlay img {
+        max-width: 90%;
+        max-height: 90%;
+        object-fit: contain;
+        box-shadow: 0 0 30px rgba(0,0,0,0.5);
+      }
+      .image-viewer-close {
+        position: fixed;
+        top: 20px;
+        right: 30px;
+        font-size: 40px;
+        color: #fff;
+        opacity: 0.7;
+        cursor: pointer;
+        z-index: 10000;
+        font-family: Arial, sans-serif;
+        transition: opacity 0.2s, background 0.2s;
+        background: rgba(0,0,0,0.4);
+        border: none;
+        border-radius: 8px;
+        padding: 12px 20px;
+        line-height: 1;
+        user-select: none;
+      }
+      .image-viewer-close:hover {
+        opacity: 1;
+        background: rgba(0,0,0,0.7);
+      }
     `;
     document.head.appendChild(style);
   }
   injectStyles();
+
+  // ---------- 图片查看器 ----------
+  function initImageViewer() {
+    document.addEventListener('dblclick', function(e) {
+      const img = e.target.closest('.markdown-body img, .comment-item img');
+      if (!img) return;
+      const src = img.getAttribute('src');
+      if (!src) return;
+      e.preventDefault();
+      showImageViewer(src);
+    });
+  }
+
+  function showImageViewer(src) {
+    const overlay = document.createElement('div');
+    overlay.className = 'image-viewer-overlay';
+    overlay.innerHTML = `
+      <img src="${src}" alt="查看大图" />
+      <button class="image-viewer-close" title="关闭">✕</button>
+    `;
+    document.body.appendChild(overlay);
+    overlay.querySelector('.image-viewer-close').addEventListener('click', function(e) {
+      e.stopPropagation();
+      overlay.remove();
+    });
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) overlay.remove();
+    });
+    document.addEventListener('keydown', function escHandler(e) {
+      if (e.key === 'Escape') {
+        overlay.remove();
+        document.removeEventListener('keydown', escHandler);
+      }
+    });
+  }
 
   // ---------- 辅助函数 ----------
   function base64Decode(str) {
@@ -246,7 +319,7 @@
     });
   }
 
-  // ---------- 其余函数 ----------
+  // ---------- 其他函数 ----------
   function sanitizeHtml(html) {
     if (typeof DOMPurify !== 'undefined' && typeof DOMPurify.sanitize === 'function') {
       return DOMPurify.sanitize(html, {
@@ -276,7 +349,6 @@
     'EYES': '👀'
   };
 
-  // ---------- 解析第一行 ----------
   function parseFirstLine(body) {
     const lines = body.split('\n');
     const firstLine = lines.find(line => line.trim() !== '') || '';
@@ -341,12 +413,13 @@
     return html;
   }
 
-  // ---------- 评论树 ----------
+  // ---------- 评论树渲染 ----------
   function renderCommentTree(comments, level = 0) {
     if (!comments || comments.length === 0) return '';
+    const sorted = [...comments].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     let html = '';
     const indent = level * 20;
-    comments.forEach(comment => {
+    sorted.forEach(comment => {
       const author = comment.author.login;
       const avatar = comment.author.avatarUrl;
       const createdAt = formatDate(comment.createdAt);
@@ -585,7 +658,7 @@
     container.appendChild(wrapper);
   }
 
-  // ---------- 提交顶层评论 ----------
+  // ---------- 提交评论 ----------
   async function submitComment() {
     if (!vditorInstance) {
       alert('编辑器未初始化');
@@ -602,7 +675,6 @@
     }
     const discussionId = discussionData.id;
     const payload = { discussionId, body };
-    console.log('提交顶层评论 payload:', payload);
     try {
       const res = await fetch(`${OAUTH_BASE}/comment`, {
         method: 'POST',
@@ -625,7 +697,7 @@
     }
   }
 
-  // ---------- Vditor 初始化 ----------
+  // ---------- Vditor 初始化（修复残留和更多） ----------
   function initVditor() {
     const editorContainer = document.getElementById('vditor-container');
     if (!editorContainer) return;
@@ -642,11 +714,12 @@
       vditorInstance = null;
     }
     editorContainer.innerHTML = '';
+
     vditorInstance = new Vditor(editorContainer, {
       height: 200,
       mode: 'ir',
       placeholder: '写下你的评论...',
-      cache: { enable: true, id: 'vditor-cache' },
+      cache: { enable: true, id: 'blog-vditor-cache' }, // 独立缓存 ID
       upload: {
         url: `${UPLOAD_URL}/`,
         fieldName: 'file',
@@ -654,35 +727,20 @@
         max: 32 * 1024 * 1024,
         multiple: false,
         withCredentials: true,
-        format: function (files, responseText) {
-          console.log('上传文件列表:', files);
-          console.log('服务器响应原文:', responseText);
-          let data = responseText;
-          if (typeof responseText === 'string') {
-            try {
-              data = JSON.parse(responseText);
-            } catch (e) {
-              console.error('JSON 解析失败:', e);
-              return { code: 1, msg: '服务器返回格式错误' };
-            }
-          }
-          return data;
-        }
       },
       toolbar: [
         'emoji', 'headings', 'bold', 'italic', 'strike', 'link', 'quote',
         'list', 'ordered-list', 'check', 'outdent', 'indent',
         'line', 'code', 'inline-code', 'table', 'upload', 'record',
         'preview', 'fullscreen', 'outline', 'edit-mode', 'both',
-        'undo', 'redo', 'more'
+        'undo', 'redo', 'more' // 确保 more 存在
       ],
-      outline: { enable: true, position: 'left' }
+      outline: { enable: true, position: 'left' },
+      // 使用 after 回调清空内容，确保实例已完全初始化
+      after: function() {
+        this.setValue('');
+      }
     });
-
-    // 在 after 回调中清空内容
-    vditorInstance.after = function() {
-      vditorInstance.setValue('');
-    };
 
     let submitBtn = document.getElementById('comment-submit');
     if (!submitBtn) {
@@ -845,46 +903,6 @@
     await checkLoginStatus();
     await loadDiscussionFull(number);
     initImageViewer();
-  }
-
-  // ---------- 图片查看器 ----------
-  function initImageViewer() {
-    document.addEventListener('dblclick', function(e) {
-      const img = e.target.closest('.markdown-body img, .comment-item img');
-      if (!img) return;
-      const src = img.getAttribute('src');
-      if (!src) return;
-      e.preventDefault();
-      showImageViewer(src);
-    });
-  }
-
-  function showImageViewer(src) {
-    const overlay = document.createElement('div');
-    overlay.className = 'image-viewer-overlay';
-    overlay.style.cssText = `
-      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(0,0,0,0.85); display: flex; align-items: center;
-      justify-content: center; z-index: 9999; cursor: pointer;
-    `;
-    overlay.innerHTML = `
-      <img src="${src}" style="max-width:90%; max-height:90%; object-fit:contain; box-shadow:0 0 30px rgba(0,0,0,0.5);" />
-      <button style="position:fixed; top:20px; right:30px; font-size:40px; color:#fff; opacity:0.7; cursor:pointer; background:rgba(0,0,0,0.4); border:none; border-radius:8px; padding:12px 20px; line-height:1; user-select:none;">✕</button>
-    `;
-    document.body.appendChild(overlay);
-    overlay.querySelector('button').addEventListener('click', function(e) {
-      e.stopPropagation();
-      overlay.remove();
-    });
-    overlay.addEventListener('click', function(e) {
-      if (e.target === overlay) overlay.remove();
-    });
-    document.addEventListener('keydown', function escHandler(e) {
-      if (e.key === 'Escape') {
-        overlay.remove();
-        document.removeEventListener('keydown', escHandler);
-      }
-    });
   }
 
   if (document.readyState === 'loading') {
