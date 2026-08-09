@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 完整版（文章和评论都有独立的 Upvote，未登录只显示数字）
+// blog.js - 完整版（未登录时 upvote 显示为不可点击按钮）
 // ============================================================
 
 (function() {
@@ -60,8 +60,7 @@
       .reaction-item.reaction-btn { cursor:pointer; }
       .upvote-item { margin-right:16px !important; border-radius:8px; padding:4px 12px; }
       .upvote-item .upvote-icon { font-size:18px; line-height:1; }
-      .upvote-static { display:inline-flex; align-items:center; gap:4px; color:#888; font-size:14px; margin-right:16px; }
-      .upvote-static .upvote-icon { font-size:18px; }
+      .upvote-disabled { opacity:0.6; cursor:not-allowed; }
     `;
     document.head.appendChild(style);
   }
@@ -247,24 +246,20 @@
   }
 
   // ============================================================
-  // 渲染 Upvote 按钮（登录显示可交互，未登录显示静态数字）
+  // 渲染 Upvote 按钮（登录显示可交互，未登录显示不可点击但带边框）
   // ============================================================
   function renderUpvoteButton(subjectId, upvoteCount, viewerHasUpvoted, canInteract = false) {
-    if (!canInteract) {
-      // 未登录：只显示静态数字 + ↑ 图标（无边框、无点击）
-      return `
-        <span class="upvote-static">
-          <span class="upvote-icon">↑</span>
-          <span class="upvote-count">${upvoteCount}</span>
-        </span>
-      `;
-    }
     const isActive = viewerHasUpvoted;
     const borderColor = isActive ? '#0366d6' : '#ddd';
     const bgColor = isActive ? '#dbedff' : '#f6f8fa';
+    // 未登录时添加 disabled 类，样式灰显且不可点击
+    const disabledClass = canInteract ? '' : ' upvote-disabled';
+    const interactiveAttr = canInteract ? `data-subject-id="${subjectId}"` : '';
+    // 未登录时不绑定事件，所以去掉 data-subject-id 和 reaction-btn 类
+    const btnClass = canInteract ? 'reaction-item reaction-btn upvote-item' : 'reaction-item upvote-item upvote-disabled';
     return `
-      <div class="reaction-item reaction-btn upvote-item" data-subject-id="${subjectId}"
-           style="border:1px solid ${borderColor}; border-radius:8px; background:${bgColor}; cursor:pointer; margin-right:16px;">
+      <div class="${btnClass}" ${interactiveAttr}
+           style="border:1px solid ${borderColor}; border-radius:8px; background:${bgColor}; ${canInteract ? 'cursor:pointer;' : 'cursor:not-allowed;'} margin-right:16px;">
         <span class="upvote-icon">↑</span>
         <span class="upvote-count" id="upvote-count-${subjectId}">${upvoteCount}</span>
       </div>
@@ -281,7 +276,7 @@
     const viewerHasUpvoted = comment.viewerHasUpvoted || false;
 
     let html = '<div class="reactions-container">';
-    // 1. Upvote（登录可交互，未登录静态）
+    // 1. Upvote（登录可交互，未登录不可点击但显示边框）
     html += renderUpvoteButton(subjectId, upvoteCount, viewerHasUpvoted, canInteract);
 
     // 2. 所有 Reaction（包括 THUMBS_UP 👍）
@@ -807,7 +802,7 @@
       const viewerHasUpvoted = discussionData.viewerHasUpvoted || false;
 
       let reactionHtml = '<div class="reactions-container">';
-      // 1. Upvote（登录可交互，未登录静态）
+      // 1. Upvote（登录可交互，未登录不可点击但显示边框）
       reactionHtml += renderUpvoteButton(discussionId, upvoteCount, viewerHasUpvoted, isLoggedIn);
 
       // 2. 所有 Reaction（包括 THUMBS_UP 👍）
