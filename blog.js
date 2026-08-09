@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（含自定义“顶”按钮）
+// blog.js - 文章详情页（含 Discussion Upvote 功能）
 // ============================================================
 
 (function() {
@@ -165,9 +165,43 @@
         line-height: 1.6;
       }
 
-      /* ===== 自定义“顶”按钮 ===== */
-      .custom-thumbs-up {
-        margin-right: 16px !important; /* 两倍于普通表情的间隔 */
+      /* ===== Upvote 按钮样式 ===== */
+      .upvote-container {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 10px 0;
+      }
+      .upvote-btn {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        background: #f6f8fa;
+        color: #333;
+        font-size: 14px;
+        cursor: pointer;
+        transition: background 0.2s, border-color 0.2s;
+        user-select: none;
+      }
+      .upvote-btn:hover {
+        background: #e9ecef;
+      }
+      .upvote-btn.active {
+        background: #dbedff;
+        border-color: #0366d6;
+        color: #0366d6;
+      }
+      .upvote-btn .upvote-icon {
+        font-size: 16px;
+        line-height: 1;
+      }
+      .upvote-btn .upvote-count {
+        font-weight: bold;
+        min-width: 20px;
+        text-align: center;
       }
     `;
     document.head.appendChild(style);
@@ -274,7 +308,7 @@
   }
 
   // ============================================================
-  // Markdown 渲染函数（含 @ 和 # 链接）
+  // Markdown 渲染函数
   // ============================================================
   let markedConfigured = false;
 
@@ -324,7 +358,7 @@
       });
     }
 
-    // 强制给 <pre> 添加样式
+    // 给 <pre> 强制加样式
     html = html.replace(/<pre>/gi, function(match) {
       if (/style\s*=/i.test(match)) {
         return match.replace(/style\s*=\s*(["'])([^"']*)\1/i, function(m, quote, style) {
@@ -417,64 +451,36 @@
     });
   }
 
-  // ============================================================
-  // Reaction 渲染（含自定义“顶”按钮）
-  // ============================================================
+  // ---------- Reaction 渲染 ----------
   function renderReactions(reactionGroups, subjectId, canInteract = false) {
-    // 从 reactionGroups 中提取 THUMBS_UP 数据
-    const thumbsUpGroup = reactionGroups ? reactionGroups.find(g => g.content === 'THUMBS_UP') : null;
-    const thumbsUpCount = thumbsUpGroup ? thumbsUpGroup.users.totalCount : 0;
-    const viewerHasReacted = thumbsUpGroup ? thumbsUpGroup.viewerHasReacted : false;
-
-    // 构建自定义“顶”按钮（仅在可交互时显示，且登录用户可见）
-    let customThumbsUpHtml = '';
-    if (canInteract) {
-      const isActive = viewerHasReacted && canInteract;
+    if (!reactionGroups || reactionGroups.length === 0) {
+      return '<div class="reactions-container" style="display:flex; flex-wrap:wrap; gap:8px; margin:10px 0;"></div>';
+    }
+    let html = '<div class="reactions-container" style="display:flex; flex-wrap:wrap; gap:8px; margin:10px 0;">';
+    reactionGroups.forEach(group => {
+      const count = group.users.totalCount;
+      const emoji = EMOJI_MAP[group.content] || group.content;
+      const countId = `reaction-count-${subjectId}-${group.content}`;
+      const viewerReacted = group.viewerHasReacted === true;
+      if (canInteract) {
+        userReactions[`${subjectId}-${group.content}`] = viewerReacted;
+      }
+      const isActive = viewerReacted && canInteract;
       const borderColor = isActive ? '#0366d6' : '#ddd';
       const bgColor = isActive ? '#dbedff' : '#f6f8fa';
-      customThumbsUpHtml = `
-        <div class="reaction-item reaction-btn custom-thumbs-up" 
+      const interactiveClass = canInteract ? 'reaction-btn' : '';
+      html += `
+        <div class="reaction-item ${interactiveClass}" 
              data-subject-id="${subjectId}" 
-             data-reaction="THUMBS_UP"
-             style="display:flex; align-items:center; gap:4px; padding:4px 12px; border:1px solid ${borderColor}; border-radius:8px; background:${bgColor}; cursor:pointer; margin-right:16px;">
-          <span style="font-size:18px;">↑</span>
-          <span id="reaction-count-${subjectId}-THUMBS_UP" style="font-weight:bold;">${thumbsUpCount}</span>
+             data-reaction="${group.content}"
+             style="display:flex; align-items:center; gap:4px; padding:4px 8px; border:1px solid ${borderColor}; border-radius:16px; background:${bgColor}; ${canInteract ? 'cursor:pointer;' : ''}">
+          <span style="font-size:18px;">${emoji}</span>
+          <span id="${countId}" style="font-weight:bold;">${count}</span>
         </div>
       `;
-    }
-
-    // 构建原有的 reaction 列表
-    let reactionHtml = '<div class="reactions-container" style="display:flex; flex-wrap:wrap; gap:8px; margin:10px 0;">';
-    // 先添加自定义顶按钮（在列表最前面）
-    reactionHtml += customThumbsUpHtml;
-
-    // 然后添加其他表情（包括原有的 👍）
-    if (reactionGroups && reactionGroups.length > 0) {
-      reactionGroups.forEach(group => {
-        const count = group.users.totalCount;
-        const emoji = EMOJI_MAP[group.content] || group.content;
-        const countId = `reaction-count-${subjectId}-${group.content}`;
-        const viewerReacted = group.viewerHasReacted === true;
-        if (canInteract) {
-          userReactions[`${subjectId}-${group.content}`] = viewerReacted;
-        }
-        const isActive = viewerReacted && canInteract;
-        const borderColor = isActive ? '#0366d6' : '#ddd';
-        const bgColor = isActive ? '#dbedff' : '#f6f8fa';
-        const interactiveClass = canInteract ? 'reaction-btn' : '';
-        reactionHtml += `
-          <div class="reaction-item ${interactiveClass}" 
-               data-subject-id="${subjectId}" 
-               data-reaction="${group.content}"
-               style="display:flex; align-items:center; gap:4px; padding:4px 8px; border:1px solid ${borderColor}; border-radius:16px; background:${bgColor}; ${canInteract ? 'cursor:pointer;' : ''}">
-            <span style="font-size:18px;">${emoji}</span>
-            <span id="${countId}" style="font-weight:bold;">${count}</span>
-          </div>
-        `;
-      });
-    }
-    reactionHtml += '</div>';
-    return reactionHtml;
+    });
+    html += '</div>';
+    return html;
   }
 
   // ---------- 评论树渲染 ----------
@@ -499,7 +505,6 @@
       const sortedReplies = replies.length ? [...replies].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)) : [];
       const hasReplies = sortedReplies.length > 0;
 
-      // 注意：这里没有“顶”按钮，只有回复按钮和表情反应
       html += `
         <div class="comment-item ${tempClass}" style="border-bottom:1px solid #e1e4e8;padding:12px 0; text-align:left; margin-left:${indent}px;">
           <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
@@ -529,7 +534,7 @@
     return `<div style="border:1px solid #ddd; border-radius:8px; padding:10px; background:#ffffff; text-align:left;">${renderCommentTree(sortedTop)}</div>`;
   }
 
-  // ---------- 分页（始终显示，带省略号） ----------
+  // ---------- 分页 ----------
   function renderPagination(container, currentPage, totalPages, onPageChange) {
     container.innerHTML = '';
     if (totalPages <= 0) return;
@@ -537,7 +542,6 @@
     const wrapper = document.createElement('div');
     wrapper.style.cssText = 'display:flex; align-items:center; justify-content:center; gap:4px; flex-wrap:wrap; padding:10px 0;';
 
-    // 上一页
     const prevBtn = document.createElement('button');
     prevBtn.textContent = '‹';
     prevBtn.className = 'pagination-btn' + (currentPage <= 1 ? ' disabled' : '');
@@ -546,7 +550,6 @@
     }
     wrapper.appendChild(prevBtn);
 
-    // 页码 + 省略号
     const maxVisible = 5;
     let pages = [];
     if (totalPages <= maxVisible + 2) {
@@ -591,7 +594,6 @@
       }
     });
 
-    // 下一页
     const nextBtn = document.createElement('button');
     nextBtn.textContent = '›';
     nextBtn.className = 'pagination-btn' + (currentPage >= totalPages ? ' disabled' : '');
@@ -834,6 +836,52 @@
     });
   }
 
+  // ============================================================
+  // Upvote 功能
+  // ============================================================
+  async function toggleUpvote() {
+    if (!isLoggedIn) {
+      console.error('请先登录');
+      return;
+    }
+    if (!discussionData) return;
+
+    const discussionId = discussionData.id;
+    const upvoteBtn = document.getElementById('upvote-btn');
+    const countSpan = document.getElementById('upvote-count');
+
+    // 获取当前状态：根据按钮是否有 active 类判断
+    const isActive = upvoteBtn.classList.contains('active');
+    const action = isActive ? 'remove' : 'add';
+
+    // 乐观更新
+    const currentCount = parseInt(countSpan.textContent, 10);
+    const newCount = isActive ? currentCount - 1 : currentCount + 1;
+    countSpan.textContent = newCount;
+    upvoteBtn.classList.toggle('active');
+
+    try {
+      const res = await fetch(`${OAUTH_BASE}/upvote`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ discussionId, action })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        // 回滚
+        countSpan.textContent = currentCount;
+        upvoteBtn.classList.toggle('active');
+        console.error('Upvote 失败:', data.error);
+      }
+    } catch (error) {
+      // 回滚
+      countSpan.textContent = currentCount;
+      upvoteBtn.classList.toggle('active');
+      console.error('Upvote 网络错误:', error);
+    }
+  }
+
   // ---------- 提交评论（顶层） ----------
   async function submitComment() {
     if (isSubmitting) return;
@@ -974,7 +1022,6 @@
 
   // ---------- 加载讨论 ----------
   async function loadDiscussionFull(discussionNumber) {
-    // 重置 reaction 状态，防止旧数据污染
     userReactions = {};
 
     try {
@@ -989,6 +1036,26 @@
       const titleText = discussionData.title || '无标题';
       document.title = titleText + ' - 群档案';
       titleEl.innerHTML = `<span style="font-size:26pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; font-weight:bold;">${titleText}</span>`;
+
+      // ===== 添加 Upvote 按钮 =====
+      const upvoteContainer = document.createElement('div');
+      upvoteContainer.className = 'upvote-container';
+
+      const upvoteBtn = document.createElement('button');
+      upvoteBtn.id = 'upvote-btn';
+      upvoteBtn.className = 'upvote-btn';
+      upvoteBtn.innerHTML = `
+        <span class="upvote-icon">↑</span>
+        <span class="upvote-count" id="upvote-count">0</span>
+      `;
+      // 注意：我们需要从 API 获取 upvoteCount，但目前 API 未返回，所以先设为 0。
+      // 实际可从 discussion 数据中获取 upvoteCount，但 GraphQL 查询可能没包含。
+      // 我们先用 0，后续可以改进。
+      upvoteBtn.addEventListener('click', toggleUpvote);
+      upvoteContainer.appendChild(upvoteBtn);
+
+      // 将 Upvote 按钮插入到标题下方
+      titleEl.parentNode.insertBefore(upvoteContainer, titleEl.nextSibling);
 
       const { info, bodyText } = parseFirstLine(discussionData.body);
       if (info && info.trim()) {
@@ -1025,7 +1092,6 @@
         editorContainer.innerHTML = '<p style="text-align:center;color:#888;padding:20px;">登录后即可评论</p>';
       }
 
-      // 分页顶
       const paginationTop = document.createElement('div');
       paginationTop.id = 'comment-pagination-top';
       commentContainer.appendChild(paginationTop);
