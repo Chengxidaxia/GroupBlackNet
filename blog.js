@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（修复更多菜单、样式、评论400）
+// blog.js - 文章详情页（完整修复：图标、更多菜单、调试、乐观更新）
 // ============================================================
 
 (function() {
@@ -9,7 +9,7 @@
   const OAUTH_BASE = 'https://oauth.blacknet.cc.cd';
   const UPLOAD_URL = 'https://upload.blacknet.cc.cd';
   const COMMENTS_PER_PAGE = 20;
-  const DEFAULT_AVATAR = 'https://github.com/identicons/default.png'; // 或者一个占位图
+  const DEFAULT_AVATAR = 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png';
 
   const titleEl = document.getElementById('title');
   const infoEl = document.getElementById('information');
@@ -27,7 +27,7 @@
   let userReactions = {};
   let isSubmitting = false;
 
-  // ---------- 样式注入（优化 Vditor 外观）----------
+  // ---------- 样式注入 ----------
   function injectStyles() {
     if (document.getElementById('blog-styles')) return;
     const style = document.createElement('style');
@@ -145,12 +145,20 @@
         border-left: 3px solid #2da44e;
         padding-left: 8px;
       }
-      /* 修复 Vditor 工具栏样式 */
-      .vditor-toolbar .vditor-tooltipped {
-        font-size: 14px !important;
+      /* 修复更多菜单样式 */
+      .vditor-toolbar__item--more .vditor-toolbar__submenu {
+        display: none;
+        position: absolute;
+        background: #fff;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        padding: 4px 0;
+        min-width: 120px;
+        z-index: 1000;
       }
-      .vditor-toolbar svg {
-        fill: currentColor !important;
+      .vditor-toolbar__item--more:hover .vditor-toolbar__submenu {
+        display: block;
       }
     `;
     document.head.appendChild(style);
@@ -201,10 +209,11 @@
     }
   }
 
-  // 安全获取头像
   function getAvatarUrl(user) {
-    if (!user) return DEFAULT_AVATAR;
-    return user.avatarUrl || user.avatar_url || DEFAULT_AVATAR;
+    if (user && user.avatarUrl) {
+      return user.avatarUrl;
+    }
+    return DEFAULT_AVATAR;
   }
 
   // ---------- Markdown 渲染 ----------
@@ -448,8 +457,8 @@
     let html = '';
     const indent = level * 20;
     sorted.forEach(comment => {
-      const author = comment.author.login;
-      const avatar = getAvatarUrl(comment.author);
+      const author = comment.author ? comment.author.login : '未知';
+      const avatar = comment.author ? getAvatarUrl(comment.author) : DEFAULT_AVATAR;
       const createdAt = formatDate(comment.createdAt);
       const isTemp = comment.isTemp || false;
       const tempClass = isTemp ? (level === 0 ? 'temp-comment' : 'temp-reply') : '';
@@ -467,7 +476,7 @@
         <div class="comment-item ${tempClass}" style="border-bottom:1px solid #e1e4e8;padding:12px 0; text-align:left; margin-left:${indent}px;">
           <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
             <a href="https://github.com/${author}" target="_blank" style="display:flex; align-items:center; gap:8px; text-decoration:none; color:inherit;">
-              <img src="${avatar}" style="width:32px; height:32px; border-radius:50%;" alt="avatar" />
+              <img src="${avatar}" style="width:32px; height:32px; border-radius:50%;" alt="avatar" onerror="this.src='${DEFAULT_AVATAR}'" />
               <span style="font-weight:bold;">${author}</span>
             </a>
             <span style="color:#888;font-size:12px;">${createdAt}</span>
@@ -605,7 +614,7 @@
         createdAt: new Date().toISOString(),
         author: {
           login: currentUser ? currentUser.login : '你',
-          avatarUrl: currentUser ? getAvatarUrl(currentUser) : DEFAULT_AVATAR
+          avatarUrl: currentUser ? currentUser.avatarUrl : DEFAULT_AVATAR
         },
         reactionGroups: [],
         isTemp: true
@@ -646,7 +655,10 @@
           // 失败移除临时回复
           parentComment.replies.nodes = parentComment.replies.nodes.filter(r => r.id !== tempReply.id);
           renderCommentsPage(currentCommentPage);
-          alert(data.error || '回复失败');
+          // 显示详细错误
+          const errMsg = data.error || '回复失败';
+          const details = data.details ? '\n详情: ' + JSON.stringify(data.details) : '';
+          alert(errMsg + details);
         }
       } catch (error) {
         parentComment.replies.nodes = parentComment.replies.nodes.filter(r => r.id !== tempReply.id);
@@ -772,7 +784,7 @@
       alert('请输入评论内容');
       return;
     }
-    if (!discussionData || !discussionData.id) {
+    if (!discussionData) {
       alert('讨论数据未加载');
       return;
     }
@@ -784,7 +796,7 @@
       createdAt: new Date().toISOString(),
       author: {
         login: currentUser ? currentUser.login : '你',
-        avatarUrl: currentUser ? getAvatarUrl(currentUser) : DEFAULT_AVATAR
+        avatarUrl: currentUser ? currentUser.avatarUrl : DEFAULT_AVATAR
       },
       reactionGroups: [],
       replies: { nodes: [] },
@@ -814,7 +826,9 @@
       } else {
         allComments = allComments.filter(c => c.id !== tempComment.id);
         renderCommentsPage(currentCommentPage);
-        alert(data.error || '评论发表失败');
+        const errMsg = data.error || '评论发表失败';
+        const details = data.details ? '\n详情: ' + JSON.stringify(data.details) : '';
+        alert(errMsg + details);
       }
     } catch (error) {
       allComments = allComments.filter(c => c.id !== tempComment.id);
@@ -844,7 +858,6 @@
     }
     editorContainer.innerHTML = '';
 
-    // 使用 default 图标，避免字体依赖
     vditorInstance = new Vditor(editorContainer, {
       height: 200,
       minHeight: 150,
@@ -854,7 +867,7 @@
       cache: { enable: false },
       lang: 'zh_CN',
       cdn: 'https://unpkg.com/vditor@3.10.6',
-      icon: 'default',   // 使用 default 图标
+      icon: 'svg',        // 关键：使用 SVG 图标，无需加载外部文件
       theme: 'classic',
       upload: {
         url: `${UPLOAD_URL}/`,
@@ -930,7 +943,6 @@
       discussionData = data.discussion;
       if (!discussionData) throw new Error('未找到该讨论');
 
-      // 清空 comment 容器（保留 #comment）
       commentContainer.innerHTML = '';
 
       const titleText = discussionData.title || '无标题';
