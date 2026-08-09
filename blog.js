@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（最终稳定版，more 子菜单完整）
+// blog.js - 文章详情页（最终版，more 功能正常）
 // ============================================================
 
 (function() {
@@ -127,7 +127,6 @@
         opacity: 1;
         background: rgba(0,0,0,0.7);
       }
-      /* 编辑器容器 */
       #vditor-container .vditor {
         border-radius: 8px;
         border: 1px solid #ddd;
@@ -699,7 +698,7 @@
     }
   }
 
-  // ---------- Vditor 初始化（官方配置，确保 more 完整） ----------
+  // ---------- Vditor 初始化（使用 jsdelivr CDN） ----------
   function initVditor() {
     const editorContainer = document.getElementById('vditor-container');
     if (!editorContainer) return;
@@ -717,17 +716,16 @@
     }
     editorContainer.innerHTML = '';
 
-    // 官方实例配置
     vditorInstance = new Vditor(editorContainer, {
       height: 200,
       minHeight: 150,
-      mode: 'wysiwyg',        // 官方示例使用 wysiwyg
+      mode: 'wysiwyg',
       placeholder: '写下你的评论...',
       value: '',
       cache: { enable: false },
       lang: 'zh_CN',
-      cdn: 'https://unpkg.com/vditor@3.10.6',
-      icon: 'ant',            // 使用 ant 图标（官方默认）
+      cdn: 'https://cdn.jsdelivr.net/npm/vditor@3.10.6', // 改用 jsdelivr
+      icon: 'ant',
       theme: 'classic',
       upload: {
         url: `${UPLOAD_URL}/`,
@@ -753,7 +751,6 @@
       }
     });
 
-    // 强制大纲左侧
     setTimeout(function() {
       const outline = document.querySelector('.vditor-outline');
       if (outline) {
@@ -762,7 +759,6 @@
       }
     }, 200);
 
-    // 提交按钮
     let submitBtn = document.getElementById('comment-submit');
     if (!submitBtn) {
       submitBtn = document.createElement('button');
