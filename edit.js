@@ -265,12 +265,12 @@
       console.error('#editing 容器未找到');
       return;
     }
-
+  
     const vditorContainer = document.createElement('div');
     vditorContainer.id = 'vditor-container';
     vditorContainer.style.cssText = 'margin:10px 0; text-align:left;';
     editingContainer.appendChild(vditorContainer);
-
+  
     if (typeof Vditor === 'undefined') {
       vditorContainer.innerHTML = '<p style="color:red;text-align:center;padding:40px;">Vditor 未加载，请刷新页面重试。</p>';
       return;
@@ -279,12 +279,13 @@
       vditorInstance.destroy();
       vditorInstance = null;
     }
-
+  
     vditorInstance = new Vditor(vditorContainer, {
       height: 500,
       mode: 'ir',
       placeholder: '',
       cache: { enable: false },
+      cdn: 'https://unpkg.com/vditor@3.10.6', // 指定 CDN
       upload: {
         url: `${UPLOAD_URL}/`,
         fieldName: 'file',
@@ -302,14 +303,14 @@
       ],
       outline: { enable: true, position: 'left' }
     });
-
-    // 使用 setTimeout 确保实例已完全初始化
+  
+    // 延迟清空
     setTimeout(function() {
       if (vditorInstance && typeof vditorInstance.setValue === 'function') {
         vditorInstance.setValue('');
       }
-    }, 100);
-
+    }, 200);
+  
     // 强制大纲左侧
     setTimeout(function() {
       const outline = document.querySelector('.vditor-outline');
@@ -317,9 +318,8 @@
         outline.style.left = '0';
         outline.style.right = 'auto';
       }
-    }, 200);
+    }, 300);
   }
-
   function buildSubmitButton() {
     if (!editingContainer) return;
     let btn = document.getElementById('edit-submit-btn');
