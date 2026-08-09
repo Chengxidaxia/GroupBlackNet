@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（采用官方实例编辑器配置）
+// blog.js - 文章详情页（稳定版，修复工具栏）
 // ============================================================
 
 (function() {
@@ -127,18 +127,10 @@
         opacity: 1;
         background: rgba(0,0,0,0.7);
       }
-      /* 官方编辑器样式微调 */
+      /* 编辑器容器样式（不干扰 Vditor 默认） */
       #vditor-container .vditor {
         border-radius: 8px;
         border: 1px solid #ddd;
-      }
-      #vditor-container .vditor-toolbar {
-        border-top-left-radius: 8px;
-        border-top-right-radius: 8px;
-      }
-      #vditor-container .vditor-content {
-        border-bottom-left-radius: 8px;
-        border-bottom-right-radius: 8px;
       }
     `;
     document.head.appendChild(style);
@@ -240,7 +232,6 @@
       });
     }
 
-    // 给 <pre> 添加内联样式
     html = html.replace(/<pre>/gi, function(match) {
       if (/style\s*=/i.test(match)) {
         return match.replace(/style\s*=\s*(["'])([^"']*)\1/i, function(m, quote, style) {
@@ -252,7 +243,6 @@
     });
     html = html.replace(/<pre/g, '<pre class="markdown-body"');
 
-    // 后处理 @ 和 #
     const linkPlaceholders = [];
     html = html.replace(/<a\b[^>]*>.*?<\/a>/gi, function(match) {
       const index = linkPlaceholders.length;
@@ -269,7 +259,6 @@
       return linkPlaceholders[parseInt(index)];
     });
 
-    // 图片限制高度
     html = html.replace(/<img([^>]*)>/gi, function(match, attrs) {
       if (/style\s*=/i.test(attrs)) {
         attrs = attrs.replace(/style\s*=\s*(["'])([^"']*)\1/i, function(m, quote, style) {
@@ -710,7 +699,7 @@
     }
   }
 
-  // ---------- Vditor 初始化（官方实例配置） ----------
+  // ---------- Vditor 初始化（稳定配置，确保工具栏显示） ----------
   function initVditor() {
     const editorContainer = document.getElementById('vditor-container');
     if (!editorContainer) return;
@@ -728,17 +717,17 @@
     }
     editorContainer.innerHTML = '';
 
-    // 官方实例配置
+    // 使用稳定配置，显式指定 CDN 为 jsdelivr，使用默认 ant 图标
     vditorInstance = new Vditor(editorContainer, {
-      height: 200,
-      minHeight: 150,
+      height: 300,
+      minHeight: 200,
       mode: 'wysiwyg',
       placeholder: '写下你的评论...',
       value: '',
       cache: { enable: false },
       lang: 'zh_CN',
-      cdn: 'https://unpkg.com/vditor@3.10.6',
-      icon: 'material',
+      cdn: 'https://cdn.jsdelivr.net/npm/vditor@3.10.6',
+      icon: 'ant',
       theme: 'classic',
       upload: {
         url: `${UPLOAD_URL}/`,
@@ -763,7 +752,6 @@
         position: 'left',
       },
       after: function(vditor) {
-        // 确保初始为空
         vditor.setValue('');
       }
     });
