@@ -1,5 +1,5 @@
 // ============================================================
-// main.js - 文章列表加载、排序、分页（图片路径改为 img/）
+// main.js - 文章列表加载、排序、分页（修复 info 解析）
 // ============================================================
 
 (function() {
@@ -23,6 +23,14 @@
   const CONTAINER = document.getElementById('main');
 
   // ---------- 辅助函数 ----------
+  function base64Decode(str) {
+    try {
+      return decodeURIComponent(escape(atob(str)));
+    } catch (e) {
+      return atob(str);
+    }
+  }
+
   function extractFirstImage(markdown) {
     if (!markdown) return null;
     const mdMatch = markdown.match(/!\[.*?\]\((.*?)\)/);
@@ -34,7 +42,45 @@
     return null;
   }
 
+  // ---------- 修复 parseFirstLine ----------
+  function parseFirstLine(body) {
+    const lines = body.split('\n');
+    const firstLine = lines.find(line => line.trim() !== '') || '';
+    let info = null;
+    let bodyText = '';
+    let isJson = false;
+
+    try {
+      const data = JSON.parse(firstLine);
+      isJson = true;
+      if (data.info) {
+        info = base64Decode(data.info);
+      } else {
+        // 如果 JSON 没有 info 字段，将整个 JSON 字符串作为 info（但一般不出现）
+        info = firstLine;
+      }
+      // 正文为剩余行
+      const restLines = lines.slice(1);
+      bodyText = restLines.join('\n').trim();
+    } catch (e) {
+      isJson = false;
+      // 不是 JSON，第一行作为简介（去除 Markdown 标记）
+      info = firstLine
+        .replace(/!\[.*?\]\(.*?\)/g, '')
+        .replace(/\[.*?\]\(.*?\)/g, '$1')
+        .replace(/[#*`>_\-]/g, '')
+        .trim() || '无简介';
+      // 正文为剩余行
+      const restLines = lines.slice(1);
+      bodyText = restLines.join('\n').trim();
+    }
+
+    if (!bodyText) bodyText = '';
+    return { info, bodyText, isJson };
+  }
+
   function getFirstLinePlainText(markdown) {
+    // 此函数可能不再需要，但保留兼容
     const lines = markdown.split('\n');
     const firstLine = lines.find(line => line.trim() !== '') || '';
     return firstLine
@@ -88,9 +134,15 @@
     const avatar = post.author.avatarUrl;
     const createdAt = formatDate(post.createdAt);
     const commentsCount = post.comments.totalCount;
-    // 修改默认图片路径为 img/pole.jpg
     const imageUrl = extractFirstImage(post.body) || 'img/pole.jpg';
-    const summary = getFirstLinePlainText(post.body);
+    // 使用 parseFirstLine 获取简介
+    const { info } = parseFirstLine(post.body);
+    // info 已经过 Base64 解码（如果是 JSON）或纯文本，这里直接使用
+    // 但 info 可能包含 Markdown，需要渲染
+    // 由于卡片简介不需要完整 Markdown 渲染，只显示纯文本摘要，我们简单处理
+    // 如果 info 是经过 JSON 解码的，可能包含 Markdown，但卡片只显示简短文本
+    // 我们直接截取纯文本
+    const summary = info ? info.replace(/[#*`>_\-]/g, '').trim() : '无简介';
     const reactionsHtml = renderReactions(post.reactionGroups);
     const detailLink = `/blog.html?d=${number}`;
 
