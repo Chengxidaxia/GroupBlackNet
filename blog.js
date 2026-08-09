@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（稳定版，修复工具栏）
+// blog.js - 文章详情页（稳定版，工具栏正常）
 // ============================================================
 
 (function() {
@@ -127,7 +127,7 @@
         opacity: 1;
         background: rgba(0,0,0,0.7);
       }
-      /* 编辑器容器样式（不干扰 Vditor 默认） */
+      /* 编辑器容器样式 */
       #vditor-container .vditor {
         border-radius: 8px;
         border: 1px solid #ddd;
@@ -699,7 +699,7 @@
     }
   }
 
-  // ---------- Vditor 初始化（稳定配置，确保工具栏显示） ----------
+  // ---------- Vditor 初始化（稳定配置） ----------
   function initVditor() {
     const editorContainer = document.getElementById('vditor-container');
     if (!editorContainer) return;
@@ -717,17 +717,16 @@
     }
     editorContainer.innerHTML = '';
 
-    // 使用稳定配置，显式指定 CDN 为 jsdelivr，使用默认 ant 图标
+    // 稳定配置：使用 ir 模式，material 图标，指定 CDN
     vditorInstance = new Vditor(editorContainer, {
-      height: 300,
-      minHeight: 200,
-      mode: 'wysiwyg',
+      height: 200,
+      mode: 'ir',                     // 即时渲染模式，工具栏完整
       placeholder: '写下你的评论...',
-      value: '',
+      value: '',                      // 初始为空，无需 after 清空
       cache: { enable: false },
       lang: 'zh_CN',
-      cdn: 'https://cdn.jsdelivr.net/npm/vditor@3.10.6',
-      icon: 'ant',
+      cdn: 'https://unpkg.com/vditor@3.10.6',
+      icon: 'material',               // material 图标集
       theme: 'classic',
       upload: {
         url: `${UPLOAD_URL}/`,
@@ -750,9 +749,6 @@
       outline: {
         enable: true,
         position: 'left',
-      },
-      after: function(vditor) {
-        vditor.setValue('');
       }
     });
 
