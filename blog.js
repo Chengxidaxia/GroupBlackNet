@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（含 Discussion Upvote 和评论/回复 Upvote）
+// blog.js - 文章详情页（含 Discussion Upvote 和评论/回复的“顶”）
 // ============================================================
 
 (function() {
@@ -294,19 +294,18 @@
   }
 
   // ============================================================
-  // 评论/回复的 Reaction 渲染（含自定义 ↑ 按钮）
+  // 评论/回复的 Reaction 渲染（含独立的“顶”↑ 按钮，保留所有表情）
   // ============================================================
   function renderReactionsForComment(reactionGroups, subjectId, canInteract = false) {
     let html = '<div class="reactions-container">';
 
-    // 1. 先添加自定义 ↑ 按钮（基于 THUMBS_UP）
+    // 1. 先添加独立的“顶”按钮（↑），基于 THUMBS_UP
     const thumbsUpGroup = reactionGroups ? reactionGroups.find(g => g.content === 'THUMBS_UP') : null;
     const count = thumbsUpGroup ? thumbsUpGroup.users.totalCount : 0;
     const viewerHasReacted = thumbsUpGroup ? thumbsUpGroup.viewerHasReacted : false;
     const isActive = viewerHasReacted && canInteract;
     const borderColor = isActive ? '#0366d6' : '#ddd';
     const bgColor = isActive ? '#dbedff' : '#f6f8fa';
-    // 只有登录用户才能交互
     if (canInteract) {
       html += `
         <div class="reaction-item reaction-btn upvote-item"
@@ -318,10 +317,9 @@
       `;
     }
 
-    // 2. 添加其它 Reaction（跳过 THUMBS_UP，因为已自定义）
+    // 2. 添加所有 Reaction（包括 THUMBS_UP，显示为 👍）
     if (reactionGroups && reactionGroups.length > 0) {
       reactionGroups.forEach(group => {
-        if (group.content === 'THUMBS_UP') return;
         const count2 = group.users.totalCount;
         const emoji = EMOJI_MAP[group.content] || group.content;
         const countId = `reaction-count-${subjectId}-${group.content}`;
@@ -331,6 +329,7 @@
         const borderColor2 = isActive2 ? '#0366d6' : '#ddd';
         const bgColor2 = isActive2 ? '#dbedff' : '#f6f8fa';
         const interactiveClass = canInteract ? 'reaction-btn' : '';
+        // 注意：这里 THUMBS_UP 也会显示为 👍
         html += `
           <div class="reaction-item ${interactiveClass}"
                data-subject-id="${subjectId}" data-reaction="${group.content}"
@@ -358,7 +357,6 @@
       const isTemp = comment.isTemp || false;
       const tempClass = isTemp ? (level === 0 ? 'temp-comment' : 'temp-reply') : '';
       const bodyHtml = `<div class="markdown-body">${renderMarkdown(comment.body, 250)}</div>`;
-      // 使用新的渲染函数（含 ↑）
       const reactionHtml = renderReactionsForComment(comment.reactionGroups || [], comment.id, isLoggedIn && !isTemp);
       const replies = comment.replies && comment.replies.nodes ? comment.replies.nodes : [];
       const sortedReplies = replies.length ? [...replies].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)) : [];
@@ -561,7 +559,7 @@
     });
   }
 
-  // ---------- Reaction 交互（通用） ----------
+  // ---------- Reaction 交互 ----------
   function updateReactionCount(subjectId, content, delta) {
     const countId = `reaction-count-${subjectId}-${content}`;
     const el = document.getElementById(countId);
@@ -830,14 +828,11 @@
 
       // ---- Discussion Upvote + Reaction ----
       const discussionId = discussionData.id;
-
-      // 读取 Upvote 数据
       discussionUpvoteCount = discussionData.upvoteCount || 0;
       discussionUpvoteState = discussionData.viewerHasUpvoted || false;
 
-      // 构建 Reaction 容器：先插入 Upvote 按钮，再添加其他 Reaction（跳过 THUMBS_UP）
+      // 构建 Reaction 容器：先插 Upvote，再显示其他 Reaction（跳过 THUMBS_UP，因为 Upvote 已独立）
       let reactionHtml = '<div class="reactions-container">';
-
       // Upvote 按钮
       const upvoteBtnHtml = `
         <div id="discussion-upvote-btn" class="reaction-item reaction-btn upvote-item" style="border:1px solid ${discussionUpvoteState ? '#0366d6' : '#ddd'}; border-radius:8px; background:${discussionUpvoteState ? '#dbedff' : '#f6f8fa'}; cursor:pointer; margin-right:16px;">
@@ -924,7 +919,6 @@
       // 确保 Upvote UI 更新
       setTimeout(() => {
         updateDiscussionUpvoteUI();
-        // 重新绑定事件（以防丢失）
         const btn = document.getElementById('discussion-upvote-btn');
         if (btn) {
           btn.removeEventListener('click', toggleDiscussionUpvote);
