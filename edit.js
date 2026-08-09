@@ -1,5 +1,5 @@
 // ============================================================
-// edit.js - 创建新讨论页面（完整修复版）
+// edit.js - 创建新讨论页面（修复编辑器残留、更多按钮、高度500、无placeholder）
 // ============================================================
 
 (function() {
@@ -293,10 +293,10 @@
     }
 
     vditorInstance = new Vditor(vditorContainer, {
-      height: 500,
+      height: 500,                      // 高度 500
       mode: 'ir',
-      placeholder: '',   // 移除 placeholder
-      cache: { enable: true, id: 'edit-vditor-cache' },
+      placeholder: '',                  // 无 placeholder
+      cache: { enable: true, id: 'edit-vditor-cache' }, // 独立缓存 ID
       upload: {
         url: `${UPLOAD_URL}/`,
         fieldName: 'file',
@@ -310,15 +310,14 @@
         'list', 'ordered-list', 'check', 'outdent', 'indent',
         'line', 'code', 'inline-code', 'table', 'upload', 'record',
         'preview', 'fullscreen', 'outline', 'edit-mode', 'both',
-        'undo', 'redo', 'more'
+        'undo', 'redo', 'more' // 确保 more 存在
       ],
-      outline: { enable: true, position: 'left' }
+      outline: { enable: true, position: 'left' },
+      // 使用 after 回调清空内容
+      after: function() {
+        this.setValue('');
+      }
     });
-
-    // 清空内容（在 after 回调中）
-    vditorInstance.after = function() {
-      vditorInstance.setValue('');
-    };
 
     // 强制大纲左侧
     setTimeout(function() {
