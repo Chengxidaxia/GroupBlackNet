@@ -700,28 +700,29 @@
   // ---------- Vditor 初始化（修复 setValue 问题） ----------
   // 只修改 initVditor 函数
   function initVditor() {
-    const editorContainer = document.getElementById('vditor-container');
-    if (!editorContainer) return;
-    if (!isLoggedIn) {
-      editorContainer.innerHTML = '<p style="text-align:center;color:#888;padding:20px;">登录后即可评论</p>';
-      return;
-    }
-    if (typeof Vditor === 'undefined') {
-      editorContainer.innerHTML = '<p style="color:red;">编辑器加载失败，请刷新页面重试。</p>';
-      return;
-    }
-    if (vditorInstance) {
-      vditorInstance.destroy();
-      vditorInstance = null;
-    }
-    editorContainer.innerHTML = '';
-  
+  const editorContainer = document.getElementById('vditor-container');
+  if (!editorContainer) return;
+  if (!isLoggedIn) {
+    editorContainer.innerHTML = '<p style="text-align:center;color:#888;padding:20px;">登录后即可评论</p>';
+    return;
+  }
+  if (typeof Vditor === 'undefined') {
+    editorContainer.innerHTML = '<p style="color:red;">编辑器加载失败，请刷新页面重试。</p>';
+    return;
+  }
+  if (vditorInstance) {
+    vditorInstance.destroy();
+    vditorInstance = null;
+  }
+  editorContainer.innerHTML = '';
+
+  try {
     vditorInstance = new Vditor(editorContainer, {
       height: 200,
       mode: 'ir',
       placeholder: '写下你的评论...',
       cache: { enable: false },
-      cdn: 'https://unpkg.com/vditor@3.10.6', // 指定 CDN，确保资源完整
+      cdn: 'https://unpkg.com/vditor@3.10.6',
       upload: {
         url: `${UPLOAD_URL}/`,
         fieldName: 'file',
@@ -735,18 +736,22 @@
         'list', 'ordered-list', 'check', 'outdent', 'indent',
         'line', 'code', 'inline-code', 'table', 'upload', 'record',
         'preview', 'fullscreen', 'outline', 'edit-mode', 'both',
-        'undo', 'redo', 'more' // 保留 more
+        'undo', 'redo', 'more'
       ],
       outline: { enable: true, position: 'left' }
     });
-  
-    // 延迟清空，确保实例完全初始化
+
+    // 延迟清空内容（确保实例已创建）
     setTimeout(function() {
-      if (vditorInstance && typeof vditorInstance.setValue === 'function') {
-        vditorInstance.setValue('');
+      try {
+        if (vditorInstance && typeof vditorInstance.setValue === 'function') {
+          vditorInstance.setValue('');
+        }
+      } catch (e) {
+        console.warn('清空编辑器内容失败:', e);
       }
-    }, 200);
-  
+    }, 300);
+
     // 强制大纲左侧
     setTimeout(function() {
       const outline = document.querySelector('.vditor-outline');
@@ -754,30 +759,32 @@
         outline.style.left = '0';
         outline.style.right = 'auto';
       }
-    }, 300);
-  
-    // 提交按钮逻辑保持不变...
-
-
-    let submitBtn = document.getElementById('comment-submit');
-    if (!submitBtn) {
-      submitBtn = document.createElement('button');
-      submitBtn.id = 'comment-submit';
-      submitBtn.textContent = '发表评论';
-      submitBtn.style.cssText = `
-        margin-top: 10px;
-        padding: 8px 20px;
-        background: #2da44e;
-        color: white;
-        border: none;
-        border-radius: 6px;
-        font-size: 16px;
-        cursor: pointer;
-      `;
-      submitBtn.addEventListener('click', submitComment);
-      editorContainer.parentNode.insertBefore(submitBtn, editorContainer.nextSibling);
-    }
+    }, 400);
+  } catch (e) {
+    console.error('Vditor 初始化失败:', e);
+    editorContainer.innerHTML = '<p style="color:red;text-align:center;padding:20px;">编辑器加载失败，请刷新页面重试。</p>';
   }
+
+  // 提交按钮逻辑（如果有）
+  let submitBtn = document.getElementById('comment-submit');
+  if (!submitBtn) {
+    submitBtn = document.createElement('button');
+    submitBtn.id = 'comment-submit';
+    submitBtn.textContent = '发表评论';
+    submitBtn.style.cssText = `
+      margin-top: 10px;
+      padding: 8px 20px;
+      background: #2da44e;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 16px;
+      cursor: pointer;
+    `;
+    submitBtn.addEventListener('click', submitComment);
+    editorContainer.parentNode.insertBefore(submitBtn, editorContainer.nextSibling);
+  }
+}
 
   // ---------- 加载讨论 ----------
   async function loadDiscussionFull(discussionNumber) {
