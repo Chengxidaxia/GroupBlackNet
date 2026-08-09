@@ -1,6 +1,5 @@
 // ============================================================
-// blog.js - 文章详情页（完全官方风格）
-// 采用 Vditor 官方示例配置，无 hack
+// blog.js - 文章详情页（完全官方风格 + 调试）
 // ============================================================
 
 (function() {
@@ -25,7 +24,7 @@
   let allComments = [];
   let totalComments = 0;
   let userReactions = {};
-  let isSubmitting = false; // 防重复提交
+  let isSubmitting = false;
 
   // ---------- 样式注入 ----------
   function injectStyles() {
@@ -129,7 +128,6 @@
         opacity: 1;
         background: rgba(0,0,0,0.7);
       }
-      /* 编辑器容器 */
       #vditor-container .vditor {
         border-radius: 8px;
         border: 1px solid #ddd;
@@ -234,7 +232,6 @@
       });
     }
 
-    // 给 <pre> 添加内联样式
     html = html.replace(/<pre>/gi, function(match) {
       if (/style\s*=/i.test(match)) {
         return match.replace(/style\s*=\s*(["'])([^"']*)\1/i, function(m, quote, style) {
@@ -246,7 +243,6 @@
     });
     html = html.replace(/<pre/g, '<pre class="markdown-body"');
 
-    // 后处理 @ 和 #
     const linkPlaceholders = [];
     html = html.replace(/<a\b[^>]*>.*?<\/a>/gi, function(match) {
       const index = linkPlaceholders.length;
@@ -263,7 +259,6 @@
       return linkPlaceholders[parseInt(index)];
     });
 
-    // 图片限制高度
     html = html.replace(/<img([^>]*)>/gi, function(match, attrs) {
       if (/style\s*=/i.test(attrs)) {
         attrs = attrs.replace(/style\s*=\s*(["'])([^"']*)\1/i, function(m, quote, style) {
@@ -513,6 +508,14 @@
       }
       if (isSubmitting) return;
       isSubmitting = true;
+
+      // 调试信息
+      console.log('[回复] 提交 payload:', {
+        discussionId: discussionData.id,
+        body: body,
+        parentCommentId: parentId
+      });
+
       try {
         const res = await fetch(`${OAUTH_BASE}/comment`, {
           method: 'POST',
@@ -525,6 +528,7 @@
           })
         });
         const data = await res.json();
+        console.log('[回复] 响应:', data);
         if (res.ok) {
           const d = discussionData.number;
           await loadDiscussionFull(d);
@@ -532,7 +536,7 @@
           alert(data.error || '回复失败');
         }
       } catch (error) {
-        console.error('回复异常:', error);
+        console.error('[回复] 异常:', error);
         alert('网络错误，请稍后重试');
       } finally {
         isSubmitting = false;
@@ -669,7 +673,7 @@
     container.appendChild(wrapper);
   }
 
-  // ---------- 提交评论（防重复） ----------
+  // ---------- 提交评论 ----------
   async function submitComment() {
     if (isSubmitting) return;
     if (!vditorInstance) {
@@ -688,6 +692,7 @@
     isSubmitting = true;
     const discussionId = discussionData.id;
     const payload = { discussionId, body };
+    console.log('[评论] 提交 payload:', payload);
     try {
       const res = await fetch(`${OAUTH_BASE}/comment`, {
         method: 'POST',
@@ -696,6 +701,7 @@
         body: JSON.stringify(payload)
       });
       const data = await res.json();
+      console.log('[评论] 响应:', data);
       if (res.ok) {
         vditorInstance.setValue('');
         const d = discussionData.number;
@@ -712,7 +718,7 @@
     }
   }
 
-  // ---------- Vditor 初始化（完全官方风格） ----------
+  // ---------- Vditor 初始化 ----------
   function initVditor() {
     const editorContainer = document.getElementById('vditor-container');
     if (!editorContainer) return;
@@ -730,7 +736,7 @@
     }
     editorContainer.innerHTML = '';
 
-    // 官方示例配置
+    // 完全官方工具栏配置
     vditorInstance = new Vditor(editorContainer, {
       height: 200,
       minHeight: 150,
@@ -750,12 +756,14 @@
         multiple: false,
         withCredentials: true,
       },
+      // 官方工具栏顺序 + 自定义提交按钮
       toolbar: [
-        'emoji', 'headings', 'bold', 'italic', 'strike', 'link', 'quote',
-        'list', 'ordered-list', 'check', 'outdent', 'indent',
-        'line', 'code', 'inline-code', 'table', 'upload', 'record',
-        'preview', 'fullscreen', 'outline', 'edit-mode', 'both',
-        'undo', 'redo', 'more',
+        'emoji', 'headings', 'bold', 'italic', 'strike', 'link', '|',
+        'list', 'ordered-list', 'check', 'outdent', 'indent', '|',
+        'quote', 'line', 'code', 'inline-code', 'insert-before', 'insert-after', '|',
+        'upload', 'record', 'table', '|',
+        'undo', 'redo', '|',
+        'fullscreen', 'edit-mode', 'both', 'more',
         '|',
         {
           name: 'submit',
@@ -782,7 +790,7 @@
       }
     }, 200);
 
-    // 底部“发表评论”按钮（可选，也可省略，但为了兼容保留）
+    // 底部“发表评论”按钮（保留，但可复用）
     let submitBtn = document.getElementById('comment-submit');
     if (!submitBtn) {
       submitBtn = document.createElement('button');
@@ -801,7 +809,6 @@
       submitBtn.addEventListener('click', submitComment);
       editorContainer.parentNode.insertBefore(submitBtn, editorContainer.nextSibling);
     } else {
-      // 确保事件绑定
       submitBtn.removeEventListener('click', submitComment);
       submitBtn.addEventListener('click', submitComment);
     }
