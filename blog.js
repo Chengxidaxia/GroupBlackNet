@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 完整版（未登录时 upvote 显示为不可点击按钮）
+// blog.js - 完整版（图片查看器支持滚轮缩放和拖拽）
 // ============================================================
 
 (function() {
@@ -33,10 +33,38 @@
     const style = document.createElement('style');
     style.id = 'blog-styles';
     style.textContent = `
-      .image-viewer-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); display:flex; align-items:center; justify-content:center; z-index:9999; cursor:pointer; }
-      .image-viewer-overlay img { max-width:90%; max-height:90%; object-fit:contain; }
-      .image-viewer-close { position:fixed; top:20px; right:30px; font-size:40px; color:#fff; opacity:0.7; cursor:pointer; z-index:10000; background:none; border:none; padding:10px; }
+      .image-viewer-overlay {
+        position:fixed; top:0; left:0; width:100%; height:100%;
+        background:rgba(0,0,0,0.85);
+        display:flex; align-items:center; justify-content:center;
+        z-index:9999; cursor:grab;
+      }
+      .image-viewer-overlay.dragging {
+        cursor:grabbing;
+      }
+      .image-viewer-overlay .viewer-img {
+        max-width:90vw;
+        max-height:90vh;
+        object-fit:contain;
+        transition:transform 0.05s linear;
+        transform:translate(0,0) scale(1);
+        user-select:none;
+        -webkit-user-drag:none;
+      }
+      .image-viewer-close {
+        position:fixed; top:20px; right:30px;
+        font-size:40px; color:#fff; opacity:0.7;
+        cursor:pointer; z-index:10000;
+        background:none; border:none; padding:10px;
+      }
       .image-viewer-close:hover { opacity:1; }
+      .image-viewer-info {
+        position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+        color:#ccc; font-size:14px; background:rgba(0,0,0,0.5);
+        padding:4px 12px; border-radius:12px;
+        pointer-events:none; z-index:10001;
+        font-family:sans-serif;
+      }
       .temp-comment, .temp-reply { opacity:0.7; background:#f0f9f0; border-left:3px solid #2da44e; padding-left:8px; }
 
       .pagination-btn { margin:0 2px; padding:4px 10px; border:1px solid #ccc; background:#fff; color:#333; cursor:pointer; border-radius:4px; font-size:12pt; transition:background 0.2s; }
@@ -66,7 +94,7 @@
   }
   injectStyles();
 
-  // ---------- 图片查看器 ----------
+  // ---------- 图片查看器（增强版） ----------
   function initImageViewer() {
     document.addEventListener('dblclick', function(e) {
       const img = e.target.closest('.markdown-body img, .comment-item img');
@@ -77,27 +105,127 @@
       showImageViewer(src);
     });
   }
+
   function showImageViewer(src) {
+    // 创建 overlay
     const overlay = document.createElement('div');
     overlay.className = 'image-viewer-overlay';
-    overlay.innerHTML = `<img src="${src}" alt="查看大图" /><button class="image-viewer-close" title="关闭">✕</button>`;
+    overlay.style.cursor = 'grab';
+
+    // 图片元素
+    const img = document.createElement('img');
+    img.src = src;
+    img.className = 'viewer-img';
+    img.draggable = false;
+
+    // 关闭按钮
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'image-viewer-close';
+    closeBtn.textContent = '✕';
+    closeBtn.title = '关闭 (ESC)';
+
+    // 缩放信息提示
+    const info = document.createElement('div');
+    info.className = 'image-viewer-info';
+    info.textContent = '滚轮缩放 · 拖拽移动';
+
+    overlay.appendChild(img);
+    overlay.appendChild(closeBtn);
+    overlay.appendChild(info);
     document.body.appendChild(overlay);
-    overlay.querySelector('.image-viewer-close').addEventListener('click', function(e) {
-      e.stopPropagation();
+
+    // 状态变量
+    let scale = 1;
+    let translateX = 0;
+    let translateY = 0;
+    let isDragging = false;
+    let startX = 0, startY = 0;
+    let startTranslateX = 0, startTranslateY = 0;
+
+    function updateTransform() {
+      img.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+    }
+
+    // --- 滚轮缩放 ---
+    function onWheel(e) {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.1 : 0.1;
+      scale = Math.min(Math.max(0.2, scale + delta), 5);
+      // 滚轮缩放时，如果图片是居中显示的，缩放会以图片中心为原点，保持中心位置不变。
+      // 为了更自然，我们可以保持中心点不变，但简单起见，直接缩放。
+      updateTransform();
+    }
+    overlay.addEventListener('wheel', onWheel, { passive: false });
+
+    // --- 拖拽 ---
+    function onMouseDown(e) {
+      // 只允许左键
+      if (e.button !== 0) return;
+      isDragging = true;
+      overlay.style.cursor = 'grabbing';
+      startX = e.clientX;
+      startY = e.clientY;
+      startTranslateX = translateX;
+      startTranslateY = translateY;
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+      e.preventDefault();
+    }
+
+    function onMouseMove(e) {
+      if (!isDragging) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      translateX = startTranslateX + dx;
+      translateY = startTranslateY + dy;
+      updateTransform();
+    }
+
+    function onMouseUp(e) {
+      if (!isDragging) return;
+      isDragging = false;
+      overlay.style.cursor = 'grab';
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    }
+
+    overlay.addEventListener('mousedown', onMouseDown);
+
+    // 防止拖动时选中文本
+    overlay.addEventListener('dragstart', (e) => e.preventDefault());
+
+    // --- 关闭 ---
+    function closeViewer() {
       overlay.remove();
+      document.removeEventListener('keydown', escHandler);
+      // 清理事件监听（但 overlay 已移除，无需额外操作）
+    }
+
+    closeBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      closeViewer();
     });
+
     overlay.addEventListener('click', function(e) {
-      if (e.target === overlay) overlay.remove();
-    });
-    document.addEventListener('keydown', function escHandler(e) {
-      if (e.key === 'Escape') {
-        overlay.remove();
-        document.removeEventListener('keydown', escHandler);
+      // 如果点击的是 overlay 背景（而不是图片或其他元素），则关闭
+      if (e.target === overlay) {
+        // 如果正在拖动则不关闭
+        if (!isDragging) {
+          closeViewer();
+        }
       }
     });
+
+    // ESC 键关闭
+    function escHandler(e) {
+      if (e.key === 'Escape') {
+        closeViewer();
+      }
+    }
+    document.addEventListener('keydown', escHandler);
   }
 
-  // ---------- 辅助函数 ----------
+  // ---------- 其余辅助函数（保持不变） ----------
   function base64Decode(str) {
     try { return decodeURIComponent(escape(atob(str))); } catch(e) { return atob(str); }
   }
@@ -252,10 +380,8 @@
     const isActive = viewerHasUpvoted;
     const borderColor = isActive ? '#0366d6' : '#ddd';
     const bgColor = isActive ? '#dbedff' : '#f6f8fa';
-    // 未登录时添加 disabled 类，样式灰显且不可点击
     const disabledClass = canInteract ? '' : ' upvote-disabled';
     const interactiveAttr = canInteract ? `data-subject-id="${subjectId}"` : '';
-    // 未登录时不绑定事件，所以去掉 data-subject-id 和 reaction-btn 类
     const btnClass = canInteract ? 'reaction-item reaction-btn upvote-item' : 'reaction-item upvote-item upvote-disabled';
     return `
       <div class="${btnClass}" ${interactiveAttr}
@@ -276,10 +402,8 @@
     const viewerHasUpvoted = comment.viewerHasUpvoted || false;
 
     let html = '<div class="reactions-container">';
-    // 1. Upvote（登录可交互，未登录不可点击但显示边框）
     html += renderUpvoteButton(subjectId, upvoteCount, viewerHasUpvoted, canInteract);
 
-    // 2. 所有 Reaction（包括 THUMBS_UP 👍）
     if (comment.reactionGroups && comment.reactionGroups.length > 0) {
       comment.reactionGroups.forEach(group => {
         const count = group.users.totalCount;
@@ -802,10 +926,8 @@
       const viewerHasUpvoted = discussionData.viewerHasUpvoted || false;
 
       let reactionHtml = '<div class="reactions-container">';
-      // 1. Upvote（登录可交互，未登录不可点击但显示边框）
       reactionHtml += renderUpvoteButton(discussionId, upvoteCount, viewerHasUpvoted, isLoggedIn);
 
-      // 2. 所有 Reaction（包括 THUMBS_UP 👍）
       if (discussionData.reactionGroups && discussionData.reactionGroups.length > 0) {
         discussionData.reactionGroups.forEach(group => {
           const count = group.users.totalCount;
@@ -833,7 +955,6 @@
       reactionDiv.innerHTML = reactionHtml;
       commentContainer.appendChild(reactionDiv);
 
-      // 绑定 Upvote 和 Reaction 事件
       bindUpvoteEvents();
       bindReactionEvents();
 
