@@ -1,5 +1,5 @@
 // ============================================================
-// edit.js - 创建新讨论（防重复提交，封面默认图使用完整 URL）
+// edit.js - 创建新讨论（高度 800px，滚动隔离）
 // ============================================================
 
 (function() {
@@ -47,7 +47,6 @@
     const style = document.createElement('style');
     style.id = 'edit-styles';
     style.textContent = `
-      /* 宽度 85%，无 max-width，与 container_7b322585 保持一致 */
       #editing { width:85%; margin:0 auto; display:block; min-height:400px; }
       #vditor-container { margin:10px 0; text-align:left; width:100%; }
       .upload-area {
@@ -210,7 +209,6 @@
 
   // ========== 提交讨论（防重复提交） ==========
   async function submitDiscussion() {
-    // 防重复提交
     if (isSubmitting) return;
     if (!vditorInstance) {
       alert('编辑器未初始化');
@@ -249,13 +247,11 @@
     const payload = { title, body: fullBody };
     console.log('创建讨论 payload:', payload);
 
-    // 禁用提交按钮（工具栏中的自定义按钮和可能存在的底部按钮）
     const toolbarBtn = document.querySelector('.vditor-toolbar__item[data-name="submit"]');
     const bottomBtn = document.getElementById('edit-submit-btn');
     const disableButtons = () => {
       if (toolbarBtn) toolbarBtn.style.pointerEvents = 'none';
       if (bottomBtn) bottomBtn.disabled = true;
-      // 增加视觉反馈
       if (toolbarBtn) toolbarBtn.style.opacity = '0.5';
     };
     const enableButtons = () => {
@@ -294,9 +290,6 @@
       enableButtons();
     } finally {
       isSubmitting = false;
-      // 如果页面未跳转，启用按钮；若跳转则无需操作
-      // 但为了安全，在 finally 中调用 enableButtons（若跳转则页面卸载，无影响）
-      // 但若跳转，则执行不到这里，所以不用担心
     }
   }
 
@@ -312,6 +305,11 @@
     vditorContainer.style.cssText = 'margin:10px 0; text-align:left; width:100%;';
     editingContainer.appendChild(vditorContainer);
 
+    // ★ 阻止滚动事件冒泡，使滚动仅在编辑器内部生效 ★
+    vditorContainer.addEventListener('wheel', function(e) {
+      e.stopPropagation();
+    }, { passive: true });
+
     if (typeof Vditor === 'undefined') {
       vditorContainer.innerHTML = '<p style="color:red;text-align:center;padding:40px;">Vditor 未加载，请刷新页面重试。</p>';
       return;
@@ -322,7 +320,7 @@
     }
 
     vditorInstance = new Vditor(vditorContainer, {
-      height: 500,
+      height: 800, // ★ 高度改为 800px ★
       mode: 'ir',
       placeholder: '',
       value: '',
