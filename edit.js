@@ -1,5 +1,5 @@
 // ============================================================
-// edit.js - 创建新讨论（高度 800px，滚动隔离）
+// edit.js - 创建新讨论（高度 800px，滚动隔离，支持视频上传）
 // ============================================================
 
 (function() {
@@ -320,7 +320,7 @@
     }
 
     vditorInstance = new Vditor(vditorContainer, {
-      height: 800, // ★ 高度改为 800px ★
+      height: 800,
       mode: 'ir',
       placeholder: '',
       value: '',
@@ -332,8 +332,10 @@
       upload: {
         url: `${UPLOAD_URL}/`,
         fieldName: 'file',
-        accept: 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml',
-        max: 32 * 1024 * 1024,
+        // ★ 支持图片和视频 ★
+        accept: 'image/*,video/*',
+        // ★ 放宽大小限制到 200MB ★
+        max: 200 * 1024 * 1024,
         multiple: false,
         withCredentials: true,
       },
