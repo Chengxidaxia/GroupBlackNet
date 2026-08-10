@@ -1,5 +1,5 @@
 // ============================================================
-// main.js - 首页文章列表（公告置顶修复 + 封面高度 300px）
+// main.js - 首页文章列表（公告置顶修复 + 分页始终显示）
 // ============================================================
 
 (function() {
@@ -124,11 +124,12 @@
     return group ? group.users.totalCount : 0;
   }
 
-  // ---------- 判断是否为公告（兼容大小写） ----------
+  // ---------- 判断是否为公告（精确匹配 "Announcements"） ----------
   function isAnnouncement(post) {
     if (!post.category) return false;
     const name = post.category.name || '';
-    return name.toLowerCase() === 'announcement';
+    // GitHub 返回的是 "Announcements"，所以精确匹配
+    return name === 'Announcements';
   }
 
   // ---------- 生成卡片 ----------
@@ -205,7 +206,6 @@
   function sortPosts(posts, sortType, ascending) {
     let sorted = posts.slice();
 
-    // 默认排序时，公告置顶（且非搜索状态）
     if (sortType === 'Default' && !isSearching) {
       const announcements = sorted.filter(p => isAnnouncement(p));
       const others = sorted.filter(p => !isAnnouncement(p));
@@ -214,7 +214,6 @@
       return announcements.concat(others);
     }
 
-    // 其他排序方式
     if (sortType === 'CREATE_AT') {
       sorted.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
     } else if (sortType === 'UPDATED_AT') {
@@ -265,7 +264,7 @@
     renderPagination();
   }
 
-  // ---------- 分页 ----------
+  // ---------- 分页（始终显示，包括只有一页） ----------
   function renderPagination() {
     const topEl = document.getElementById('pagination-top');
     const bottomEl = document.getElementById('pagination-bottom');
@@ -275,9 +274,31 @@
 
   function createPaginationButtons(container) {
     container.innerHTML = '';
-    if (totalPages <= 1) return;
+    // 始终显示分页，即使只有一页
     const wrapper = document.createElement('div');
     wrapper.style.cssText = 'text-align:center; padding:10px 0;';
+    // 上一页按钮（当前页为1时禁用）
+    const prevBtn = document.createElement('button');
+    prevBtn.textContent = '‹';
+    prevBtn.style.cssText = `
+      margin: 0 4px;
+      padding: 4px 10px;
+      border: 1px solid #ccc;
+      background: ${currentPage <= 1 ? '#eee' : '#fff'};
+      color: ${currentPage <= 1 ? '#aaa' : '#333'};
+      cursor: ${currentPage <= 1 ? 'not-allowed' : 'pointer'};
+      border-radius: 4px;
+      font-size: 12pt;
+    `;
+    if (currentPage > 1) {
+      prevBtn.addEventListener('click', function() {
+        currentPage--;
+        renderCards();
+      });
+    }
+    wrapper.appendChild(prevBtn);
+
+    // 页码按钮
     for (let i = 1; i <= totalPages; i++) {
       const btn = document.createElement('button');
       btn.textContent = i;
@@ -299,6 +320,28 @@
       })(i));
       wrapper.appendChild(btn);
     }
+
+    // 下一页按钮
+    const nextBtn = document.createElement('button');
+    nextBtn.textContent = '›';
+    nextBtn.style.cssText = `
+      margin: 0 4px;
+      padding: 4px 10px;
+      border: 1px solid #ccc;
+      background: ${currentPage >= totalPages ? '#eee' : '#fff'};
+      color: ${currentPage >= totalPages ? '#aaa' : '#333'};
+      cursor: ${currentPage >= totalPages ? 'not-allowed' : 'pointer'};
+      border-radius: 4px;
+      font-size: 12pt;
+    `;
+    if (currentPage < totalPages) {
+      nextBtn.addEventListener('click', function() {
+        currentPage++;
+        renderCards();
+      });
+    }
+    wrapper.appendChild(nextBtn);
+
     container.appendChild(wrapper);
   }
 
@@ -330,7 +373,7 @@
       filteredPosts = [];
       isSearching = false;
       console.log(`✅ 成功获取 ${allPosts.length} 篇文章`);
-      // 调试：打印每个帖子的 category
+      // 调试公告信息
       allPosts.forEach(p => {
         if (p.category) {
           console.log(`帖子 #${p.number}: ${p.title} -> category: ${p.category.name}`);
