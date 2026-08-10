@@ -1,5 +1,5 @@
 // ============================================================
-// main.js - 首页文章列表（公告置顶修复 + 分页正常）
+// main.js - 首页文章列表（封面图自适应宽度）
 // ============================================================
 
 (function() {
@@ -46,7 +46,7 @@
 
   function getFirstLinePlainText(markdown) {
     const lines = markdown.split('\n');
-    const firstLine = lines[0] || '';   // 只取第一行
+    const firstLine = lines[0] || '';
     return firstLine
       .replace(/!\[.*?\]\(.*?\)/g, '')
       .replace(/\[.*?\]\(.*?\)/g, '$1')
@@ -56,7 +56,7 @@
 
   function parseFirstLine(body) {
     const lines = body.split('\n');
-    const firstLine = lines[0] || '';   // 直接取第一行
+    const firstLine = lines[0] || '';
     let info = null;
     let icon = null;
     let bodyText = '';
@@ -163,7 +163,7 @@
                   ${summary ? `<span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000; line-height: 1.5;">${summary}</span>` : ''}
                 </div>
                 <div style="text-align:right;">
-                  <img src="${imageUrl}" style="vertical-align: bottom; position:relative; display: inline-block; height:300px; background:none;" alt="" onerror="this.src='img/pole.jpg'" />
+                  <img src="${imageUrl}" style="vertical-align: bottom; position:relative; display: inline-block; height:300px; max-width:100%; background:none;" alt="" onerror="this.src='img/pole.jpg'" />
                 </div>
                 <div style="text-align:left;">
                   <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000; line-height: 1.5;"><br/><br/><br/></span>
@@ -359,7 +359,7 @@
     renderCards();
   }
 
-  // ---------- ★★★ 加载数据（循环获取所有页） ★★★ ----------
+  // ---------- 加载数据（循环获取所有页） ----------
   async function fetchAllPosts() {
     if (cardsContainer) {
       cardsContainer.innerHTML = '<p style="text-align:center;padding:20px;">加载中...</p>';
