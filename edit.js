@@ -1,5 +1,5 @@
 // ============================================================
-// edit.js - 创建新讨论（高度 800px，滚动隔离，支持视频上传）
+// edit.js - 创建新讨论（more 正确配置为对象）
 // ============================================================
 
 (function() {
@@ -207,7 +207,7 @@
     }
   }
 
-  // ========== 提交讨论（防重复提交） ==========
+  // ========== 提交讨论 ==========
   async function submitDiscussion() {
     if (isSubmitting) return;
     if (!vditorInstance) {
@@ -305,7 +305,6 @@
     vditorContainer.style.cssText = 'margin:10px 0; text-align:left; width:100%;';
     editingContainer.appendChild(vditorContainer);
 
-    // ★ 阻止滚动事件冒泡，使滚动仅在编辑器内部生效 ★
     vditorContainer.addEventListener('wheel', function(e) {
       e.stopPropagation();
     }, { passive: true });
@@ -332,10 +331,8 @@
       upload: {
         url: `${UPLOAD_URL}/`,
         fieldName: 'file',
-        // ★ 支持图片和视频 ★
-        accept: 'image/*,video/*',
-        // ★ 放宽大小限制到 200MB ★
-        max: 200 * 1024 * 1024,
+        accept: 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml,video/mp4,video/webm,video/ogg,video/quicktime',
+        max: 100 * 1024 * 1024,
         multiple: false,
         withCredentials: true,
       },
@@ -345,7 +342,11 @@
         'quote', 'line', 'code', 'inline-code', 'insert-before', 'insert-after', '|',
         'upload', 'record', 'table', '|',
         'undo', 'redo', '|',
-        'fullscreen', 'edit-mode', 'both', 'more',
+        'fullscreen', 'edit-mode', 'both',
+        {
+          name: 'more',
+          toolbar: ['both', 'code-theme', 'content-theme', 'export', 'outline', 'preview', 'devtools', 'info', 'help']
+        },
         '|',
         {
           name: 'submit',
@@ -354,14 +355,8 @@
           click: submitDiscussion
         }
       ],
-      toolbarConfig: {
-        pin: true,
-        more: ['table', 'record', 'upload', 'outline', 'fullscreen', 'edit-mode', 'both']
-      },
-      outline: {
-        enable: true,
-        position: 'left',
-      }
+      toolbarConfig: { pin: true },
+      outline: { enable: true, position: 'left' }
     });
 
     setTimeout(function() {
