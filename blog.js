@@ -1,5 +1,5 @@
 // ============================================================
-// blog.js - 完整版（图片查看器支持滚轮缩放和拖拽）
+// blog.js - 完整版（more 正确配置为对象）
 // ============================================================
 
 (function() {
@@ -39,17 +39,12 @@
         display:flex; align-items:center; justify-content:center;
         z-index:9999; cursor:grab;
       }
-      .image-viewer-overlay.dragging {
-        cursor:grabbing;
-      }
+      .image-viewer-overlay.dragging { cursor:grabbing; }
       .image-viewer-overlay .viewer-img {
-        max-width:90vw;
-        max-height:90vh;
-        object-fit:contain;
+        max-width:90vw; max-height:90vh; object-fit:contain;
         transition:transform 0.05s linear;
         transform:translate(0,0) scale(1);
-        user-select:none;
-        -webkit-user-drag:none;
+        user-select:none; -webkit-user-drag:none;
       }
       .image-viewer-close {
         position:fixed; top:20px; right:30px;
@@ -94,7 +89,7 @@
   }
   injectStyles();
 
-  // ---------- 图片查看器（增强版） ----------
+  // ---------- 图片查看器 ----------
   function initImageViewer() {
     document.addEventListener('dblclick', function(e) {
       const img = e.target.closest('.markdown-body img, .comment-item img');
@@ -107,24 +102,20 @@
   }
 
   function showImageViewer(src) {
-    // 创建 overlay
     const overlay = document.createElement('div');
     overlay.className = 'image-viewer-overlay';
     overlay.style.cursor = 'grab';
 
-    // 图片元素
     const img = document.createElement('img');
     img.src = src;
     img.className = 'viewer-img';
     img.draggable = false;
 
-    // 关闭按钮
     const closeBtn = document.createElement('button');
     closeBtn.className = 'image-viewer-close';
     closeBtn.textContent = '✕';
     closeBtn.title = '关闭 (ESC)';
 
-    // 缩放信息提示
     const info = document.createElement('div');
     info.className = 'image-viewer-info';
     info.textContent = '滚轮缩放 · 拖拽移动';
@@ -134,7 +125,6 @@
     overlay.appendChild(info);
     document.body.appendChild(overlay);
 
-    // 状态变量
     let scale = 1;
     let translateX = 0;
     let translateY = 0;
@@ -146,20 +136,14 @@
       img.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
     }
 
-    // --- 滚轮缩放 ---
-    function onWheel(e) {
+    overlay.addEventListener('wheel', function(e) {
       e.preventDefault();
       const delta = e.deltaY > 0 ? -0.1 : 0.1;
       scale = Math.min(Math.max(0.2, scale + delta), 5);
-      // 滚轮缩放时，如果图片是居中显示的，缩放会以图片中心为原点，保持中心位置不变。
-      // 为了更自然，我们可以保持中心点不变，但简单起见，直接缩放。
       updateTransform();
-    }
-    overlay.addEventListener('wheel', onWheel, { passive: false });
+    }, { passive: false });
 
-    // --- 拖拽 ---
-    function onMouseDown(e) {
-      // 只允许左键
+    overlay.addEventListener('mousedown', function(e) {
       if (e.button !== 0) return;
       isDragging = true;
       overlay.style.cursor = 'grabbing';
@@ -170,7 +154,7 @@
       document.addEventListener('mousemove', onMouseMove);
       document.addEventListener('mouseup', onMouseUp);
       e.preventDefault();
-    }
+    });
 
     function onMouseMove(e) {
       if (!isDragging) return;
@@ -189,16 +173,11 @@
       document.removeEventListener('mouseup', onMouseUp);
     }
 
-    overlay.addEventListener('mousedown', onMouseDown);
-
-    // 防止拖动时选中文本
     overlay.addEventListener('dragstart', (e) => e.preventDefault());
 
-    // --- 关闭 ---
     function closeViewer() {
       overlay.remove();
       document.removeEventListener('keydown', escHandler);
-      // 清理事件监听（但 overlay 已移除，无需额外操作）
     }
 
     closeBtn.addEventListener('click', function(e) {
@@ -207,16 +186,11 @@
     });
 
     overlay.addEventListener('click', function(e) {
-      // 如果点击的是 overlay 背景（而不是图片或其他元素），则关闭
-      if (e.target === overlay) {
-        // 如果正在拖动则不关闭
-        if (!isDragging) {
-          closeViewer();
-        }
+      if (e.target === overlay && !isDragging) {
+        closeViewer();
       }
     });
 
-    // ESC 键关闭
     function escHandler(e) {
       if (e.key === 'Escape') {
         closeViewer();
@@ -225,7 +199,7 @@
     document.addEventListener('keydown', escHandler);
   }
 
-  // ---------- 其余辅助函数（保持不变） ----------
+  // ---------- 辅助函数 ----------
   function base64Decode(str) {
     try { return decodeURIComponent(escape(atob(str))); } catch(e) { return atob(str); }
   }
@@ -246,36 +220,30 @@
   };
   function parseFirstLine(body) {
     const lines = body.split('\n');
-    const firstLine = lines[0] || '';   // 直接取第一行，不跳过空行
+    const firstLine = lines[0] || '';
     let info = null;
     let bodyText = '';
     let isJson = false;
 
-    // 尝试解析 JSON
     try {
       const data = JSON.parse(firstLine);
       isJson = true;
       if (data.info) {
         info = base64Decode(data.info);
       }
-      // 如果 data.info 为空，则 info 保持 null
       const restLines = lines.slice(1);
       bodyText = restLines.join('\n').trim();
     } catch (e) {
-      // 不是 JSON，视为纯文本简介
       const trimmed = firstLine.trim();
       if (trimmed) {
         info = trimmed;
       } else {
-        info = null;   // 第一行为空，无简介
+        info = null;
       }
       const restLines = lines.slice(1);
       bodyText = restLines.join('\n').trim();
     }
-
-    // 如果 info 为空字符串或 null，统一设为 null
     if (info === '' || info === null) info = null;
-
     return { info, bodyText, isJson };
   }
 
@@ -391,7 +359,7 @@
   }
 
   // ============================================================
-  // 渲染 Upvote 按钮（登录显示可交互，未登录显示不可点击但带边框）
+  // Upvote 相关函数（保持不变）
   // ============================================================
   function renderUpvoteButton(subjectId, upvoteCount, viewerHasUpvoted, canInteract = false) {
     const isActive = viewerHasUpvoted;
@@ -409,9 +377,6 @@
     `;
   }
 
-  // ============================================================
-  // 评论的渲染（含 Upvote 和 Reaction）
-  // ============================================================
   function renderReactionsForComment(comment) {
     const canInteract = isLoggedIn;
     const subjectId = comment.id;
@@ -445,7 +410,6 @@
     return html;
   }
 
-  // ---------- 评论树渲染 ----------
   function renderCommentTree(comments, level = 0) {
     if (!comments || comments.length === 0) return '';
     const sorted = [...comments].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -868,6 +832,7 @@
       vditorInstance = null;
     }
     editorContainer.innerHTML = '';
+
     vditorInstance = new Vditor(editorContainer, {
       height: 200,
       minHeight: 150,
@@ -893,7 +858,11 @@
         'quote', 'line', 'code', 'inline-code', 'insert-before', 'insert-after', '|',
         'upload', 'record', 'table', '|',
         'undo', 'redo', '|',
-        'fullscreen', 'edit-mode', 'both', 'more',
+        'fullscreen', 'edit-mode', 'both',
+        {
+          name: 'more',
+          toolbar: ['both', 'code-theme', 'content-theme', 'export', 'outline', 'preview', 'devtools', 'info', 'help']
+        },
         '|',
         {
           name: 'submit',
@@ -905,6 +874,7 @@
       toolbarConfig: { pin: true },
       outline: { enable: true, position: 'left' }
     });
+
     setTimeout(function() {
       const outline = document.querySelector('.vditor-outline');
       if (outline) { outline.style.left = '0'; outline.style.right = 'auto'; }
@@ -937,7 +907,6 @@
       textEl.innerHTML = `<div class="markdown-body" style="padding:0 10px; text-align:left;">${renderMarkdown(bodyText)}</div>`;
       addCopyButtonsToCodeBlocks();
 
-      // ---- 文章的 Upvote 和 Reaction ----
       const discussionId = discussionData.id;
       const upvoteCount = discussionData.upvoteCount || 0;
       const viewerHasUpvoted = discussionData.viewerHasUpvoted || false;
@@ -975,7 +944,6 @@
       bindUpvoteEvents();
       bindReactionEvents();
 
-      // ---- 编辑器 ----
       const editorContainer = document.createElement('div');
       editorContainer.id = 'vditor-container';
       editorContainer.style.cssText = 'margin:10px 0; text-align:left;';
