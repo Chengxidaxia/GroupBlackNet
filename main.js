@@ -1,5 +1,5 @@
 // ============================================================
-// main.js - 首页文章列表（搜索 + 公告置顶）
+// main.js - 首页文章列表（公告置顶修复 + 封面高度 300px）
 // ============================================================
 
 (function() {
@@ -11,13 +11,13 @@
   const ASC_CHECK_ID = 'UP';
 
   let allPosts = [];
-  let filteredPosts = [];       // 当前显示的数据（搜索过滤后）
+  let filteredPosts = [];
   let currentPage = 1;
   let totalPages = 1;
   let currentSort = 'Default';
   let isAscending = false;
-  let searchQuery = '';         // 搜索关键词
-  let isSearching = false;      // 是否处于搜索状态
+  let searchQuery = '';
+  let isSearching = false;
   let cardsContainer = null;
   let sortSelect = null;
   let ascCheck = null;
@@ -124,9 +124,11 @@
     return group ? group.users.totalCount : 0;
   }
 
-  // 判断是否为公告
+  // ---------- 判断是否为公告（兼容大小写） ----------
   function isAnnouncement(post) {
-    return post.category && post.category.name === 'Announcement';
+    if (!post.category) return false;
+    const name = post.category.name || '';
+    return name.toLowerCase() === 'announcement';
   }
 
   // ---------- 生成卡片 ----------
@@ -141,7 +143,6 @@
     const detailLink = `/blog.html?d=${number}`;
 
     const { info, icon, bodyText, isJson } = parseFirstLine(post.body);
-    // 公告不显示简介
     const isAnn = isAnnouncement(post);
     const summary = (isAnn || !info) ? '' : info;
     let imageUrl = icon;
@@ -161,7 +162,7 @@
                   ${summary ? `<span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000; line-height: 1.5;">${summary}</span>` : ''}
                 </div>
                 <div style="text-align:right;">
-                  <img src="${imageUrl}" style="vertical-align: bottom; position:relative; display: inline-block; height:150px; background:none;" alt="" onerror="this.src='img/pole.jpg'" />
+                  <img src="${imageUrl}" style="vertical-align: bottom; position:relative; display: inline-block; height:300px; background:none;" alt="" onerror="this.src='img/pole.jpg'" />
                 </div>
                 <div style="text-align:left;">
                   <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000; line-height: 1.5;"><br/><br/><br/></span>
@@ -202,20 +203,15 @@
 
   // ---------- 排序（公告置顶仅默认排序） ----------
   function sortPosts(posts, sortType, ascending) {
-    // 先复制一份
     let sorted = posts.slice();
 
-    // 默认排序时，公告置顶
+    // 默认排序时，公告置顶（且非搜索状态）
     if (sortType === 'Default' && !isSearching) {
       const announcements = sorted.filter(p => isAnnouncement(p));
       const others = sorted.filter(p => !isAnnouncement(p));
-      // 公告内部保持原顺序（或按创建时间降序）
-      // 按创建时间降序排列公告
       announcements.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-      // 其他帖子按默认排序（按创建时间降序）
       others.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-      sorted = announcements.concat(others);
-      return sorted;
+      return announcements.concat(others);
     }
 
     // 其他排序方式
@@ -245,7 +241,6 @@
   function renderCards() {
     if (!cardsContainer) return;
 
-    // 根据搜索状态决定数据源
     const dataSource = isSearching ? filteredPosts : allPosts;
     if (!dataSource || dataSource.length === 0) {
       cardsContainer.innerHTML = '<p style="text-align:center;padding:20px;">暂无文章</p>';
@@ -256,7 +251,6 @@
       return;
     }
 
-    // 排序
     const sorted = sortPosts(dataSource, currentSort, isAscending);
     totalPages = Math.ceil(sorted.length / PAGE_SIZE) || 1;
     if (currentPage > totalPages) currentPage = totalPages;
@@ -333,10 +327,15 @@
       if (!res.ok) throw new Error(`HTTP error ${res.status}`);
       const data = await res.json();
       allPosts = data.nodes || [];
-      // 默认显示所有
       filteredPosts = [];
       isSearching = false;
       console.log(`✅ 成功获取 ${allPosts.length} 篇文章`);
+      // 调试：打印每个帖子的 category
+      allPosts.forEach(p => {
+        if (p.category) {
+          console.log(`帖子 #${p.number}: ${p.title} -> category: ${p.category.name}`);
+        }
+      });
     } catch (error) {
       console.error('❌ 加载失败:', error);
       allPosts = [];
@@ -367,7 +366,7 @@
     if (!CONTAINER) return;
     CONTAINER.innerHTML = '';
 
-    // ----- 搜索框（在顶部分页上方）-----
+    // 搜索框
     const searchWrapper = document.createElement('div');
     searchWrapper.style.cssText = 'text-align:center; padding:10px 0;';
     searchInput = document.createElement('input');
