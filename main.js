@@ -1,5 +1,5 @@
 // ============================================================
-// main.js - 首页文章列表（公告置顶修复 + 分页始终显示）
+// main.js - 首页文章列表（公告置顶修复 + 分页正常）
 // ============================================================
 
 (function() {
@@ -46,7 +46,7 @@
 
   function getFirstLinePlainText(markdown) {
     const lines = markdown.split('\n');
-    const firstLine = lines.find(line => line.trim() !== '') || '';
+    const firstLine = lines[0] || '';   // 只取第一行
     return firstLine
       .replace(/!\[.*?\]\(.*?\)/g, '')
       .replace(/\[.*?\]\(.*?\)/g, '$1')
@@ -75,7 +75,6 @@
       bodyText = restLines.join('\n').trim();
     } catch (e) {
       isJson = false;
-      // 第一行作为纯文本简介
       const trimmed = firstLine.trim();
       if (trimmed) {
         info = trimmed;
@@ -130,7 +129,6 @@
   function isAnnouncement(post) {
     if (!post.category) return false;
     const name = post.category.name || '';
-    // GitHub 返回的是 "Announcements"，所以精确匹配
     return name === 'Announcements';
   }
 
@@ -276,10 +274,9 @@
 
   function createPaginationButtons(container) {
     container.innerHTML = '';
-    // 始终显示分页，即使只有一页
     const wrapper = document.createElement('div');
     wrapper.style.cssText = 'text-align:center; padding:10px 0;';
-    // 上一页按钮（当前页为1时禁用）
+    // 上一页
     const prevBtn = document.createElement('button');
     prevBtn.textContent = '‹';
     prevBtn.style.cssText = `
@@ -300,7 +297,7 @@
     }
     wrapper.appendChild(prevBtn);
 
-    // 页码按钮
+    // 页码
     for (let i = 1; i <= totalPages; i++) {
       const btn = document.createElement('button');
       btn.textContent = i;
@@ -323,7 +320,7 @@
       wrapper.appendChild(btn);
     }
 
-    // 下一页按钮
+    // 下一页
     const nextBtn = document.createElement('button');
     nextBtn.textContent = '›';
     nextBtn.style.cssText = `
@@ -362,20 +359,36 @@
     renderCards();
   }
 
-  // ---------- 加载数据 ----------
+  // ---------- ★★★ 加载数据（循环获取所有页） ★★★ ----------
   async function fetchAllPosts() {
     if (cardsContainer) {
       cardsContainer.innerHTML = '<p style="text-align:center;padding:20px;">加载中...</p>';
     }
     try {
-      const res = await fetch(`${API_URL}/?first=20`);
-      if (!res.ok) throw new Error(`HTTP error ${res.status}`);
-      const data = await res.json();
-      allPosts = data.nodes || [];
+      let allData = [];
+      let after = null;
+      let hasNextPage = true;
+      let pageCount = 0;
+
+      while (hasNextPage) {
+        pageCount++;
+        const url = after
+          ? `${API_URL}/?first=100&after=${encodeURIComponent(after)}`
+          : `${API_URL}/?first=100`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+        const data = await res.json();
+        const nodes = data.nodes || [];
+        allData = allData.concat(nodes);
+        hasNextPage = data.pageInfo?.hasNextPage || false;
+        after = data.pageInfo?.endCursor || null;
+        console.log(`第 ${pageCount} 页获取 ${nodes.length} 条，共 ${allData.length} 条`);
+      }
+
+      allPosts = allData;
       filteredPosts = [];
       isSearching = false;
       console.log(`✅ 成功获取 ${allPosts.length} 篇文章`);
-      // 调试公告信息
       allPosts.forEach(p => {
         if (p.category) {
           console.log(`帖子 #${p.number}: ${p.title} -> category: ${p.category.name}`);
