@@ -56,7 +56,7 @@
 
   function parseFirstLine(body) {
     const lines = body.split('\n');
-    const firstLine = lines.find(line => line.trim() !== '') || '';
+    const firstLine = lines[0] || '';   // 直接取第一行
     let info = null;
     let icon = null;
     let bodyText = '';
@@ -75,16 +75,18 @@
       bodyText = restLines.join('\n').trim();
     } catch (e) {
       isJson = false;
-      info = firstLine
-        .replace(/!\[.*?\]\(.*?\)/g, '')
-        .replace(/\[.*?\]\(.*?\)/g, '$1')
-        .replace(/[#*`>_\-]/g, '')
-        .trim() || '无简介';
+      // 第一行作为纯文本简介
+      const trimmed = firstLine.trim();
+      if (trimmed) {
+        info = trimmed;
+      } else {
+        info = null;
+      }
       const restLines = lines.slice(1);
       bodyText = restLines.join('\n').trim();
     }
 
-    if (!bodyText) bodyText = '';
+    if (info === '' || info === null) info = null;
     return { info, icon, bodyText, isJson };
   }
 

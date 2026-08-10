@@ -246,19 +246,36 @@
   };
   function parseFirstLine(body) {
     const lines = body.split('\n');
-    const firstLine = lines.find(line => line.trim() !== '') || '';
-    let info = null, bodyText = '', isJson = false;
+    const firstLine = lines[0] || '';   // 直接取第一行，不跳过空行
+    let info = null;
+    let bodyText = '';
+    let isJson = false;
+
+    // 尝试解析 JSON
     try {
       const data = JSON.parse(firstLine);
       isJson = true;
-      info = data.info ? base64Decode(data.info) : firstLine;
-      bodyText = lines.slice(1).join('\n').trim();
-    } catch(e) {
-      isJson = false;
-      info = firstLine.replace(/!\[.*?\]\(.*?\)/g, '').replace(/\[.*?\]\(.*?\)/g, '$1')
-                     .replace(/[#*`>_\-]/g, '').trim() || '无简介';
-      bodyText = lines.slice(1).join('\n').trim();
+      if (data.info) {
+        info = base64Decode(data.info);
+      }
+      // 如果 data.info 为空，则 info 保持 null
+      const restLines = lines.slice(1);
+      bodyText = restLines.join('\n').trim();
+    } catch (e) {
+      // 不是 JSON，视为纯文本简介
+      const trimmed = firstLine.trim();
+      if (trimmed) {
+        info = trimmed;
+      } else {
+        info = null;   // 第一行为空，无简介
+      }
+      const restLines = lines.slice(1);
+      bodyText = restLines.join('\n').trim();
     }
+
+    // 如果 info 为空字符串或 null，统一设为 null
+    if (info === '' || info === null) info = null;
+
     return { info, bodyText, isJson };
   }
 
