@@ -1,5 +1,5 @@
 // ============================================================
-// edit.js - 创建新讨论（more 正确配置为对象）
+// edit.js - 创建新讨论（移除 cdn，避免冲突）
 // ============================================================
 
 (function() {
@@ -318,6 +318,7 @@
       vditorInstance = null;
     }
 
+    // ★ 关键修改：移除 cdn 配置，避免与外部加载的 Vditor 冲突 ★
     vditorInstance = new Vditor(vditorContainer, {
       height: 800,
       mode: 'ir',
@@ -325,7 +326,7 @@
       value: '',
       cache: { enable: false },
       lang: 'zh_CN',
-      cdn: 'https://cdn.jsdelivr.net/npm/vditor@3.10.6',
+      // 不再设置 cdn
       icon: 'ant',
       theme: 'classic',
       upload: {
