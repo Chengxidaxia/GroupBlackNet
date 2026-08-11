@@ -816,6 +816,7 @@
   }
 
   // ---------- 初始化 Vditor ----------
+  // ---------- 初始化 Vditor ----------
   function initVditor() {
     const editorContainer = document.getElementById('vditor-container');
     if (!editorContainer) return;
@@ -841,7 +842,7 @@
       value: '',
       cache: { enable: false },
       lang: 'zh_CN',
-      cdn: 'https://cdn.jsdelivr.net/npm/vditor@3.10.6',
+      // 移除 cdn 配置，避免与外部加载的 Vditor 冲突
       icon: 'ant',
       theme: 'classic',
       upload: {
@@ -880,7 +881,6 @@
       if (outline) { outline.style.left = '0'; outline.style.right = 'auto'; }
     }, 200);
   }
-
   // ---------- 加载讨论 ----------
   async function loadDiscussionFull(discussionNumber) {
     userReactions = {};
