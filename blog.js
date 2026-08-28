@@ -35,14 +35,14 @@
     style.textContent = `
       .image-viewer-overlay {
         position:fixed; top:0; left:0; width:100%; height:100%;
-        background:rgba(0,0,0,0.85);
+        background:rgba(0,0,0,0.8);
         display:flex; align-items:center; justify-content:center;
         z-index:9999; cursor:grab;
       }
       .image-viewer-overlay.dragging { cursor:grabbing; }
       .image-viewer-overlay .viewer-img {
         max-width:90vw; max-height:90vh; object-fit:contain;
-        transition:transform 0.05s linear;
+        transition:transform 0.0s linear;
         transform:translate(0,0) scale(1);
         user-select:none; -webkit-user-drag:none;
       }
@@ -54,8 +54,8 @@
       }
       .image-viewer-close:hover { opacity:1; }
       .image-viewer-info {
-        position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
-        color:#ccc; font-size:14px; background:rgba(0,0,0,0.5);
+        position:fixed; bottom:20px; left:0%; transform:translateX(-0%);
+        color:#ccc; font-size:14px; background:rgba(0,0,0,0.);
         padding:4px 12px; border-radius:12px;
         pointer-events:none; z-index:10001;
         font-family:sans-serif;
@@ -65,7 +65,7 @@
       .pagination-btn { margin:0 2px; padding:4px 10px; border:1px solid #ccc; background:#fff; color:#333; cursor:pointer; border-radius:4px; font-size:12pt; transition:background 0.2s; }
       .pagination-btn:hover { background:#e9ecef; }
       .pagination-btn.active { background:#B1782E; color:#fff; border-color:#B1782E; }
-      .pagination-btn.disabled { opacity:0.5; cursor:not-allowed; }
+      .pagination-btn.disabled { opacity:0.; cursor:not-allowed; }
       .pagination-ellipsis { margin:0 4px; font-size:12pt; cursor:pointer; color:#0366d6; user-select:none; }
       .pagination-ellipsis:hover { text-decoration:underline; }
 
@@ -139,7 +139,7 @@
     overlay.addEventListener('wheel', function(e) {
       e.preventDefault();
       const delta = e.deltaY > 0 ? -0.1 : 0.1;
-      scale = Math.min(Math.max(0.2, scale + delta), 5);
+      scale = Math.min(Math.max(0.2, scale + delta), 50);
       updateTransform();
     }, { passive: false });
 
