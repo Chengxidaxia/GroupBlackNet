@@ -6,3 +6,6 @@ GroupBlackNet.rcd
 
 # 本地发布输出目录（站点文件已置于仓库根目录供 GitHub Pages 使用）
 Public/
+
+# WorkBuddy 项目记忆目录（非站点内容）
+.workbuddy/
