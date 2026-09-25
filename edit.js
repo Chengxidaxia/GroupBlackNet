@@ -5,9 +5,9 @@
 (function() {
   'use strict';
 
-  const OAUTH_BASE = 'https://oauth.blacknet.cc.cd';
-  const UPLOAD_URL = 'https://upload.blacknet.cc.cd';
-  const DEFAULT_ICON = 'https://grp.blacknet.cc.cd/img/pole.jpg';
+  const OAUTH_BASE = (window.BLACKNET && window.BLACKNET.OAUTH_BASE) || 'https://oauth.blacknet.cc.cd';
+  const UPLOAD_URL = (window.BLACKNET && window.BLACKNET.UPLOAD_URL) || 'https://upload.blacknet.cc.cd';
+  const DEFAULT_ICON = (window.BLACKNET && window.BLACKNET.DEFAULT_ICON) || 'https://grp.blacknet.cc.cd/img/pole.jpg';
 
   const titleInput = document.getElementById('title');
   const infoInput = document.getElementById('info');

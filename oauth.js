@@ -5,7 +5,7 @@
 (function() {
   'use strict';
 
-  const OAUTH_BASE = 'https://oauth.blacknet.cc.cd';
+  const OAUTH_BASE = (window.BLACKNET && window.BLACKNET.OAUTH_BASE) || 'https://oauth.blacknet.cc.cd';
 
   // ---------- 延迟初始化函数 ----------
   function initOAuth() {

@@ -5,7 +5,7 @@
 (function() {
   'use strict';
 
-  const API_URL = 'https://api.blacknet.cc.cd';
+  const API_URL = (window.BLACKNET && window.BLACKNET.API_URL) || 'https://api.blacknet.cc.cd';
   const PAGE_SIZE = 20;
   const SORT_SELECT_ID = 'sort';
   const ASC_CHECK_ID = 'UP';

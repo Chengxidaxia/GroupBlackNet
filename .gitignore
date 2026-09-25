@@ -1,0 +1,8 @@
+# 明文密钥，禁止提交（含 GitHub PAT / OAuth Secret / 图床 Key 等）
+新建文本文档.txt
+
+# RocketCake 工程文件
+GroupBlackNet.rcd
+
+# 本地发布输出目录（站点文件已置于仓库根目录供 GitHub Pages 使用）
+Public/
