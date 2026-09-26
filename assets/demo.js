@@ -150,6 +150,15 @@
       ],
       upvoteCount: 44, _md: MD_SHORT,
       _meta: { info: '内容的生命周期不该止于发布。一个更聪明的检索方式，能让三年前的讨论在今天依然有价值。', category: 3, tags: ['搜索', '索引'] }
+    },
+    {
+      number: 120, title: '随手记：一条没有分类的消息',
+      category: { name: 'General' }, author: { login: 'guest' },
+      createdAt: '2026-09-01T12:00:00+08:00', updatedAt: '2026-09-01T12:30:00+08:00',
+      comments: { totalCount: 1 },
+      reactionGroups: [{ content: 'THUMBS_UP', users: { totalCount: 7 }, viewerHasReacted: false }],
+      upvoteCount: 5, _md: MD_SHORT,
+      _meta: { info: '这篇没有设置分类（GitHub 默认的 General），前端不应显示分类标签，封面用站名占位。', category: null, tags: [] }
     }
   ];
 

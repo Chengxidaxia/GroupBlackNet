@@ -18,3 +18,4 @@ Public/
 _edge/
 _dom*.html
 _push_test.log
+.wrangler

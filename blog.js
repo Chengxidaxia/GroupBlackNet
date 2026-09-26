@@ -158,20 +158,39 @@
     return html;
   }
 
-  async function toggleSubjectReaction(btn) {
+  // 兼容两种元素：文章的 <button class="rx">（内有 .n）与评论的 <span class="c-rx">（计数写在文本里）
+  function rxReadCount(el) {
+    const nEl = el.querySelector('.n');
+    if (nEl) return parseInt(nEl.textContent, 10) || 0;
+    return parseInt((el.textContent || '').replace(/[^\d]/g, ''), 10) || 0;
+  }
+  function rxWriteCount(el, n) {
+    const v = String(Math.max(0, n));
+    const nEl = el.querySelector('.n');
+    if (nEl) { nEl.textContent = v; return; }
+    const emoji = el.dataset.emoji || '';
+    el.textContent = emoji ? `${emoji} ${v}` : v;
+  }
+  function rxSetBusy(el, busy) {
+    if (el.tagName === 'BUTTON') el.disabled = busy;
+    else if (busy) el.setAttribute('data-busy', '1'); else el.removeAttribute('data-busy');
+  }
+
+  async function toggleSubjectReaction(el) {
     if (!isLoggedIn) { toast('请先登录'); return; }
-    const sid = btn.dataset.sid, content = btn.dataset.content;
+    const sid = el.dataset.sid || el.dataset.id;
+    const content = el.dataset.content;
+    if (!sid || !content) return;
     const key = sid + '|' + content;
     const wasActive = myReactions.has(key);
     const next = !wasActive;
-    const nEl = btn.querySelector('.n');
-    const cur = parseInt(nEl.textContent, 10) || 0;
+    const cur = rxReadCount(el);
 
     if (next) myReactions.add(key); else myReactions.delete(key);
-    btn.classList.toggle('on', next);
-    nEl.textContent = Math.max(0, cur + (next ? 1 : -1));
+    el.classList.toggle('on', next);
+    rxWriteCount(el, cur + (next ? 1 : -1));
     if (demoLocal) return;      // 演示模式：仅本地生效
-    btn.disabled = true;
+    rxSetBusy(el, true);
     try {
       const res = await fetch(`${OAUTH_BASE}/reaction`, {
         method: 'POST', credentials: 'include',
@@ -185,8 +204,8 @@
           body: JSON.stringify({ subjectId: sid, content, action: next ? 'remove' : 'add' })
         });
         if (next) myReactions.delete(key); else myReactions.add(key);
-        btn.classList.toggle('on', !next);
-        nEl.textContent = Math.max(0, cur + (next ? -1 : 1));
+        el.classList.toggle('on', !next);
+        rxWriteCount(el, cur + (next ? -1 : 1));
       } else if (!res.ok) {
         throw new Error('HTTP ' + res.status);
       }
@@ -194,29 +213,31 @@
       console.error('Reaction 失败:', e);
       // 回滚
       if (next) myReactions.delete(key); else myReactions.add(key);
-      btn.classList.toggle('on', wasActive);
-      nEl.textContent = cur;
+      el.classList.toggle('on', wasActive);
+      rxWriteCount(el, cur);
       toast('操作失败，请稍后重试');
     } finally {
-      btn.disabled = false;
+      rxSetBusy(el, false);
     }
   }
 
-  async function toggleUpvote(btn, sid) {
+  async function toggleUpvote(el, sid) {
     if (!isLoggedIn) { toast('请先登录'); return; }
+    if (!sid) return;
     const key = sid + '|UPVOTE';
     const wasActive = myReactions.has(key);
     const next = !wasActive;
-    const cur = parseInt(btn.dataset.count || '0', 10);
+    const cur = el.querySelector('.n')
+      ? (parseInt(el.querySelector('.n').textContent, 10) || 0)
+      : (parseInt(el.dataset.count || '0', 10) || 0);
 
     if (next) myReactions.add(key); else myReactions.delete(key);
-    btn.classList.toggle('on', next);
-    btn.dataset.count = String(Math.max(0, cur + (next ? 1 : -1)));
-    const cntEl = btn.querySelector('.n');
-    if (cntEl) cntEl.textContent = btn.dataset.count;
+    el.classList.toggle('on', next);
+    rxWriteCount(el, cur + (next ? 1 : -1));
+    if (el.querySelector('.n')) el.dataset.count = String(cur + (next ? 1 : -1));
 
     if (demoLocal) return;      // 演示模式：仅本地生效
-    btn.disabled = true;
+    rxSetBusy(el, true);
     try {
       const res = await fetch(`${OAUTH_BASE}/upvote`, {
         method: 'POST', credentials: 'include',
@@ -227,13 +248,12 @@
     } catch (e) {
       console.error('Upvote 失败:', e);
       if (next) myReactions.delete(key); else myReactions.add(key);
-      btn.classList.toggle('on', wasActive);
-      btn.dataset.count = String(cur);
-      const c2 = btn.querySelector('.n');
-      if (c2) c2.textContent = String(cur);
+      el.classList.toggle('on', wasActive);
+      rxWriteCount(el, cur);
+      if (el.querySelector('.n')) el.dataset.count = String(cur);
       toast('操作失败，请稍后重试');
     } finally {
-      btn.disabled = false;
+      rxSetBusy(el, false);
     }
   }
 
@@ -244,13 +264,14 @@
     const myUp = myReactions.has(sid + '|UPVOTE');
     if (isLoggedIn && c.viewerHasUpvoted) myReactions.add(sid + '|UPVOTE');
     const upOn = isLoggedIn && (c.viewerHasUpvoted || myUp);
-    let html = `<span class="c-rx${upOn ? ' on' : ''}" data-kind="cup" data-id="${esc(sid)}" data-count="${up}">↑ ${up}</span>`;
+    let html = `<span class="c-rx${upOn ? ' on' : ''}" data-kind="cup" data-id="${esc(sid)}" data-count="${up}" data-emoji="↑">↑ ${up}</span>`;
     (c.reactionGroups || []).forEach(g => {
       const n = (g.users && g.users.totalCount) || 0;
       if (n <= 0) return;
       const on = isLoggedIn && g.viewerHasReacted;
       if (on) myReactions.add(sid + '|' + g.content);
-      html += `<span class="c-rx${on ? ' on' : ''}" data-kind="crx" data-id="${esc(sid)}" data-content="${esc(g.content)}">${GB.emojiOf(g.content)} ${n}</span>`;
+      const emo = GB.emojiOf(g.content);
+      html += `<span class="c-rx${on ? ' on' : ''}" data-kind="crx" data-id="${esc(sid)}" data-content="${esc(g.content)}" data-emoji="${emo}">${emo} ${n}</span>`;
     });
     return html;
   }
@@ -433,7 +454,8 @@
     });
   }
 
-  function openEmojiPicker(anchor, commentId) {
+  // targetId：评论 id；传文章 id（discussionData.id）时作用于文章本体
+  function openEmojiPicker(anchor, targetId) {
     const existing = document.querySelector('.picker');
     if (existing) existing.remove();
     const picker = document.createElement('div');
@@ -453,28 +475,42 @@
       const content = EMOJI_TO_CONTENT[emoji];
       picker.remove();
       if (!content) return;
-      const comment = findCommentById(allComments, commentId);
-      if (!comment) return;
+
+      const isArticle = !!(discussionData && String(targetId) === String(discussionData.id));
+      const kind = isArticle ? 'reaction' : 'crx';
+      const attr = isArticle ? 'data-sid' : 'data-id';
+      const scope = isArticle ? '#reactions' : '#comment-list';
       // 若该表情已在页面上存在，直接切换它的按钮
-      const btn = document.querySelector(`.c-rx[data-kind="crx"][data-id="${commentId}"][data-content="${content}"]`);
+      const btn = document.querySelector(`${scope} [data-kind="${kind}"][${attr}="${targetId}"][data-content="${content}"]`);
       if (btn) { await toggleSubjectReaction(btn); return; }
-      // 演示模式：直接在内存中新增该表情
+
       if (demoLocal) {
-        if (!comment.reactionGroups) comment.reactionGroups = [];
-        comment.reactionGroups.push({ content, users: { totalCount: 1 }, viewerHasReacted: true });
-        myReactions.add(commentId + '|' + content);
-        renderCommentsPage(currentCommentPage);
+        // 演示模式：直接在内存中新增该表情
+        if (isArticle) {
+          discussionData.reactionGroups = discussionData.reactionGroups || [];
+          discussionData.reactionGroups.push({ content, users: { totalCount: 1 }, viewerHasReacted: true });
+          myReactions.add(targetId + '|' + content);
+          $('reactions').innerHTML = rxBarHTML();
+        } else {
+          const comment = findCommentById(allComments, targetId);
+          if (!comment) return;
+          if (!comment.reactionGroups) comment.reactionGroups = [];
+          comment.reactionGroups.push({ content, users: { totalCount: 1 }, viewerHasReacted: true });
+          myReactions.add(targetId + '|' + content);
+          renderCommentsPage(currentCommentPage);
+        }
         return;
       }
+
       // 否则先调用接口，再重载
       try {
         const res = await fetch(`${OAUTH_BASE}/reaction`, {
           method: 'POST', credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ subjectId: commentId, content, action: 'add' })
+          body: JSON.stringify({ subjectId: targetId, content, action: 'add' })
         });
         if (!res.ok && res.status !== 409) throw new Error('HTTP ' + res.status);
-        myReactions.add(commentId + '|' + content);
+        myReactions.add(targetId + '|' + content);
         await loadDiscussionFull(discussionData.number);
       } catch (err) {
         console.error('添加表情失败:', err);
@@ -528,7 +564,19 @@
         'upload', 'record', 'table', '|',
         'undo', 'redo', '|',
         'fullscreen', 'edit-mode',
-        { name: 'more', toolbar: ['both', 'code-theme', 'content-theme', 'export', 'outline', 'preview', 'devtools', 'info', 'help'] }
+        { name: 'more', toolbar: ['both', 'code-theme', 'content-theme', 'export', 'outline', 'preview', 'devtools', 'info', 'help'] },
+        '|',
+        {
+          name: 'submit',
+          tip: '发送评论',
+          className: 'toolbar-send',
+          icon: '<span class="tb-send">发送</span>',
+          click: () => {
+            const body = getCommentBody();
+            if (!body) { toast('请先输入评论内容'); return; }
+            sendComment(body, null);
+          }
+        }
       ],
       toolbarConfig: { pin: true },
       outline: { enable: false },
@@ -674,9 +722,19 @@
     $('title').textContent = titleText;
     $('lede').textContent = meta.info || '';
     const catEl = $('category');
-    catEl.textContent = cat.name;
-    catEl.style.background = `hsl(${cat.hue} 62% 42%)`;
-    $('crumbCat').textContent = cat.name;
+    const general = GB.isGeneral(cat);
+    catEl.hidden = general;                       // General 类默认不显示分类标签
+    if (!general) {
+      catEl.textContent = cat.name;
+      catEl.style.background = `hsl(${cat.hue} 62% 42%)`;
+    }
+    const crumbCat = $('crumbCat');
+    if (crumbCat) {
+      crumbCat.hidden = general;
+      crumbCat.textContent = general ? '' : cat.name;
+      const sep = crumbCat.previousElementSibling;   // 前面的「/」
+      if (sep && sep.classList.contains('s')) sep.hidden = general;
+    }
     $('cover').innerHTML = GB.coverHTML({ icon: meta.icon, coverText: meta.coverText, category: cat.id }, { fallbackName: cat.name, size: 44 });
 
     const author = (discussionData.author && discussionData.author.login) || '匿名';
@@ -775,7 +833,7 @@
           <a class="card" href="/blog.html?d=${p.number}">
             <div class="thumb">
               ${GB.coverHTML({ icon: pm.icon, coverText: pm.coverText, category: pc.id }, { fallbackName: pc.name, size: 30 })}
-              <span class="chip" style="background:hsl(${pc.hue} 62% 42%)">${esc(pc.name)}</span>
+              ${GB.isGeneral(pc) ? '' : `<span class="chip" style="background:hsl(${pc.hue} 62% 42%)">${esc(pc.name)}</span>`}
             </div>
             <div class="card-body">
               <h3>${esc(p.title || '无标题')}</h3>
@@ -808,6 +866,7 @@
     if (window.GB) await GB.catReady;
     await checkLogin();
 
+    GB.pageLoading(true, '正在加载文章…');
     try {
       await loadDiscussionFull(number);
     } catch (e) {
@@ -817,10 +876,12 @@
         GB.showDemoNotice();
         await loadDiscussionFull(number, window.GB_DEMO.discussion(number));
       } else {
+        GB.pageLoading(false);
         $('body').innerHTML = '<p style="color:var(--accent)">加载失败，请稍后重试。</p>';
         return;
       }
     }
+    GB.pageLoading(false);
 
     bindCommentEvents();
     const cs = $('cSubmit');

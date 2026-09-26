@@ -62,6 +62,8 @@ button{font-family:var(--sans)}
 .wrap{max-width:var(--wrap);margin:0 auto;padding:0 24px}
 .wrap.wide{max-width:1360px}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+/* 保证 hidden 属性对设置了 display 的元素（如 .chip）同样生效 */
+[hidden]{display:none !important}
 
 /* ---------- 2. 公共组件 ---------- */
 .btn{
@@ -248,7 +250,9 @@ button{font-family:var(--sans)}
 
 .article-head{max-width:900px;margin:0 auto;padding:20px 34px 26px;display:flex;gap:32px;align-items:center;border-left:1px solid var(--line);border-right:1px solid var(--line)}
 .article-cover{position:relative;width:300px;flex:none;aspect-ratio:4/3;border-radius:14px;overflow:hidden;border:1px solid var(--line);background:var(--paper-2)}
-.article-cover img{width:100%;height:100%;object-fit:cover}
+/* 封面尽量完整展示：用 contain 而不是裁切，留白处垫底色 */
+.article-cover{background:var(--paper-2)}
+.article-cover img{width:100%;height:100%;object-fit:contain}
 .head-main{flex:1;min-width:0;text-align:center}
 .head-main h1{font-family:var(--serif);font-weight:900;font-size:38px;line-height:1.22;letter-spacing:-.015em;margin:14px 0 14px;text-wrap:balance}
 .lede{font-size:17px;line-height:1.75;color:var(--muted);margin:0 0 20px}
@@ -401,6 +405,7 @@ button{font-family:var(--sans)}
 .vditor--fullscreen{z-index:99999 !important}
 .vditor-tip{z-index:200000 !important}
 .tb-publish{font-size:12px;font-weight:700;color:#fff;background:var(--accent);border-radius:6px;padding:2px 9px;line-height:18px;display:inline-block;white-space:nowrap}
+.tb-send{font-size:12px;font-weight:700;color:#fff;background:#2da44e;border-radius:6px;padding:2px 9px;line-height:18px;display:inline-block;white-space:nowrap}
 #mdFallback{display:none;width:100%;min-height:640px;border:0;padding:18px;font-family:var(--mono);font-size:14px;line-height:1.75;background:var(--bg);color:var(--ink);resize:vertical}
 .foot-row{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:16px}
 .foot-row .grow{margin-left:auto;color:var(--muted);font-size:13px}
@@ -488,3 +493,10 @@ button{font-family:var(--sans)}
   .page-wrap h1{font-size:30px}
   .err-code{font-size:64px}
 }
+
+/* ---------------- 加载动画 ---------------- */
+.gb-loading{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:56px 0;color:var(--muted);font-size:14px}
+.gb-loading .spin{width:30px;height:30px;border-radius:50%;border:3px solid var(--line-2);border-top-color:var(--accent);animation:gb-spin .75s linear infinite}
+.gb-loading.overlay{position:fixed;inset:0;z-index:900;background:var(--bg);opacity:.92;backdrop-filter:blur(2px);padding:0}
+.gb-loading.overlay .txt{margin-top:2px;letter-spacing:.04em}
+@keyframes gb-spin{to{transform:rotate(360deg)}}

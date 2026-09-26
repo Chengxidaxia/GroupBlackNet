@@ -12,7 +12,7 @@ window.BLACKNET = {
   DEFAULT_ICON:   'https://grp.blacknet.cc.cd/img/pole.jpg',
 
   // ---- 站点 ----
-  MAIN_SITE:      'https://blacknet.cc.cd',            // 主站：头部「群档案」标题点击后跳转至此
+  MAIN_SITE:      'https://grp.blacknet.cc.cd',            // 主站：头部「群档案」标题点击后跳转至此
 
   // ---- Cloudflare 存储（注意：不是 CF R2；用 KV / D1，经 Worker 暴露为 JSON 接口）----
   // 留空即使用内置兜底数据；填写后自动切换（页面会显示数据来源）。

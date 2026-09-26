@@ -76,6 +76,16 @@
   }
   const grad = h => `linear-gradient(135deg,hsl(${h} 62% 58%),hsl(${h + 28} 66% 40%))`;
 
+  // 「General」是 GitHub Discussions 的默认分类，站内不作为分类展示（不显示标签、不进筛选）
+  const GENERAL_RE = /^general$/i;
+  function isGeneral(cat) {
+    return !cat || !cat.id || GENERAL_RE.test((cat && cat.name) || '');
+  }
+  // 封面占位文字：未分类时用站名，而不是「General」
+  function coverLabel(cat) {
+    return isGeneral(cat) ? '群档案' : ((cat && cat.name) || '群档案');
+  }
+
   // 从文章（含首行 JSON）推断分类数字 ID
   function catIdOf(post, parsed) {
     if (parsed && parsed.category != null) {
@@ -151,13 +161,36 @@
     const o = opts || {};
     const cat = catInfo(meta && meta.category, o.fallbackName);
     if (meta && meta.icon) {
-      const fallback = `<div class="cover-fill" style="background:${grad(cat.hue)}"><span style="font-size:${o.size || 40}px">${esc(cat.name)}</span></div>`;
+      const fallback = `<div class="cover-fill" style="background:${grad(cat.hue)}"><span style="font-size:${o.size || 40}px">${esc(coverLabel(cat))}</span></div>`;
       return `<img src="${esc(meta.icon)}" alt="" loading="lazy" onerror="this.remove()">` + (o.placeholder ? fallback : '');
     }
     if (meta && meta.coverText) {
       return `<div class="cover-fill" style="background:${grad(cat.hue)}"><span style="font-size:${o.small ? 16 : Math.round((o.size || 40) * 0.66)}px">${esc(meta.coverText)}</span></div>`;
     }
-    return `<div class="cover-fill" style="background:${grad(cat.hue)}"><span style="font-size:${o.small ? 15 : (o.size || 42)}px">${esc(cat.name)}</span></div>`;
+    return `<div class="cover-fill" style="background:${grad(cat.hue)}"><span style="font-size:${o.small ? 15 : (o.size || 42)}px">${esc(coverLabel(cat))}</span></div>`;
+  }
+
+  /* ---------------- 加载动画 ---------------- */
+  // 容器内联版：塞进任意盒子，如 box.innerHTML = GB.loadingHTML('正在加载…')
+  function loadingHTML(label) {
+    return `<div class="gb-loading" role="status" aria-live="polite"><div class="spin"></div><div class="txt">${esc(label || '加载中…')}</div></div>`;
+  }
+  // 全屏遮罩版：GB.pageLoading(true) 显示，GB.pageLoading(false) 移除
+  function pageLoading(show, label) {
+    let el = document.getElementById('gbPageLoading');
+    if (show) {
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'gbPageLoading';
+        el.className = 'gb-loading overlay';
+        el.setAttribute('role', 'status');
+        el.innerHTML = `<div class="spin"></div><div class="txt">${esc(label || '加载中…')}</div>`;
+        document.body.appendChild(el);
+      } else {
+        const t = el.querySelector('.txt');
+        if (t && label) t.textContent = label;
+      }
+    } else if (el) el.remove();
   }
 
   /* ---------------- 轻提示（替代 alert） ---------------- */
@@ -286,9 +319,10 @@
     catSource: 'fallback',
     catReady,
     esc, b64d, b64e, ini, fmtDate, fmtShort,
-    hueOf, nameOf, catInfo, catIdOf, isAnnouncement, grad,
+    hueOf, nameOf, catInfo, catIdOf, isAnnouncement, grad, isGeneral, coverLabel,
     parseFirstLine, coverHTML,
     toast, renderTicker, loadAnnouncements, loadCategories,
+    loadingHTML, pageLoading,
     initHeader, initReveal,
     demoMode, showDemoNotice,
     emojiOf: content => EMOJI_MAP[content] || content

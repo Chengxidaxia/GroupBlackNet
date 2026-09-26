@@ -69,7 +69,7 @@
       <a class="card reveal" href="/blog.html?d=${p.number}">
         <div class="thumb">
           ${coverOf(p)}
-          <span class="chip" style="background:hsl(${hue} 62% 42%)">${GB.esc(c.name)}</span>
+          ${GB.isGeneral(c) ? '' : `<span class="chip" style="background:hsl(${hue} 62% 42%)">${GB.esc(c.name)}</span>`}
         </div>
         <div class="card-body">
           <h3>${GB.esc(p.title || '无标题')}</h3>
@@ -134,11 +134,11 @@
     const h = order[0], c = catOf(h), m = meta(h);
     heroBox.className = 'hero-main reveal';
     heroBox.innerHTML = `
-      <a href="/blog.html?d=${h.number}" style="display:block;position:absolute;inset:0" aria-label="${GB.esc(h.title || '')}"></a>
+      <a href="/blog.html?d=${h.number}" style="display:block;position:absolute;inset:0;z-index:2" aria-label="${GB.esc(h.title || '')}"></a>
       <div class="cover">${coverOf(h, { size: 56 })}</div>
       <div class="scrim"></div>
       <div class="hero-body">
-        <span class="chip" style="background:hsl(${c.hue} 62% 42%)">${isAnn(h) ? '置顶 · ' : ''}${GB.esc(c.name)}</span>
+        ${GB.isGeneral(c) ? '' : `<span class="chip" style="background:hsl(${c.hue} 62% 42%)">${isAnn(h) ? '置顶 · ' : ''}${GB.esc(c.name)}</span>`}
         <h1>${GB.esc(h.title || '无标题')}</h1>
         ${m.info ? `<p>${GB.esc(m.info)}</p>` : ''}
         <div class="byline">
@@ -158,7 +158,7 @@
           <a class="side-item reveal" href="/blog.html?d=${p.number}">
             <div class="side-thumb">${coverOf(p, { small: true, size: 15 })}</div>
             <div>
-              <span class="tag">${GB.esc(pc.name)}</span>
+              ${GB.isGeneral(pc) ? '' : `<span class="tag">${GB.esc(pc.name)}</span>`}
               <h3>${GB.esc(p.title || '无标题')}</h3>
               <div class="meta">
                 <span>${GB.fmtShort(p.createdAt)}</span>
@@ -174,7 +174,7 @@
   /* ---------------- 渲染：分类 tabs / 侧栏 ---------------- */
   function renderTabs() {
     const used = [];
-    allPosts.forEach(p => { const c = catOf(p); if (!used.some(x => x.id === c.id)) used.push(c); });
+    allPosts.forEach(p => { const c = catOf(p); if (!GB.isGeneral(c) && !used.some(x => x.id === c.id)) used.push(c); });
     used.sort((a, b) => a.id - b.id);
     const tabs = $('tabs');
     if (tabs) {
@@ -344,7 +344,7 @@
   /* ---------------- 加载 ---------------- */
   async function fetchAllPosts() {
     const box = $('cards');
-    if (box) box.innerHTML = '<div class="empty-note">加载中…</div>';
+    if (box) box.innerHTML = GB.loadingHTML('正在加载文章…');
     const acc = [];
     let after = null, hasNext = true, guard = 0;
     while (hasNext && guard < 50) {
