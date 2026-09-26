@@ -1,11 +1,13 @@
 // ============================================================
-// oauth.js - GitHub OAuth 登录/登出控制（等待公共部分加载）
+// oauth.js — GitHub OAuth 登录/登出控制（等待公共部分加载）
+// 依赖：config.js（window.BLACKNET.OAUTH_BASE）、head.html（相关元素 id）
 // ============================================================
 
 (function() {
   'use strict';
 
   const OAUTH_BASE = (window.BLACKNET && window.BLACKNET.OAUTH_BASE) || 'https://oauth.blacknet.cc.cd';
+  const toast = msg => { if (window.GB && GB.toast) GB.toast(msg); else console.warn(msg); };
 
   // ---------- 延迟初始化函数 ----------
   function initOAuth() {
@@ -31,11 +33,13 @@
       if (userAvatar && user) userAvatar.src = user.avatar_url;
       if (usernameSpan && user) usernameSpan.textContent = user.login;
       if (userLink && user) userLink.href = `https://github.com/${user.login}`;
+      document.dispatchEvent(new CustomEvent('gb:auth', { detail: { loggedIn: true, user } }));
     }
 
     function setLoggedOut() {
       if (loginArea) loginArea.style.display = 'flex';
       if (userArea) userArea.style.display = 'none';
+      document.dispatchEvent(new CustomEvent('gb:auth', { detail: { loggedIn: false, user: null } }));
     }
 
     // 初始状态：未登录
@@ -43,7 +47,7 @@
 
     // ---------- 登录（存储返回地址） ----------
     function login() {
-      sessionStorage.setItem('return_to', window.location.href);
+      try { sessionStorage.setItem('return_to', window.location.href); } catch (e) {}
       const remember = rememberCheck ? rememberCheck.checked : false;
       window.location.href = `${OAUTH_BASE}/login${remember ? '?remember=true' : ''}`;
     }
@@ -57,9 +61,11 @@
           window.location.reload();
         } else {
           console.error('oauth.js: 登出失败', res.status);
+          toast('登出失败（' + res.status + '），请稍后重试');
         }
       } catch (e) {
         console.error('oauth.js: 登出异常', e);
+        toast('登出失败，请检查网络');
       }
     }
 
@@ -71,10 +77,9 @@
           const user = await res.json();
           setLoggedIn(user);
           return true;
-        } else {
-          setLoggedOut();
-          return false;
         }
+        setLoggedOut();
+        return false;
       } catch (e) {
         console.error('oauth.js: 状态检查失败', e);
         setLoggedOut();
@@ -82,19 +87,19 @@
       }
     }
 
-    // ---------- 处理 OAuth 回调 ----------
+    // ---------- 处理 OAuth 回调（#user=<json>） ----------
     function handleCallback() {
       const hash = window.location.hash;
       if (hash && hash.startsWith('#user=')) {
         try {
-          const userJson = decodeURIComponent(hash.substring(6));
-          const user = JSON.parse(userJson);
+          const user = JSON.parse(decodeURIComponent(hash.substring(6)));
           setLoggedIn(user);
           window.history.replaceState(null, '', window.location.pathname + window.location.search);
 
-          const returnTo = sessionStorage.getItem('return_to');
+          let returnTo = null;
+          try { returnTo = sessionStorage.getItem('return_to'); } catch (e) {}
           if (returnTo && returnTo !== window.location.href) {
-            sessionStorage.removeItem('return_to');
+            try { sessionStorage.removeItem('return_to'); } catch (e) {}
             window.location.href = returnTo;
             return true;
           }
@@ -112,14 +117,7 @@
     logoutBtn.addEventListener('click', logout);
 
     // ---------- 初始化 ----------
-    function init() {
-      const handled = handleCallback();
-      if (!handled) {
-        checkLoginStatus();
-      }
-    }
-
-    init();
+    if (!handleCallback()) checkLoginStatus();
   }
 
   // ---------- 等待公共部分加载完成 ----------

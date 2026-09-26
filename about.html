@@ -1,53 +1,59 @@
 <!DOCTYPE html>
-<html> 
+<html lang="zh-CN" data-theme="light">
 <head>
-	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<meta name="generator" content="RocketCake">
-	<title>关于</title>
-	<link rel="stylesheet" type="text/css" href="about_html.css?h=06fc52d3">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>关于 · 群档案</title>
+<meta name="description" content="关于群档案 —— 收录群内的每一次发声，让碎片重新被看见。">
+<link rel="icon" href="/favicon.ico" type="image/x-icon">
+<link rel="stylesheet" href="assets/site.css">
+<script>/* 主题预设 */try{var t=localStorage.getItem('gb-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
 </head>
 <body>
-<div class="textstyle1">
-<div  id="header-placeholder" >
-</div>
+
+<div id="header-placeholder"></div>
+
+<div class="page-wrap">
+  <h1>关于群档案</h1>
+  <p class="sub-lede">记录、连接，然后被更多人读到。</p>
+
+  <div class="prose">
+    <p><strong>群档案</strong>是一个群内消息的归档站。我们把群里那些容易沉底、却又值得留下的讨论，整理成一条条结构化记录，让它们在几天、几个月之后依然能被找到、被回看。</p>
+
+    <h2>我们为什么做这个</h2>
+    <p>群聊里每天都在产生有价值的碎片，但它们的生命周期太短了 —— 一条认真写下的分享，往往在几十条新消息之后就被冲到看不见的地方。群档案想做的，是给这些内容一个更长的保质期。</p>
+
+    <h2>内容怎么组织</h2>
+    <ul>
+      <li>每篇文章 = 一条讨论记录：标题 + 简介 + 正文 + 分类 + 标签</li>
+      <li>分类、标签、是否允许评论等设置，都写在正文首行的元数据里</li>
+      <li>正文使用 Markdown 书写，支持 <code>@提及</code> 与 <code>#编号</code> 互相引用</li>
+      <li>支持点赞（顶）与多表情反应，也支持带嵌套回复的评论</li>
+    </ul>
+
+    <h2>技术上是怎样的</h2>
+    <div class="info-card">
+      <ul class="kv">
+        <li><b>内容源</b><span>GitHub Discussions（内容与讨论都沉淀在开源仓库里，可追溯、可迁移）</span></li>
+        <li><b>数据接口</b><span>Cloudflare Workers 提供的只读 / 写入代理</span></li>
+        <li><b>登录方式</b><span>GitHub OAuth，登录后才能写稿、评论与点赞</span></li>
+        <li><b>编辑器</b><span>Vditor 4.0（自托管，所见即所得 / 分栏 / 源码三种模式）</span></li>
+        <li><b>站点托管</b><span>GitHub Pages，纯静态，不依赖任何数据库</span></li>
+      </ul>
+    </div>
+
+    <h2>参与方式</h2>
+    <p>如果你也想把群里的讨论整理下来，可以直接在<a href="https://github.com/Chengxidaxia/GroupBlackNet/discussions" target="_blank" rel="noopener">开源仓库的讨论区</a>发帖，或登录本站在线投稿。</p>
+
+    <p>任何问题与建议，欢迎通过<a href="contact.html">联系我们</a>页面找到我们。</p>
   </div>
-<div class="textstyle2">
-<div id="container_1faa7373"><div class="textstyle2"><div id="container_61dd425e"><div id="container_61dd425e_padding" ><div class="textstyle2"><span class="textstyle3"><br/></span><div id="container_516501ea"><div id="container_516501ea_padding" ><div class="textstyle1"><div id="container_6bd68e83"><div id="container_6bd68e83_padding" ><div class="textstyle1"><span class="textstyle4"><br/>关于</span><span class="textstyle5"><br/><br/></span>  <a href="index.html" style="text-decoration:none"><div id="button_518623cc">
-    <div class="vcenterstyle1"><div class="vcenterstyle2">      <div class="textstyle1">
-        </div>
-      <div class="textstyle2">
-        <span class="textstyle6">主页</span>
-        </div>
-      </div></div>
-    </div></a>
-  <span class="textstyle7">   </span>
 </div>
-<div class="textstyle2">  <span class="textstyle7"><br/></span>
-</div>
-<div style="clear:both"></div></div></div></div>
-<div style="clear:both"></div></div></div></div>
-<div style="clear:both"></div></div></div></div>
-</div><div id="container_606a5ad4"><div id="container_606a5ad4_padding" ><div class="textstyle1"><span class="textstyle3"><br/></span><span class="textstyle8">群暗网<br/><br/></span><div id="container_30422970"><div id="container_30422970_padding" ><div class="textstyle1">  <span class="textstyle9">群暗网立项于2026/8/5, 使用RocketCake6.2作为编辑工具.<br/><br/>群暗网致力于收集群内猎奇消息, 并刊登在网站上.<br/><br/><br/></span>
-</div>
-<div class="textstyle2">  <a href="index.html" style="text-decoration:none"><div id="button_3a4e7816">
-    <div class="vcenterstyle1"><div class="vcenterstyle2">      <div class="textstyle1">
-        </div>
-      <div class="textstyle2">
-        <span class="textstyle10">返回主页</span>
-        </div>
-      </div></div>
-    </div></a>
-</div>
-<div class="textstyle1">  <span class="textstyle9"><br/></span>
-</div>
-<div style="clear:both"></div></div></div><span class="textstyle3"><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/></span></div>
-<div style="clear:both"></div></div></div>  </div>
-<div class="textstyle1">
-<div  id="footer-placeholder" >
-</div>
-<span class="textstyle3"><br/></span><div id="container_6ce345d0"><div id="container_6ce345d0_padding" ></div></div><script src="/config.js" defer></script>
-<script src="/load-commons.js" defer></script>
-<script src="/oauth.js" defer></script>  </div>
+
+<div id="footer-placeholder"></div>
+
+<script src="config.js"></script>
+<script src="assets/site.js" defer></script>
+<script src="load-commons.js" defer></script>
+<script src="oauth.js" defer></script>
 </body>
 </html>

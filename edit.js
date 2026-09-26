@@ -1,410 +1,423 @@
 // ============================================================
-// edit.js - 创建新讨论（移除 cdn，避免冲突）
+// edit.js — 写稿页：标题 / 分类 / 简介 / 标签 / 封面 / 正文（Vditor）
+// 提交：POST oauth.blacknet.cc.cd/discussion { title, body }
+// 说明：后端接口不变 —— 所有新增字段（category / coverText / allowComments / tags）
+//       全部写入正文首行 JSON，与 info / icon 同级。
 // ============================================================
-
-(function() {
+(function () {
   'use strict';
 
   const OAUTH_BASE = (window.BLACKNET && window.BLACKNET.OAUTH_BASE) || 'https://oauth.blacknet.cc.cd';
   const UPLOAD_URL = (window.BLACKNET && window.BLACKNET.UPLOAD_URL) || 'https://upload.blacknet.cc.cd';
   const DEFAULT_ICON = (window.BLACKNET && window.BLACKNET.DEFAULT_ICON) || 'https://grp.blacknet.cc.cd/img/pole.jpg';
+  const VDITOR_BASE = (window.BLACKNET && window.BLACKNET.VDITOR_BASE) || 'vditor/4.0.0';
 
-  const titleInput = document.getElementById('title');
-  const infoInput = document.getElementById('info');
-  const noiconCheck = document.getElementById('noicon');
-  const uploadContainer = document.getElementById('upload');
-  const editingContainer = document.getElementById('editing');
+  const $ = id => document.getElementById(id);
+  const esc = s => (window.GB ? GB.esc(s) : String(s == null ? '' : s));
+  const toast = msg => (window.GB ? GB.toast(msg) : console.warn(msg));
 
-  let vditorInstance = null;
-  let coverUrl = null;
-  let coverFile = null;
-  let isLoggedIn = false;
+  let vditor = null;
+  let coverMode = 'image';       // image | text | none
+  let coverUrl = '';             // 上传成功后的图片地址
+  let coverDataURL = '';         // 本地预览
+  let category = 3;
   let isSubmitting = false;
+  let isLoggedIn = false;
 
-  function updateTitle() {
-    const val = titleInput.value.trim();
-    document.title = val || '编稿';
+  /* ---------------- 分类 ---------------- */
+  function renderCats() {
+    const box = $('cats');
+    if (!box) return;
+    const list = (window.GB && GB.cats) || [];
+    box.innerHTML = list.map(c => `
+      <button type="button" class="cat-pill ${c.id === category ? 'on' : ''}" data-id="${c.id}">
+        <span class="d" style="background:hsl(${c.hue} 62% 50%)"></span>${esc(c.name)}<span class="id">#${c.id}</span>
+      </button>`).join('');
+  }
+  function bindCats() {
+    const box = $('cats');
+    if (!box) return;
+    box.addEventListener('click', e => {
+      const p = e.target.closest('.cat-pill');
+      if (!p) return;
+      category = parseInt(p.dataset.id, 10) || 0;
+      [...box.children].forEach(el => el.classList.toggle('on', parseInt(el.dataset.id, 10) === category));
+      updateAll();
+    });
+  }
+  async function setupCategories() {
+    if (window.GB) await GB.catReady;
+    const hint = $('catSrc');
+    const src = (window.GB && GB.catSource) === 'remote' ? 'CF 存储' : '内置兜底';
+    if (hint) hint.textContent = `JSON 的 category（数字 ID）· 来源：${src}`;
+    const list = (window.GB && GB.cats) || [];
+    if (!list.some(c => c.id === category) && list[0]) category = list[0].id;
+    renderCats();
+    updateAll();
   }
 
-  async function checkLogin() {
-    try {
-      const res = await fetch(`${OAUTH_BASE}/me`, { credentials: 'include' });
-      if (res.ok) {
-        isLoggedIn = true;
-        return true;
-      } else {
-        isLoggedIn = false;
-        return false;
-      }
-    } catch(e) {
-      isLoggedIn = false;
-      return false;
+  /* ---------------- 封面 ---------------- */
+  function setCoverMode(mode) {
+    coverMode = mode;
+    const seg = $('coverSeg');
+    if (seg) [...seg.children].forEach(el => el.classList.toggle('on', el.dataset.mode === mode));
+    if ($('coverImageRow')) $('coverImageRow').style.display = mode === 'image' ? 'flex' : 'none';
+    if ($('coverTextRow')) $('coverTextRow').style.display = mode === 'text' ? 'block' : 'none';
+    if ($('coverNoneRow')) $('coverNoneRow').style.display = mode === 'none' ? 'block' : 'none';
+    updateAll();
+  }
+
+  function bindCover() {
+    const seg = $('coverSeg');
+    if (seg) seg.addEventListener('click', e => {
+      const b = e.target.closest('button[data-mode]');
+      if (b) setCoverMode(b.dataset.mode);
+    });
+
+    const drop = $('coverDrop'), file = $('coverFile');
+    if (drop && file) {
+      drop.addEventListener('click', e => { if (e.target !== file) file.click(); });
+      file.addEventListener('change', () => {
+        const f = file.files[0];
+        if (f) handleCoverFile(f);
+        file.value = '';
+      });
+      drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('dragover'); });
+      drop.addEventListener('dragleave', () => drop.classList.remove('dragover'));
+      drop.addEventListener('drop', e => {
+        e.preventDefault(); drop.classList.remove('dragover');
+        const f = e.dataTransfer.files[0];
+        if (f) handleCoverFile(f);
+      });
     }
+    const ct = $('coverText');
+    if (ct) ct.addEventListener('input', updateAll);
   }
 
-  function injectStyles() {
-    if (document.getElementById('edit-styles')) return;
-    const style = document.createElement('style');
-    style.id = 'edit-styles';
-    style.textContent = `
-      #editing { width:85%; margin:0 auto; display:block; min-height:400px; }
-      #vditor-container { margin:10px 0; text-align:left; width:100%; }
-      .upload-area {
-        border:2px dashed #ccc; border-radius:8px; padding:20px; text-align:center;
-        cursor:pointer; transition:border-color 0.3s; min-height:120px;
-        display:flex; flex-direction:column; align-items:center; justify-content:center;
-        background:#fafafa;
-      }
-      .upload-area.dragover { border-color:#2da44e; background:#f0f9f0; }
-      .upload-area img { max-width:100%; max-height:200px; margin-top:8px; border-radius:4px; }
-      .upload-area .hint { color:#888; font-size:14px; }
-      .upload-area .remove-btn { margin-top:8px; background:#dc3545; color:white; border:none; border-radius:4px; padding:4px 12px; cursor:pointer; }
-      .upload-area.hidden { display:none !important; }
-    `;
-    document.head.appendChild(style);
-  }
-  injectStyles();
-
-  function base64Encode(str) {
-    return btoa(unescape(encodeURIComponent(str)));
-  }
-
-  function extractFirstImage(markdown) {
-    if (!markdown) return null;
-    const mdMatch = markdown.match(/!\[.*?\]\((.*?)\)/);
-    if (mdMatch && mdMatch[1]) return mdMatch[1];
-    const imgMatch = markdown.match(/<img[^>]+src=["']([^"']+)["']/i);
-    if (imgMatch && imgMatch[1]) return imgMatch[1];
-    const urlMatch = markdown.match(/(https?:\/\/[^\s]+\.(?:png|jpg|jpeg|gif|svg|webp))/i);
-    if (urlMatch && urlMatch[1]) return urlMatch[1];
-    return null;
-  }
-
-  function buildUploadUI() {
-    if (!uploadContainer) return;
-    uploadContainer.innerHTML = '';
-    const area = document.createElement('div');
-    area.className = 'upload-area';
-    area.id = 'upload-area';
-    area.innerHTML = `
-      <div class="hint">📷 点击选择或拖拽图片到此作为封面</div>
-      <div id="upload-preview"></div>
-    `;
-    uploadContainer.appendChild(area);
-
-    const fileInput = document.createElement('input');
-    fileInput.type = 'file';
-    fileInput.accept = 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml,image/x-icon,image/vnd.microsoft.icon';
-    fileInput.style.display = 'none';
-    fileInput.id = 'cover-file-input';
-    uploadContainer.appendChild(fileInput);
-
-    area.addEventListener('click', function(e) {
-      if (e.target.closest('.remove-btn')) return;
-      fileInput.click();
-    });
-
-    fileInput.addEventListener('change', function() {
-      const file = fileInput.files[0];
-      if (file) handleCoverFile(file);
-      fileInput.value = '';
-    });
-
-    area.addEventListener('dragover', function(e) {
-      e.preventDefault();
-      area.classList.add('dragover');
-    });
-    area.addEventListener('dragleave', function() {
-      area.classList.remove('dragover');
-    });
-    area.addEventListener('drop', function(e) {
-      e.preventDefault();
-      area.classList.remove('dragover');
-      const file = e.dataTransfer.files[0];
-      if (!file) return;
-      if (file.type.startsWith('image/') || file.type === 'image/x-icon' || file.type === 'image/vnd.microsoft.icon') {
-        handleCoverFile(file);
-      } else {
-        alert('仅支持图片格式（JPEG、PNG、GIF、WEBP、SVG、ICO）');
-      }
-    });
-
-    updateUploadVisibility();
-  }
-
-  function updateUploadVisibility() {
-    const area = document.getElementById('upload-area');
-    if (area) {
-      if (noiconCheck.checked) {
-        area.classList.add('hidden');
-      } else {
-        area.classList.remove('hidden');
-      }
-    }
-  }
-
-  function updateUploadPreview(file) {
-    const previewDiv = document.getElementById('upload-preview');
-    if (!previewDiv) return;
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        previewDiv.innerHTML = `
-          <img src="${e.target.result}" alt="封面预览" />
-          <button class="remove-btn" id="remove-cover">移除</button>
-        `;
-        document.getElementById('remove-cover').addEventListener('click', function(ev) {
-          ev.stopPropagation();
-          coverUrl = null;
-          coverFile = null;
-          updateUploadPreview(null);
-          noiconCheck.checked = false;
-          updateUploadVisibility();
-        });
-      };
-      reader.readAsDataURL(file);
-      coverFile = file;
-    } else {
-      previewDiv.innerHTML = '';
-      coverFile = null;
-      coverUrl = null;
-    }
+  function previewLocalImage(src) {
+    const box = $('coverPrev');
+    if (box) box.innerHTML = src ? `<img src="${esc(src)}" alt="">` : '';
   }
 
   async function handleCoverFile(file) {
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/x-icon', 'image/vnd.microsoft.icon'];
-    if (!allowedTypes.includes(file.type)) {
-      alert('仅支持 JPEG、PNG、GIF、WEBP、SVG、ICO 格式');
-      return;
-    }
+    const okTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml', 'image/x-icon', 'image/vnd.microsoft.icon'];
+    if (!okTypes.includes(file.type)) { toast('仅支持 JPEG / PNG / GIF / WEBP / SVG / ICO'); return; }
+    if (file.size > 10 * 1024 * 1024) { toast('图片不能超过 10MB'); return; }
 
-    updateUploadPreview(file);
+    const reader = new FileReader();
+    reader.onload = ev => { coverDataURL = ev.target.result; previewLocalImage(coverDataURL); updateAll(); };
+    reader.readAsDataURL(file);
 
     const formData = new FormData();
     formData.append('file', file);
+    try {
+      const res = await fetch(`${UPLOAD_URL}/`, { method: 'POST', credentials: 'include', body: formData });
+      const data = await res.json().catch(() => ({}));
+      const map = data && data.data && data.data.succMap;
+      const url = map && (map[file.name] || Object.values(map)[0]);
+      if (data.code === 0 && url) {
+        coverUrl = url;
+        toast('封面上传成功');
+      } else {
+        coverUrl = '';
+        previewLocalImage('');
+        coverDataURL = '';
+        toast('封面上传失败：' + ((data && data.msg) || '未知错误'));
+      }
+    } catch (e) {
+      console.error('封面上传异常:', e);
+      coverUrl = '';
+      toast('封面上传失败（网络错误）');
+    }
+    updateAll();
+  }
+
+  /* ---------------- Markdown / Vditor ---------------- */
+  const INITIAL_MD = '';
+
+  function getMD() {
+    if (vditor && typeof vditor.getValue === 'function') return vditor.getValue();
+    const fb = $('mdFallback');
+    return fb ? fb.value : '';
+  }
+  function setVdStatus(text, kind) {
+    const el = $('vdStatus');
+    if (!el) return;
+    el.textContent = text;
+    el.className = 'vd-status ' + (kind || '');
+    el.style.display = kind === 'ok' ? 'none' : 'block';
+  }
+  function degradeToTextarea(msg) {
+    const ta = $('mdFallback');
+    if (ta) {
+      ta.style.display = 'block';
+      if (!ta.value) ta.value = INITIAL_MD;
+      ta.addEventListener('input', updateAll);
+    }
+    const host = $('vditor');
+    if (host) host.style.display = 'none';
+    if (msg) setVdStatus(msg, 'err');
+    updateAll();
+  }
+
+  function waitVditor(timeout) {
+    const limit = timeout || 10000;
+    return new Promise(resolve => {
+      let waited = 0;
+      (function poll() {
+        if (typeof Vditor !== 'undefined') return resolve(true);
+        if (waited >= limit) return resolve(false);
+        waited += 200; setTimeout(poll, 200);
+      })();
+    });
+  }
+
+  function initEditor() {
+    const host = $('vditor');
+    if (!host) return;
+    if (typeof Vditor === 'undefined') { degradeToTextarea('编辑器脚本加载失败，已降级为普通文本框。'); return; }
+    const from = window.__vditorFrom === 'cdn' ? 'CDN' : '本地';
+    setVdStatus('编辑器已加载（' + from + ' Vditor 4.0）', 'ok');
+    const cdnBase = window.__vditorFrom === 'cdn' ? 'https://cdn.jsdelivr.net/npm/vditor@4.0.0' : VDITOR_BASE;
 
     try {
-      const res = await fetch(`${UPLOAD_URL}/`, {
-        method: 'POST',
-        credentials: 'include',
-        body: formData,
+      vditor = new Vditor('vditor', {
+        cdn: cdnBase,
+        mode: 'wysiwyg',
+        height: 720,
+        minHeight: 480,
+        placeholder: '用 Markdown 书写正文…',
+        value: INITIAL_MD,
+        cache: { enable: false },
+        lang: 'zh_CN',
+        icon: 'ant',
+        theme: document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'classic',
+        counter: { enable: true },
+        outline: { enable: false },
+        preview: { theme: { current: 'light' }, hljs: { enable: true, style: 'github' }, markdown: { toc: false } },
+        upload: {
+          url: `${UPLOAD_URL}/`,
+          fieldName: 'file',
+          accept: 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml,video/mp4,video/webm,video/ogg,video/quicktime',
+          max: 100 * 1024 * 1024,
+          multiple: false,
+          withCredentials: true
+        },
+        toolbar: [
+          'emoji', 'headings', 'bold', 'italic', 'strike', 'link', '|',
+          'list', 'ordered-list', 'check', 'outdent', 'indent', '|',
+          'quote', 'line', 'code', 'inline-code', 'insert-before', 'insert-after', '|',
+          'upload', 'record', 'table', '|',
+          'undo', 'redo', '|',
+          'fullscreen', 'edit-mode',
+          // 「更多」：官方写法 —— 自定义项自带子工具栏（toolbar 数组）
+          { name: 'more', toolbar: ['both', 'code-theme', 'content-theme', 'export', 'outline', 'preview', 'devtools', 'info', 'help'] },
+          '|',
+          {
+            name: 'publish-btn',
+            tip: '发布',
+            className: 'toolbar-publish',
+            icon: '<span class="tb-publish">发布</span>',
+            click: () => submitDiscussion()
+          }
+        ],
+        toolbarConfig: { pin: true },
+        input: () => updateAll(),
+        after: () => updateAll()
       });
-      const data = await res.json();
-      if (data.code === 0) {
-        const url = data.data.succMap[file.name];
-        coverUrl = url;
-        noiconCheck.checked = false;
-        updateUploadVisibility();
-        console.log('封面上传成功:', coverUrl);
-      } else {
-        alert('封面上传失败: ' + (data.msg || '未知错误'));
-        updateUploadPreview(null);
-      }
-    } catch (error) {
-      console.error('封面上传异常:', error);
-      alert('网络错误，请稍后重试');
-      updateUploadPreview(null);
+    } catch (e) {
+      console.error('Vditor 初始化失败：', e);
+      degradeToTextarea('Vditor 初始化失败：' + (e && e.message ? e.message : e) + '（已降级为普通文本框）');
     }
   }
 
-  // ========== 提交讨论 ==========
+  /* ---------------- 提交 ---------------- */
+  function extractFirstImage(md) {
+    if (!md) return null;
+    const a = md.match(/!\[.*?\]\((.*?)\)/);
+    if (a && a[1]) return a[1];
+    const b = md.match(/<img[^>]+src=["']([^"']+)["']/i);
+    if (b && b[1]) return b[1];
+    const c = md.match(/(https?:\/\/[^\s]+\.(?:png|jpg|jpeg|gif|svg|webp))/i);
+    return c ? c[1] : null;
+  }
+
   async function submitDiscussion() {
     if (isSubmitting) return;
-    if (!vditorInstance) {
-      alert('编辑器未初始化');
-      return;
-    }
+    const title = ($('title') && $('title').value.trim()) || '';
+    if (!title) { toast('请输入标题'); $('title').focus(); return; }
 
-    const title = titleInput.value.trim();
-    if (!title) {
-      alert('请输入标题');
-      titleInput.focus();
-      return;
-    }
+    const md = getMD().trim();
+    if (!md) { toast('请输入正文内容'); return; }
 
-    const info = infoInput.value.trim() || '无简介';
-    const body = vditorInstance.getValue().trim();
-    if (!body) {
-      alert('请输入文章内容');
-      return;
-    }
+    const info = ($('info') && $('info').value.trim()) || '无简介';
+    const tags = (($('tags') && $('tags').value) || '').split(',').map(s => s.trim()).filter(Boolean);
+    const allow = !$('allowComments') || $('allowComments').checked;
+    const coverText = ($('coverText') && $('coverText').value.trim()) || '';
 
-    let iconUrl;
-    if (noiconCheck.checked) {
-      iconUrl = DEFAULT_ICON;
-    } else if (coverUrl) {
-      iconUrl = coverUrl;
-    } else {
-      iconUrl = extractFirstImage(body) || DEFAULT_ICON;
-    }
+    let iconUrl = '';
+    if (coverMode === 'image') iconUrl = coverUrl || extractFirstImage(md) || DEFAULT_ICON;
+    // text / none：icon 留空，由前端按 coverText 或分类渐变呈现
 
     const firstLine = JSON.stringify({
-      info: base64Encode(info),
-      icon: base64Encode(iconUrl)
+      info: GB.b64e(info),
+      icon: iconUrl ? GB.b64e(iconUrl) : '',
+      coverText: coverMode === 'text' ? coverText : '',
+      category: category,
+      allowComments: allow,
+      tags: tags
     });
-    const fullBody = firstLine + '\n\n' + body;
+    const fullBody = firstLine + '\n\n' + md;
 
-    const payload = { title, body: fullBody };
-    console.log('创建讨论 payload:', payload);
-
-    const toolbarBtn = document.querySelector('.vditor-toolbar__item[data-name="submit"]');
-    const bottomBtn = document.getElementById('edit-submit-btn');
-    const disableButtons = () => {
-      if (toolbarBtn) toolbarBtn.style.pointerEvents = 'none';
-      if (bottomBtn) bottomBtn.disabled = true;
-      if (toolbarBtn) toolbarBtn.style.opacity = '0.5';
-    };
-    const enableButtons = () => {
-      if (toolbarBtn) {
-        toolbarBtn.style.pointerEvents = 'auto';
-        toolbarBtn.style.opacity = '1';
-      }
-      if (bottomBtn) bottomBtn.disabled = false;
-    };
+    if (window.GB && GB.demoMode) {
+      GB.showDemoNotice();
+      toast('演示模式：已生成首行 JSON 与正文，但不会真正提交（后端未放行本机域名）');
+      console.log('[演示] 将提交：\n' + fullBody);
+      return;
+    }
 
     isSubmitting = true;
-    disableButtons();
+    const btn = $('submitBtn');
+    if (btn) { btn.disabled = true; btn.textContent = '发布中…'; }
+    const tbBtn = document.querySelector('.vditor-toolbar [data-type="publish-btn"]');
+    if (tbBtn) tbBtn.style.pointerEvents = 'none';
 
     try {
       const res = await fetch(`${OAUTH_BASE}/discussion`, {
-        method: 'POST',
-        credentials: 'include',
+        method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ title, body: fullBody })
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        const discussionNumber = data.discussion?.number;
-        if (discussionNumber) {
-          window.location.href = `/blog.html?d=${discussionNumber}`;
-        } else {
-          window.location.href = '/index.html';
-        }
-      } else {
-        alert('创建失败: ' + (data.error || '未知错误'));
-        enableButtons();
+        const n = data.discussion && data.discussion.number;
+        toast('发布成功');
+        setTimeout(() => { window.location.href = n ? `/blog.html?d=${n}` : '/index.html'; }, 500);
+        return;
       }
-    } catch (error) {
-      console.error('提交异常:', error);
-      alert('网络错误，请稍后重试');
-      enableButtons();
+      toast('创建失败：' + (data.error || ('HTTP ' + res.status)));
+    } catch (e) {
+      console.error('提交异常:', e);
+      toast('网络错误，请稍后重试');
     } finally {
       isSubmitting = false;
+      if (btn) { btn.disabled = false; btn.textContent = '发布文章'; }
+      if (tbBtn) tbBtn.style.pointerEvents = 'auto';
     }
   }
 
-  // ---------- 初始化 Vditor ----------
-  function initVditor() {
-    if (!editingContainer) {
-      console.error('#editing 容器未找到');
-      return;
-    }
+  /* ---------------- 联动更新 ---------------- */
+  function escapeAttr(s) { return esc(s); }
 
-    const vditorContainer = document.createElement('div');
-    vditorContainer.id = 'vditor-container';
-    vditorContainer.style.cssText = 'margin:10px 0; text-align:left; width:100%;';
-    editingContainer.appendChild(vditorContainer);
+  function updateAll() {
+    const title = ($('title') && $('title').value.trim()) || '';
+    const info = ($('info') && $('info').value.trim()) || '';
+    const tags = (($('tags') && $('tags').value) || '').split(',').map(s => s.trim()).filter(Boolean);
+    const allow = !$('allowComments') || $('allowComments').checked;
+    const ctext = ($('coverText') && $('coverText').value.trim()) || '';
+    const md = getMD();
 
-    vditorContainer.addEventListener('wheel', function(e) {
-      e.stopPropagation();
-    }, { passive: true });
+    const tc = $('titleCount');
+    if (tc) tc.textContent = `${title.length} / 120`;
+    const wc = $('wordCount');
+    if (wc) wc.textContent = `${md.replace(/\s/g, '').length} 字`;
+    document.title = title ? title + ' · 写稿 · 群档案' : '写稿 · 群档案';
 
-    if (typeof Vditor === 'undefined') {
-      vditorContainer.innerHTML = '<p style="color:red;text-align:center;padding:40px;">Vditor 未加载，请刷新页面重试。</p>';
-      return;
-    }
-    if (vditorInstance) {
-      vditorInstance.destroy();
-      vditorInstance = null;
-    }
-
-    // ★ 关键修改：移除 cdn 配置，避免与外部加载的 Vditor 冲突 ★
-    vditorInstance = new Vditor(vditorContainer, {
-      height: 800,
-      mode: 'ir',
-      placeholder: '',
-      value: '',
-      cache: { enable: false },
-      lang: 'zh_CN',
-      // 不再设置 cdn
-      icon: 'ant',
-      theme: 'classic',
-      upload: {
-        url: `${UPLOAD_URL}/`,
-        fieldName: 'file',
-        accept: 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml,video/mp4,video/webm,video/ogg,video/quicktime',
-        max: 100 * 1024 * 1024,
-        multiple: false,
-        withCredentials: true,
-      },
-      toolbar: [
-        'emoji', 'headings', 'bold', 'italic', 'strike', 'link', '|',
-        'list', 'ordered-list', 'check', 'outdent', 'indent', '|',
-        'quote', 'line', 'code', 'inline-code', 'insert-before', 'insert-after', '|',
-        'upload', 'record', 'table', '|',
-        'undo', 'redo', '|',
-        'fullscreen', 'edit-mode', 'both',
-        {
-          name: 'more',
-          toolbar: ['both', 'code-theme', 'content-theme', 'export', 'outline', 'preview', 'devtools', 'info', 'help']
-        },
-        '|',
-        {
-          name: 'submit',
-          icon: '<svg viewBox="0 0 32 32" style="fill: #2da44e; width: 18px; height: 18px;"><path d="M6 4l20 12-20 12z"></path></svg>',
-          tip: '发布文章',
-          click: submitDiscussion
-        }
-      ],
-      toolbarConfig: { pin: true },
-      outline: { enable: true, position: 'left' }
-    });
-
-    setTimeout(function() {
-      const outline = document.querySelector('.vditor-outline');
-      if (outline) {
-        outline.style.left = '0';
-        outline.style.right = 'auto';
+    // 卡片预览
+    const cat = (window.GB && GB.catInfo(category)) || { name: '随笔', hue: 214 };
+    const hue = cat.hue;
+    const thumb = $('prevThumb');
+    if (thumb) {
+      let inner;
+      if (coverMode === 'image' && (coverDataURL || coverUrl)) {
+        inner = `<img src="${escapeAttr(coverDataURL || coverUrl)}" alt="">`;
+      } else if (coverMode === 'text' && ctext) {
+        inner = `<div class="cover-fill" style="background:${GB.grad(hue)}"><span style="font-size:20px">${esc(ctext)}</span></div>`;
+      } else {
+        inner = `<div class="cover-fill" style="background:${GB.grad(hue)}"><span style="font-size:34px">${esc(cat.name)}</span></div>`;
       }
-    }, 200);
+      thumb.innerHTML = inner + `<span class="chip" style="background:hsl(${hue} 62% 42%)">${esc(cat.name)}</span>`;
+    }
+    if ($('prevTitle')) $('prevTitle').textContent = title || '（未填标题）';
+    if ($('prevEx')) $('prevEx').textContent = info || '（未填简介）';
+
+    // 首行 JSON（base64 用占位符展示，避免长串乱码）
+    const useImg = coverMode === 'image' && (coverUrl || coverDataURL);
+    const useText = coverMode === 'text' && ctext;
+    const infoPh = info ? `&lt;base64 简介 ${info.length} 字&gt;` : '';
+    const iconPh = useImg ? `&lt;base64 图片 ${Math.round((coverDataURL || '').length / 1024)} KB&gt;` : '';
+    const tagsHtml = tags.map(t => `<span class="s">"${esc(t)}"</span>`).join(', ');
+    const out = $('jsonOut');
+    if (out) {
+      out.innerHTML =
+`{
+  <span class="k">"info"</span>: <span class="s">"${infoPh}"</span>,
+  <span class="k">"icon"</span>: <span class="s">"${iconPh}"</span>,
+  <span class="k">"coverText"</span>: <span class="s">"${esc(useText ? ctext : '')}"</span>,
+  <span class="k">"category"</span>: <span class="n">${category}</span>,
+  <span class="k">"allowComments"</span>: <span class="b">${allow}</span>,
+  <span class="k">"tags"</span>: [${tagsHtml}]
+}`;
+    }
+  }
+
+  /* ---------------- 登录 / 初始化 ---------------- */
+  async function checkLogin() {
+    try {
+      const res = await fetch(`${OAUTH_BASE}/me`, { credentials: 'include' });
+      isLoggedIn = res.ok;
+      return isLoggedIn;
+    } catch (e) { return false; }
   }
 
   async function init() {
-    if (!editingContainer) {
-      console.error('#editing 容器未找到');
-      return;
-    }
-
+    if (!$('vditor')) return;
     const loggedIn = await checkLogin();
     if (!loggedIn) {
-      window.location.href = '/404.html';
-      return;
+      // 本地预览：后端 CORS 未放行本机域名，登录态取不到 → 仍展示编辑器（演示）
+      if (window.GB && GB.demoMode) {
+        GB.showDemoNotice();
+      } else {
+        window.location.href = '/404.html';
+        return;
+      }
     }
 
-    updateTitle();
-    titleInput.addEventListener('input', updateTitle);
+    ['title', 'info', 'tags'].forEach(id => {
+      const el = $(id);
+      if (el) el.addEventListener('input', updateAll);
+    });
+    const ac = $('allowComments');
+    if (ac) ac.addEventListener('change', updateAll);
 
-    buildUploadUI();
+    bindCats();
+    bindCover();
+    setCoverMode('image');
+    await setupCategories();
 
-    initVditor();
+    (async () => {
+      const ok = await waitVditor(10000);
+      if (ok) initEditor();
+      else degradeToTextarea('编辑器脚本加载失败（本地与 CDN 均不可用），已降级为普通文本框。');
+    })();
 
-    noiconCheck.addEventListener('change', function() {
-      if (this.checked) {
-        coverUrl = null;
-        coverFile = null;
-        updateUploadPreview(null);
-        updateUploadVisibility();
-      } else {
-        updateUploadVisibility();
-      }
+    const sb = $('submitBtn');
+    if (sb) sb.addEventListener('click', submitDiscussion);
+
+    // 主题切换时同步 Vditor 主题
+    document.addEventListener('gb:theme', e => {
+      if (!vditor) return;
+      const dark = e.detail === 'dark';
+      try { vditor.setTheme(dark ? 'dark' : 'classic'); } catch (err) {}
+      try {
+        const base = window.__vditorFrom === 'cdn' ? 'https://cdn.jsdelivr.net/npm/vditor@4.0.0' : VDITOR_BASE;
+        vditor.setContentTheme(dark ? 'dark' : 'light', base + '/dist/css/content-theme');
+      } catch (err) {}
     });
 
-    updateUploadVisibility();
+    updateAll();
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
 })();

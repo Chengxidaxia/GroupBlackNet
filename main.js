@@ -1,507 +1,414 @@
 // ============================================================
-// main.js - 首页文章列表（封面图自适应宽度）
+// main.js — 首页：Hero + 卡片流 + 排序/搜索/分类筛选 + 分页
+// 数据：api.blacknet.cc.cd（GitHub Discussions 只读代理）
+// 功能对齐旧版：排序（默认/创建/修改/点赞）、升序、搜索、分页、公告置顶
 // ============================================================
-
-(function() {
+(function () {
   'use strict';
 
   const API_URL = (window.BLACKNET && window.BLACKNET.API_URL) || 'https://api.blacknet.cc.cd';
   const PAGE_SIZE = 20;
-  const SORT_SELECT_ID = 'sort';
-  const ASC_CHECK_ID = 'UP';
+  const HERO_COUNT = 4;
+
+  const $ = id => document.getElementById(id);
 
   let allPosts = [];
-  let filteredPosts = [];
   let currentPage = 1;
   let totalPages = 1;
   let currentSort = 'Default';
   let isAscending = false;
   let searchQuery = '';
-  let isSearching = false;
-  let cardsContainer = null;
-  let sortSelect = null;
-  let ascCheck = null;
-  let searchInput = null;
-  const CONTAINER = document.getElementById('main');
+  let categoryFilter = 0;      // 0 = 全部
+  let rendered = false;
 
-  // ---------- 辅助函数 ----------
-  function base64Decode(str) {
-    try {
-      return decodeURIComponent(escape(atob(str)));
-    } catch (e) {
-      return atob(str);
+  /* ---------------- 数据辅助 ---------------- */
+  function meta(p) { return p._meta || (p._meta = GB.parseFirstLine(p.body || '')); }
+  function catOf(p) { const m = meta(p); return GB.catInfo(GB.catIdOf(p, m), p.category && p.category.name); }
+  function isAnn(p) { return GB.isAnnouncement(p, meta(p)); }
+
+  function reactionList(p) {
+    const out = [];
+    (p.reactionGroups || []).forEach(g => {
+      const n = (g.users && g.users.totalCount) || 0;
+      if (n > 0) out.push({ emoji: GB.emojiOf(g.content), count: n });
+    });
+    return out;
+  }
+  function totalReactions(p) { return reactionList(p).reduce((a, b) => a + b.count, 0); }
+  function upCount(p) {
+    if (p.upvoteCount != null) return p.upvoteCount;
+    const g = (p.reactionGroups || []).find(x => x.content === 'THUMBS_UP');
+    return g ? (g.users && g.users.totalCount) || 0 : 0;
+  }
+  function commentCount(p) { return (p.comments && p.comments.totalCount) || 0; }
+  function authorOf(p) { return (p.author && p.author.login) || '匿名'; }
+  function avatarOf(p) { return (p.author && p.author.avatarUrl) || (window.BLACKNET && window.BLACKNET.DEFAULT_AVATAR) || ''; }
+
+  /* ---------------- 卡片片段 ---------------- */
+  function coverOf(p, opts) {
+    const m = meta(p);
+    const c = catOf(p);
+    return GB.coverHTML({ icon: m.icon, coverText: m.coverText, category: c.id }, Object.assign({ fallbackName: c.name }, opts || {}));
+  }
+  function avatarHTML(p, cls) {
+    const url = avatarOf(p);
+    return `<span class="avatar ${cls || 'sm'}"><img src="${GB.esc(url)}" alt="" loading="lazy" onerror="this.remove()">${GB.esc(GB.ini(authorOf(p)))}</span>`;
+  }
+  function reactsHTML(p, max) {
+    const list = reactionList(p);
+    const show = max ? list.slice(0, max) : list;
+    return show.map(r => `<span class="stat">${r.emoji} ${r.count}</span>`).join('');
+  }
+
+  function createCard(p) {
+    const c = catOf(p);
+    const m = meta(p);
+    const info = m.info || '';
+    const hue = c.hue;
+    return `
+      <a class="card reveal" href="/blog.html?d=${p.number}">
+        <div class="thumb">
+          ${coverOf(p)}
+          <span class="chip" style="background:hsl(${hue} 62% 42%)">${GB.esc(c.name)}</span>
+        </div>
+        <div class="card-body">
+          <h3>${GB.esc(p.title || '无标题')}</h3>
+          ${info ? `<p>${GB.esc(info)}</p>` : ''}
+          <div class="card-foot">
+            ${avatarHTML(p)}
+            <span>${GB.esc(authorOf(p))}</span><span>·</span><span>${GB.fmtShort(p.createdAt)}</span>
+            <span class="grow">
+              ${reactsHTML(p)}
+              <span class="stat">💬 ${commentCount(p)}</span>
+            </span>
+          </div>
+        </div>
+      </a>`;
+  }
+
+  /* ---------------- 排序 / 筛选 ---------------- */
+  function defaultOrder(posts) {
+    const ann = posts.filter(isAnn).slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const rest = posts.filter(p => !isAnn(p)).slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    return ann.concat(rest);
+  }
+
+  function sortPosts(posts) {
+    let arr = posts.slice();
+    if (currentSort === 'Default') {
+      if (!searchQuery && !categoryFilter) return defaultOrder(arr);   // 默认排序时公告置顶
+      return arr.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    }
+    if (currentSort === 'CREATE_AT') arr.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    else if (currentSort === 'UPDATED_AT') arr.sort((a, b) => new Date(a.updatedAt) - new Date(b.updatedAt));
+    else if (currentSort === 'UP_AT') arr.sort((a, b) => upCount(a) - upCount(b));
+    if (!isAscending) arr.reverse();
+    return arr;
+  }
+
+  function filteredPosts() {
+    let arr = allPosts;
+    if (categoryFilter) arr = arr.filter(p => catOf(p).id === categoryFilter);
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      arr = arr.filter(p => {
+        const t = (p.title || '').toLowerCase();
+        const b = (p.body || '').toLowerCase();
+        return t.includes(q) || b.includes(q);
+      });
+    }
+    return sortPosts(arr);
+  }
+
+  /* ---------------- 渲染：Hero ---------------- */
+  function renderHero() {
+    const heroBox = $('heroMain'), sideBox = $('heroSide');
+    if (!heroBox) return;
+    const order = defaultOrder(allPosts);
+    if (!order.length) {
+      heroBox.className = 'hero-main empty';
+      heroBox.innerHTML = '<div style="padding:28px;text-align:center">还没有内容，登录后点右上角「写稿」发布第一篇。</div>';
+      if (sideBox) sideBox.innerHTML = '';
+      return;
+    }
+    const h = order[0], c = catOf(h), m = meta(h);
+    heroBox.className = 'hero-main reveal';
+    heroBox.innerHTML = `
+      <a href="/blog.html?d=${h.number}" style="display:block;position:absolute;inset:0" aria-label="${GB.esc(h.title || '')}"></a>
+      <div class="cover">${coverOf(h, { size: 56 })}</div>
+      <div class="scrim"></div>
+      <div class="hero-body">
+        <span class="chip" style="background:hsl(${c.hue} 62% 42%)">${isAnn(h) ? '置顶 · ' : ''}${GB.esc(c.name)}</span>
+        <h1>${GB.esc(h.title || '无标题')}</h1>
+        ${m.info ? `<p>${GB.esc(m.info)}</p>` : ''}
+        <div class="byline">
+          ${avatarHTML(h)}
+          <b style="color:#fff">${GB.esc(authorOf(h))}</b>
+          <span class="sep">·</span><span>${GB.fmtShort(h.createdAt)}</span>
+          <span class="sep">·</span><span>↑ ${upCount(h)}</span>
+          ${reactsHTML(h, 2) ? `<span class="sep">·</span>${reactsHTML(h, 2)}` : ''}
+          <span class="sep">·</span><span>💬 ${commentCount(h)}</span>
+        </div>
+      </div>`;
+
+    if (sideBox) {
+      sideBox.innerHTML = order.slice(1, HERO_COUNT).map(p => {
+        const pc = catOf(p);
+        return `
+          <a class="side-item reveal" href="/blog.html?d=${p.number}">
+            <div class="side-thumb">${coverOf(p, { small: true, size: 15 })}</div>
+            <div>
+              <span class="tag">${GB.esc(pc.name)}</span>
+              <h3>${GB.esc(p.title || '无标题')}</h3>
+              <div class="meta">
+                <span>${GB.fmtShort(p.createdAt)}</span>
+                <span>🔥 ${totalReactions(p)}</span>
+                <span>💬 ${commentCount(p)}</span>
+              </div>
+            </div>
+          </a>`;
+      }).join('');
     }
   }
 
-  function extractFirstImage(markdown) {
-    if (!markdown) return null;
-    const mdMatch = markdown.match(/!\[.*?\]\((.*?)\)/);
-    if (mdMatch && mdMatch[1]) return mdMatch[1];
-    const imgMatch = markdown.match(/<img[^>]+src=["']([^"']+)["']/i);
-    if (imgMatch && imgMatch[1]) return imgMatch[1];
-    const urlMatch = markdown.match(/(https?:\/\/[^\s]+\.(?:png|jpg|jpeg|gif|svg|webp))/i);
-    if (urlMatch && urlMatch[1]) return urlMatch[1];
-    return null;
-  }
-
-  function getFirstLinePlainText(markdown) {
-    const lines = markdown.split('\n');
-    const firstLine = lines[0] || '';
-    return firstLine
-      .replace(/!\[.*?\]\(.*?\)/g, '')
-      .replace(/\[.*?\]\(.*?\)/g, '$1')
-      .replace(/[#*`>_\-]/g, '')
-      .trim() || '无简介';
-  }
-
-  function parseFirstLine(body) {
-    const lines = body.split('\n');
-    const firstLine = lines[0] || '';
-    let info = null;
-    let icon = null;
-    let bodyText = '';
-    let isJson = false;
-
-    try {
-      const data = JSON.parse(firstLine);
-      isJson = true;
-      if (data.info) {
-        info = base64Decode(data.info);
-      }
-      if (data.icon) {
-        icon = base64Decode(data.icon);
-      }
-      const restLines = lines.slice(1);
-      bodyText = restLines.join('\n').trim();
-    } catch (e) {
-      isJson = false;
-      const trimmed = firstLine.trim();
-      if (trimmed) {
-        info = trimmed;
-      } else {
-        info = null;
-      }
-      const restLines = lines.slice(1);
-      bodyText = restLines.join('\n').trim();
+  /* ---------------- 渲染：分类 tabs / 侧栏 ---------------- */
+  function renderTabs() {
+    const used = [];
+    allPosts.forEach(p => { const c = catOf(p); if (!used.some(x => x.id === c.id)) used.push(c); });
+    used.sort((a, b) => a.id - b.id);
+    const tabs = $('tabs');
+    if (tabs) {
+      tabs.innerHTML = `<button class="tab ${categoryFilter === 0 ? 'active' : ''}" data-cat="0">全部</button>`
+        + used.map(c => `<button class="tab ${categoryFilter === c.id ? 'active' : ''}" data-cat="${c.id}">${GB.esc(c.name)}</button>`).join('');
     }
-
-    if (info === '' || info === null) info = null;
-    return { info, icon, bodyText, isJson };
+    const tagList = $('tagList');
+    if (tagList) {
+      tagList.innerHTML = used.map(c => `<button type="button" data-cat="${c.id}"># ${GB.esc(c.name)}</button>`).join('');
+    }
   }
 
-  function formatDate(dateStr) {
-    const date = new Date(dateStr);
-    return date.toLocaleString('zh-CN', {
-      year: 'numeric', month: 'long', day: 'numeric',
-      hour: '2-digit', minute: '2-digit'
+  function bindFilters() {
+    const onCat = e => {
+      const b = e.target.closest('[data-cat]');
+      if (!b) return;
+      categoryFilter = parseInt(b.dataset.cat, 10) || 0;
+      currentPage = 1;
+      renderTabs();
+      renderList();
+      const listEl = $('list');
+      if (listEl) window.scrollTo({ top: listEl.offsetTop - 80, behavior: 'smooth' });
+    };
+    const tabs = $('tabs'), tagList = $('tagList');
+    if (tabs) tabs.addEventListener('click', onCat);
+    if (tagList) tagList.addEventListener('click', onCat);
+  }
+
+  function renderRank() {
+    const rank = $('rank');
+    if (!rank) return;
+    const top = allPosts.slice().sort((a, b) => totalReactions(b) - totalReactions(a)).slice(0, 5);
+    rank.innerHTML = top.map((p, i) => `
+      <li class="${i < 3 ? 'top' : ''}">
+        <div>
+          <a href="/blog.html?d=${p.number}">${GB.esc(p.title || '无标题')}</a>
+          <div class="m">🔥 ${totalReactions(p)} · 💬 ${commentCount(p)}</div>
+        </div>
+      </li>`).join('');
+  }
+
+  /* ---------------- 渲染：列表 + 分页 ---------------- */
+  function renderList() {
+    const box = $('cards');
+    if (!box) return;
+    const data = filteredPosts();
+    const hint = $('countHint');
+    if (hint) hint.textContent = `共 ${data.length} 篇`;
+
+    if (!data.length) {
+      box.innerHTML = `<div class="empty-note">没有匹配的内容${searchQuery ? '（试试别的关键词）' : ''}。</div>`;
+      renderPager();
+      return;
+    }
+    totalPages = Math.max(1, Math.ceil(data.length / PAGE_SIZE));
+    if (currentPage > totalPages) currentPage = totalPages;
+    const start = (currentPage - 1) * PAGE_SIZE;
+    box.innerHTML = data.slice(start, start + PAGE_SIZE).map(createCard).join('');
+    renderPager();
+    if (rendered) GB.initReveal(box);
+  }
+
+  function renderPager() {
+    ['pagerTop', 'pagerBottom'].forEach(id => {
+      const el = $(id);
+      if (!el) return;
+      el.innerHTML = buildPagerHTML();
     });
   }
 
-  const EMOJI_MAP = {
-    'THUMBS_UP': '👍',
-    'THUMBS_DOWN': '👎',
-    'LAUGH': '😄',
-    'HOORAY': '🎉',
-    'CONFUSED': '😕',
-    'HEART': '❤️',
-    'ROCKET': '🚀',
-    'EYES': '👀'
-  };
+  function buildPagerHTML() {
+    if (totalPages <= 1) return '';
+    const btn = (label, page, opts) => {
+      const o = opts || {};
+      return `<button ${o.disabled ? 'disabled' : ''} ${o.active ? 'class="active"' : ''} data-page="${page}">${label}</button>`;
+    };
+    let html = btn('‹', currentPage - 1, { disabled: currentPage <= 1 });
 
-  function renderReactions(reactionGroups) {
-    let html = '';
-    reactionGroups.forEach(group => {
-      const count = group.users.totalCount;
-      if (count > 0) {
-        const emoji = EMOJI_MAP[group.content] || group.content;
-        html += `<span style="font-size:12pt; margin-left:4px;">${emoji} ${count}</span>`;
+    const maxVisible = 5;
+    let pages = [];
+    if (totalPages <= maxVisible + 2) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      let start = Math.max(2, currentPage - 2);
+      let end = Math.min(totalPages - 1, currentPage + 2);
+      if (end - start < maxVisible - 1) {
+        if (start === 2) end = Math.min(totalPages - 1, start + maxVisible - 2);
+        else if (end === totalPages - 1) start = Math.max(2, end - maxVisible + 2);
       }
+      if (start > 2) pages.push('…');
+      for (let i = start; i <= end; i++) pages.push(i);
+      if (end < totalPages - 1) pages.push('…');
+      pages.push(totalPages);
+    }
+    pages.forEach(item => {
+      if (item === '…') html += `<span class="ellipsis" data-jump="1" title="跳转到指定页">…</span>`;
+      else html += btn(item, item, { active: item === currentPage });
     });
+
+    html += btn('›', currentPage + 1, { disabled: currentPage >= totalPages });
     return html;
   }
 
-  function getThumbsUp(post) {
-    const group = post.reactionGroups.find(g => g.content === 'THUMBS_UP');
-    return group ? group.users.totalCount : 0;
-  }
-
-  // ---------- 判断是否为公告（精确匹配 "Announcements"） ----------
-  function isAnnouncement(post) {
-    if (!post.category) return false;
-    const name = post.category.name || '';
-    return name === 'Announcements';
-  }
-
-  // ---------- 生成卡片 ----------
-  function createCard(post) {
-    const number = post.number;
-    const title = post.title || '无标题';
-    const author = post.author.login;
-    const avatar = post.author.avatarUrl;
-    const createdAt = formatDate(post.createdAt);
-    const commentsCount = post.comments.totalCount;
-    const reactionsHtml = renderReactions(post.reactionGroups);
-    const detailLink = `/blog.html?d=${number}`;
-
-    const { info, icon, bodyText, isJson } = parseFirstLine(post.body);
-    const isAnn = isAnnouncement(post);
-    const summary = (isAnn || !info) ? '' : info;
-    let imageUrl = icon;
-    if (!imageUrl || !imageUrl.startsWith('http')) {
-      imageUrl = extractFirstImage(post.body) || 'img/pole.jpg';
-    }
-
-    return `
-      <div style="box-sizing: border-box; vertical-align: top; border-radius: 15px; position:relative; display: inline-block; margin:10px; width:80%; min-height:320px; max-width:1000px; background-color:#FFFFFF; border: 1px solid #404040; text-align:left;">
-        <div style="margin: 10px; display: block;">
-          <div style="text-align:left;">
-            <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000;"><br/></span>
-            <span style="font-size:26pt; font-family:Arial, Helvetica, sans-serif; color:#444444; font-weight:bold;">${title}<br/><br/></span>
-            <div style="vertical-align: top; position:relative; display: inline-block; width:100%; min-height:150px; background:none;">
-              <div style="margin: 10px; display: block;">
-                <div style="text-align:left;">
-                  ${summary ? `<span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000; line-height: 1.5;">${summary}</span>` : ''}
-                </div>
-                <div style="text-align:right;">
-                  <img src="${imageUrl}" style="vertical-align: bottom; position:relative; display: inline-block; height:300px; max-width:100%; background:none;" alt="" onerror="this.src='img/pole.jpg'" />
-                </div>
-                <div style="text-align:left;">
-                  <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000; line-height: 1.5;"><br/><br/><br/></span>
-                  <a href="${detailLink}" style="text-decoration:none">
-                    <div style="vertical-align: bottom; border-radius: 5px; position:relative; display: inline-block; width:150px; height:40px; background-color:#B1782E; box-shadow: 7px 7px 4px -5px rgba(0,0,0,0.784314);">
-                      <div style="display: table; width:100%; height:100%;">
-                        <div style="display: table-cell; vertical-align: middle; text-align:center;">
-                          <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF;">立刻查看</span>
-                        </div>
-                      </div>
-                    </div>
-                  </a>
-                  <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000; line-height: 1.5;"><br/></span>
-                </div>
-                <div style="clear:both;"></div>
-              </div>
-            </div>
-            <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000;"><br/></span>
-            <div style="vertical-align: top; position:relative; display: inline-block; width:100%; min-height:50px; background:none;">
-              <div style="margin: 10px; display: block;">
-                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                  <a href="https://github.com/${author}" target="_blank" style="display:flex; align-items:center; gap:8px; text-decoration:none; color:inherit;">
-                    <img src="${avatar}" style="width:32px; height:32px; border-radius:50%;" alt="avatar" />
-                    <span style="font-size:12pt; font-family:Arial, Helvetica, sans-serif; color:#000000;">${author}</span>
-                  </a>
-                  <span style="font-size:10pt; color:#888;">${createdAt}</span>
-                  <span style="font-size:10pt; color:#888;">💬 ${commentsCount}</span>
-                  ${reactionsHtml}
-                </div>
-              </div>
-            </div>
-          </div>
-          <div style="clear:both;"></div>
-        </div>
-      </div>
-    `;
-  }
-
-  // ---------- 排序（公告置顶仅默认排序） ----------
-  function sortPosts(posts, sortType, ascending) {
-    let sorted = posts.slice();
-
-    if (sortType === 'Default' && !isSearching) {
-      const announcements = sorted.filter(p => isAnnouncement(p));
-      const others = sorted.filter(p => !isAnnouncement(p));
-      announcements.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-      others.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-      return announcements.concat(others);
-    }
-
-    if (sortType === 'CREATE_AT') {
-      sorted.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-    } else if (sortType === 'UPDATED_AT') {
-      sorted.sort((a, b) => new Date(a.updatedAt) - new Date(b.updatedAt));
-    } else if (sortType === 'UP_AT') {
-      sorted.sort((a, b) => getThumbsUp(a) - getThumbsUp(b));
-    }
-    if (!ascending) sorted.reverse();
-    return sorted;
-  }
-
-  // ---------- 过滤（搜索） ----------
-  function filterPosts(posts, query) {
-    if (!query.trim()) return posts;
-    const q = query.trim().toLowerCase();
-    return posts.filter(post => {
-      const title = (post.title || '').toLowerCase();
-      const body = (post.body || '').toLowerCase();
-      return title.includes(q) || body.includes(q);
+  function bindPager() {
+    ['pagerTop', 'pagerBottom'].forEach(id => {
+      const el = $(id);
+      if (!el) return;
+      el.addEventListener('click', e => {
+        const jump = e.target.closest('[data-jump]');
+        if (jump) { openJump(jump); return; }
+        const b = e.target.closest('button[data-page]');
+        if (!b || b.disabled) return;
+        const page = parseInt(b.dataset.page, 10);
+        if (!page || page < 1 || page > totalPages) return;
+        currentPage = page;
+        renderList();
+        const listEl = $('list');
+        if (listEl) window.scrollTo({ top: listEl.offsetTop - 80, behavior: 'smooth' });
+      });
     });
   }
 
-  // ---------- 渲染 ----------
-  function renderCards() {
-    if (!cardsContainer) return;
-
-    const dataSource = isSearching ? filteredPosts : allPosts;
-    if (!dataSource || dataSource.length === 0) {
-      cardsContainer.innerHTML = '<p style="text-align:center;padding:20px;">暂无文章</p>';
-      const topEl = document.getElementById('pagination-top');
-      const bottomEl = document.getElementById('pagination-bottom');
-      if (topEl) topEl.innerHTML = '';
-      if (bottomEl) bottomEl.innerHTML = '';
-      return;
-    }
-
-    const sorted = sortPosts(dataSource, currentSort, isAscending);
-    totalPages = Math.ceil(sorted.length / PAGE_SIZE) || 1;
-    if (currentPage > totalPages) currentPage = totalPages;
-    const start = (currentPage - 1) * PAGE_SIZE;
-    const end = Math.min(start + PAGE_SIZE, sorted.length);
-    const pagePosts = sorted.slice(start, end);
-
-    cardsContainer.innerHTML = '';
-    pagePosts.forEach(post => {
-      cardsContainer.innerHTML += createCard(post);
+  // 「…」→ 就地输入页码（替代原生 prompt）
+  function openJump(anchor) {
+    const input = document.createElement('input');
+    input.className = 'jump';
+    input.type = 'number';
+    input.min = '1';
+    input.max = String(totalPages);
+    input.placeholder = '页码';
+    anchor.replaceWith(input);
+    input.focus();
+    const commit = () => {
+      const v = parseInt(input.value, 10);
+      if (v >= 1 && v <= totalPages) { currentPage = v; renderList(); }
+      else { renderPager(); GB.toast('请输入 1 - ' + totalPages + ' 之间的页码'); }
+    };
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') commit();
+      if (e.key === 'Escape') renderPager();
     });
-    renderPagination();
+    input.addEventListener('blur', () => { if (input.isConnected) renderPager(); });
   }
 
-  // ---------- 分页（始终显示，包括只有一页） ----------
-  function renderPagination() {
-    const topEl = document.getElementById('pagination-top');
-    const bottomEl = document.getElementById('pagination-bottom');
-    if (topEl) createPaginationButtons(topEl);
-    if (bottomEl) createPaginationButtons(bottomEl);
-  }
-
-  function createPaginationButtons(container) {
-    container.innerHTML = '';
-    const wrapper = document.createElement('div');
-    wrapper.style.cssText = 'text-align:center; padding:10px 0;';
-    // 上一页
-    const prevBtn = document.createElement('button');
-    prevBtn.textContent = '‹';
-    prevBtn.style.cssText = `
-      margin: 0 4px;
-      padding: 4px 10px;
-      border: 1px solid #ccc;
-      background: ${currentPage <= 1 ? '#eee' : '#fff'};
-      color: ${currentPage <= 1 ? '#aaa' : '#333'};
-      cursor: ${currentPage <= 1 ? 'not-allowed' : 'pointer'};
-      border-radius: 4px;
-      font-size: 12pt;
-    `;
-    if (currentPage > 1) {
-      prevBtn.addEventListener('click', function() {
-        currentPage--;
-        renderCards();
-      });
-    }
-    wrapper.appendChild(prevBtn);
-
-    // 页码
-    for (let i = 1; i <= totalPages; i++) {
-      const btn = document.createElement('button');
-      btn.textContent = i;
-      btn.style.cssText = `
-        margin: 0 4px;
-        padding: 4px 10px;
-        border: 1px solid #ccc;
-        background: ${i === currentPage ? '#B1782E' : '#fff'};
-        color: ${i === currentPage ? '#fff' : '#333'};
-        cursor: pointer;
-        border-radius: 4px;
-        font-size: 12pt;
-      `;
-      btn.addEventListener('click', (function(page) {
-        return function() {
-          currentPage = page;
-          renderCards();
-        };
-      })(i));
-      wrapper.appendChild(btn);
-    }
-
-    // 下一页
-    const nextBtn = document.createElement('button');
-    nextBtn.textContent = '›';
-    nextBtn.style.cssText = `
-      margin: 0 4px;
-      padding: 4px 10px;
-      border: 1px solid #ccc;
-      background: ${currentPage >= totalPages ? '#eee' : '#fff'};
-      color: ${currentPage >= totalPages ? '#aaa' : '#333'};
-      cursor: ${currentPage >= totalPages ? 'not-allowed' : 'pointer'};
-      border-radius: 4px;
-      font-size: 12pt;
-    `;
-    if (currentPage < totalPages) {
-      nextBtn.addEventListener('click', function() {
-        currentPage++;
-        renderCards();
-      });
-    }
-    wrapper.appendChild(nextBtn);
-
-    container.appendChild(wrapper);
-  }
-
-  // ---------- 搜索框事件 ----------
-  function handleSearch(e) {
-    const query = e.target.value;
-    searchQuery = query;
-    if (query.trim()) {
-      isSearching = true;
-      filteredPosts = filterPosts(allPosts, query);
-    } else {
-      isSearching = false;
-      filteredPosts = [];
-    }
-    currentPage = 1;
-    renderCards();
-  }
-
-  // ---------- 加载数据（循环获取所有页） ----------
-  async function fetchAllPosts() {
-    if (cardsContainer) {
-      cardsContainer.innerHTML = '<p style="text-align:center;padding:20px;">加载中...</p>';
-    }
-    try {
-      let allData = [];
-      let after = null;
-      let hasNextPage = true;
-      let pageCount = 0;
-
-      while (hasNextPage) {
-        pageCount++;
-        const url = after
-          ? `${API_URL}/?first=100&after=${encodeURIComponent(after)}`
-          : `${API_URL}/?first=100`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`HTTP error ${res.status}`);
-        const data = await res.json();
-        const nodes = data.nodes || [];
-        allData = allData.concat(nodes);
-        hasNextPage = data.pageInfo?.hasNextPage || false;
-        after = data.pageInfo?.endCursor || null;
-        console.log(`第 ${pageCount} 页获取 ${nodes.length} 条，共 ${allData.length} 条`);
-      }
-
-      allPosts = allData;
-      filteredPosts = [];
-      isSearching = false;
-      console.log(`✅ 成功获取 ${allPosts.length} 篇文章`);
-      allPosts.forEach(p => {
-        if (p.category) {
-          console.log(`帖子 #${p.number}: ${p.title} -> category: ${p.category.name}`);
-        }
-      });
-    } catch (error) {
-      console.error('❌ 加载失败:', error);
-      allPosts = [];
-      if (cardsContainer) {
-        cardsContainer.innerHTML = '<p style="text-align:center;padding:20px;color:red;">加载失败，请稍后重试。</p>';
-      }
-    }
-  }
-
-  // ---------- 读取控件 ----------
-  function readControls() {
-    sortSelect = document.getElementById(SORT_SELECT_ID);
-    ascCheck = document.getElementById(ASC_CHECK_ID);
-    if (sortSelect) {
-      currentSort = sortSelect.value;
-    } else {
-      console.warn('⚠️ 未找到 id="sort" 的下拉框');
-    }
-    if (ascCheck) {
-      isAscending = ascCheck.checked;
-    } else {
-      console.warn('⚠️ 未找到 id="UP" 的复选框');
-    }
-  }
-
-  // ---------- 构建 #main ----------
-  function buildStructure() {
-    if (!CONTAINER) return;
-    CONTAINER.innerHTML = '';
-
-    // 搜索框
-    const searchWrapper = document.createElement('div');
-    searchWrapper.style.cssText = 'text-align:center; padding:10px 0;';
-    searchInput = document.createElement('input');
-    searchInput.type = 'text';
-    searchInput.placeholder = '搜索文章...';
-    searchInput.style.cssText = 'width:50%; padding:8px 12px; font-size:14px; border:1px solid #ccc; border-radius:4px;';
-    searchInput.addEventListener('input', handleSearch);
-    searchWrapper.appendChild(searchInput);
-    CONTAINER.appendChild(searchWrapper);
-
-    // 顶部翻页
-    const topControls = document.createElement('div');
-    topControls.style.cssText = 'text-align:center; padding:10px 0;';
-    const topPagination = document.createElement('div');
-    topPagination.id = 'pagination-top';
-    topControls.appendChild(topPagination);
-    CONTAINER.appendChild(topControls);
-
-    // 卡片容器
-    cardsContainer = document.createElement('div');
-    cardsContainer.id = 'cards-container';
-    cardsContainer.style.cssText = 'text-align:center;';
-    CONTAINER.appendChild(cardsContainer);
-
-    // 底部翻页
-    const bottomControls = document.createElement('div');
-    bottomControls.style.cssText = 'text-align:center; padding:10px 0;';
-    const bottomPagination = document.createElement('div');
-    bottomPagination.id = 'pagination-bottom';
-    bottomControls.appendChild(bottomPagination);
-    CONTAINER.appendChild(bottomControls);
-  }
-
-  // ---------- 绑定控件 ----------
+  /* ---------------- 控件 ---------------- */
   function bindControls() {
-    if (sortSelect) {
-      sortSelect.addEventListener('change', function() {
-        currentSort = this.value;
-        currentPage = 1;
-        renderCards();
-      });
-    }
-    if (ascCheck) {
-      ascCheck.addEventListener('change', function() {
-        isAscending = this.checked;
-        currentPage = 1;
-        renderCards();
-      });
-    }
+    const sortSel = $('sort');
+    if (sortSel) sortSel.addEventListener('change', function () {
+      currentSort = this.value; currentPage = 1; renderList();
+    });
+    const asc = $('UP');
+    if (asc) asc.addEventListener('change', function () {
+      isAscending = this.checked; currentPage = 1; renderList();
+    });
+    const search = $('search');
+    if (search) search.addEventListener('input', function () {
+      searchQuery = this.value; currentPage = 1; renderList();
+    });
+    const sub = $('subForm');
+    if (sub) sub.addEventListener('submit', () => {
+      const mail = $('subMail');
+      GB.toast(mail && mail.value ? '已记录订阅意向（演示）：' + mail.value : '请先填写邮箱');
+    });
   }
 
-  // ---------- 主初始化 ----------
-  async function initMain() {
-    if (!CONTAINER) {
-      console.warn('main.js: 未找到 id="main" 的容器');
-      return;
+  /* ---------------- 加载 ---------------- */
+  async function fetchAllPosts() {
+    const box = $('cards');
+    if (box) box.innerHTML = '<div class="empty-note">加载中…</div>';
+    const acc = [];
+    let after = null, hasNext = true, guard = 0;
+    while (hasNext && guard < 50) {
+      guard++;
+      const url = after
+        ? `${API_URL}/?first=100&after=${encodeURIComponent(after)}`
+        : `${API_URL}/?first=100`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      const nodes = data.nodes || [];
+      acc.push(...nodes);
+      hasNext = !!(data.pageInfo && data.pageInfo.hasNextPage);
+      after = (data.pageInfo && data.pageInfo.endCursor) || null;
     }
-    readControls();
-    buildStructure();
+    return acc;
+  }
+
+  async function init() {
+    if (!$('cards')) return;
+    if (window.GB) await GB.catReady;
     bindControls();
-    await fetchAllPosts();
-    currentPage = 1;
-    renderCards();
-  }
+    bindFilters();
+    bindPager();
 
-  // ---------- 等待公共部分加载 ----------
-  function start() {
-    if (window.commonsLoaded) {
-      initMain();
-    } else {
-      document.addEventListener('commonsLoaded', initMain);
+    try {
+      allPosts = await fetchAllPosts();
+      if (!allPosts.length && GB.demoMode && window.GB_DEMO) {
+        allPosts = window.GB_DEMO.posts.slice();
+        GB.showDemoNotice();
+      }
+    } catch (e) {
+      console.error('加载失败:', e);
+      if (GB.demoMode && window.GB_DEMO) {
+        // 本地预览：后端 CORS 未放行本机域名 → 使用演示数据
+        allPosts = window.GB_DEMO.posts.slice();
+        GB.showDemoNotice();
+      } else {
+        const box = $('cards');
+        if (box) box.innerHTML = '<div class="empty-note">加载失败，请稍后重试。</div>';
+        return;
+      }
+    }
+
+    renderHero();
+    renderTabs();
+    renderRank();
+    renderList();
+    rendered = true;
+    GB.initReveal();
+
+    // 公告条：未配置 CF 存储时，用「公告」分类的文章标题兜底
+    if (!(window.BLACKNET && window.BLACKNET.ANNOUNCEMENTS_URL)) {
+      const titles = defaultOrder(allPosts).filter(isAnn).slice(0, 8).map(p => p.title).filter(Boolean);
+      if (titles.length) GB.renderTicker(titles);
+      else GB.renderTicker(allPosts.slice(0, 5).map(p => p.title));
     }
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', start);
-  } else {
-    start();
+  function start() {
+    if (window.commonsLoaded) init();
+    else document.addEventListener('commonsLoaded', init);
   }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+  else start();
 })();

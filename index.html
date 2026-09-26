@@ -1,58 +1,86 @@
 <!DOCTYPE html>
-<html> 
+<html lang="zh-CN" data-theme="light">
 <head>
-	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<meta name="generator" content="RocketCake">
-<link rel="icon" href="/favicon.ico" type="image/x-icon">	<title>群档案</title>
-	<link rel="stylesheet" type="text/css" href="index_html.css?h=d2778a1f">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>群档案 · 记录、连接与被看见</title>
+<meta name="description" content="群档案 —— 收录群内的每一次发声，让碎片重新被看见。">
+<link rel="icon" href="/favicon.ico" type="image/x-icon">
+<link rel="stylesheet" href="assets/site.css">
+<script>/* 主题预设：在首次绘制前应用，避免闪烁 */try{var t=localStorage.getItem('gb-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
 </head>
 <body>
-<div class="textstyle1">
-<div  id="header-placeholder" >
-</div>
+
+<!-- 公共头部（公告条 + 导航），由 load-commons.js 注入 -->
+<div id="header-placeholder"></div>
+
+<main id="list">
+  <!-- Hero：置顶 / 最新 -->
+  <section class="hero wrap">
+    <div class="hero-grid">
+      <article class="hero-main reveal" id="heroMain"></article>
+      <div class="hero-side" id="heroSide"></div>
+    </div>
+  </section>
+
+  <!-- 主体：列表 + 侧栏 -->
+  <div class="wrap layout">
+    <section>
+      <div class="section-head">
+        <div>
+          <h2 id="listTitle">最新发布</h2>
+          <div class="toolbar-line">
+            <input id="search" class="search-inp" type="search" placeholder="搜索标题或正文…" aria-label="搜索文章">
+            <label class="sel">排序
+              <select id="sort" aria-label="排序方式">
+                <option value="Default" selected>默认</option>
+                <option value="CREATE_AT">创建时间</option>
+                <option value="UPDATED_AT">修改时间</option>
+                <option value="UP_AT">点赞量</option>
+              </select>
+            </label>
+            <label class="chk"><input type="checkbox" id="UP"> 升序</label>
+            <span class="muted" id="countHint" style="font-size:13px"></span>
+          </div>
+        </div>
+        <div class="tabs" id="tabs"></div>
+      </div>
+
+      <div class="pager" id="pagerTop"></div>
+      <div class="cards" id="cards"></div>
+      <div class="pager" id="pagerBottom"></div>
+    </section>
+
+    <aside class="sidebar" id="tags">
+      <div class="panel reveal">
+        <h3 class="panel-title">热门榜</h3>
+        <ol class="rank" id="rank"></ol>
+      </div>
+      <div class="panel reveal">
+        <h3 class="panel-title">分类</h3>
+        <div class="tags" id="tagList"></div>
+      </div>
+      <div class="panel dark sub reveal">
+        <h4>订阅群档案</h4>
+        <p>每周一封精选信，把最值得读的内容送到你的邮箱。</p>
+        <form id="subForm" onsubmit="return false">
+          <input type="email" id="subMail" placeholder="you@example.com" aria-label="邮箱">
+          <button type="submit">订阅</button>
+        </form>
+        <div class="hint">我们尊重你的隐私，随时可退订。</div>
+      </div>
+    </aside>
   </div>
-<div class="textstyle2">
-<div id="container_6847f1d0"><div class="textstyle2"><div id="container_6cf5d1d2"><div id="container_6cf5d1d2_padding" ><div class="textstyle2"><span class="textstyle3"><br/></span><div id="container_118931d5"><div id="container_118931d5_padding" ><div class="textstyle1"><div id="container_74337d4f"><div id="container_74337d4f_padding" ><div class="textstyle1"><span class="textstyle4"><br/>群档案</span><span class="textstyle5"><br/><br/>这里是群档案,收录了群内的消息</span><span class="textstyle6"><br/><br/></span>  <a href="contact.html" style="text-decoration:none"><div id="button_4a2f61ca">
-    <div class="vcenterstyle1"><div class="vcenterstyle2">      <div class="textstyle1">
-        </div>
-      <div class="textstyle2">
-        <span class="textstyle7">联系我们</span>
-        </div>
-      </div></div>
-    </div></a>
-  <span class="textstyle8">   </span>
-  <a href="about.html" style="text-decoration:none"><div id="button_212cc296">
-    <div class="vcenterstyle1"><div class="vcenterstyle2">      <div class="textstyle1">
-        </div>
-      <div class="textstyle2">
-        <span class="textstyle7">关于</span>
-        </div>
-      </div></div>
-    </div></a>
-</div>
-<div class="textstyle2">  <span class="textstyle8"><br/><br/></span>
-</div>
-<div style="clear:both"></div></div></div></div>
-<div style="clear:both"></div></div></div></div>
-<div style="clear:both"></div></div></div></div>
-</div>  </div>
-<div class="textstyle9">
-<select name="ComboBox1" title="排序方式"  id="sort" >
-<option value="Default" selected="selected">默认</option>
-<option value="CREATE_AT">创建时间</option>
-<option value="UPDATED_AT">修改时间</option>
-<option value="UP_AT">点赞量</option>
-</select>
-<input name="CheckBox1" type="checkbox" value="" title="" checked="checked"  id="UP" >
-<span class="textstyle10">升序</span>  </div>
-<div class="textstyle1">
-<div id="main"></div><div  id="footer-placeholder" >
-</div>
-<span class="textstyle3"><br/></span><div id="container_147dd5a4"><div id="container_147dd5a4_padding" ></div></div><script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-<script src="/config.js" defer></script>
-<script src="/load-commons.js" defer></script>
-<script src="/oauth.js" defer></script>
-<script src="/main.js" defer></script><span class="textstyle3"><br/></span>  </div>
+</main>
+
+<!-- 公共页脚 -->
+<div id="footer-placeholder"></div>
+
+<script src="config.js"></script>
+<script src="assets/site.js" defer></script>
+<script src="assets/demo.js" defer></script>
+<script src="load-commons.js" defer></script>
+<script src="oauth.js" defer></script>
+<script src="main.js" defer></script>
 </body>
 </html>

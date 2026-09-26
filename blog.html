@@ -1,37 +1,105 @@
 <!DOCTYPE html>
-<html> 
+<html lang="zh-CN" data-theme="light">
 <head>
-	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<meta name="generator" content="RocketCake">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vditor@3.10.6/dist/index.css">
-<script src="https://unpkg.com/vditor/dist/index.min.js"></script>
-	<title></title>
-	<link rel="stylesheet" type="text/css" href="blog_html.css?h=0c67fc06">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>正文 · 群档案</title>
+<meta name="description" content="群档案 · 文章详情">
+<link rel="icon" href="/favicon.ico" type="image/x-icon">
+<link rel="stylesheet" href="assets/site.css">
+<!-- Markdown 渲染：本地优先（不依赖外域 CDN，预览环境 CSP 亦可） -->
+<script src="assets/vendor/marked.min.js"></script>
+<script src="assets/vendor/purify.min.js"></script>
+<script>
+/* 若本地 vendor 目录不可用（例如尚未提交），自动回退 CDN，保证线上可用 */
+(function () {
+  var need = [];
+  if (typeof marked === 'undefined') need.push('https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js');
+  if (typeof DOMPurify === 'undefined') need.push('https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js');
+  need.forEach(function (src) { document.write('<script src="' + src + '"><\/script>'); });
+})();
+</script>
+<!-- 评论编辑器 Vditor 4.0：本地优先，失败回退 CDN -->
+<link rel="stylesheet" href="vditor/4.0.0/dist/index.css">
+<script>
+(function () {
+  var LOCAL = 'vditor/4.0.0/dist/index.min.js';
+  var CDN = 'https://cdn.jsdelivr.net/npm/vditor@4.0.0/dist/index.min.js';
+  var s = document.createElement('script');
+  s.src = LOCAL;
+  s.onload = function () { window.__vditorFrom = 'local'; };
+  s.onerror = function () {
+    var c = document.createElement('script');
+    c.src = CDN;
+    c.onload = function () { window.__vditorFrom = 'cdn'; };
+    c.onerror = function () { window.__vditorFrom = 'none'; };
+    document.head.appendChild(c);
+  };
+  document.head.appendChild(s);
+})();
+</script>
+<script>/* 主题预设 */try{var t=localStorage.getItem('gb-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
 </head>
 <body>
-<div class="textstyle1">
-<div  id="header-placeholder" >
-</div>
-  </div>
-<div class="textstyle2">
-<div id="container_4b4e21bc"><div class="textstyle2"><div id="container_7fa5239b"><div id="container_7fa5239b_padding" ><div class="textstyle2"><span class="textstyle3"><br/></span><div id="container_297d27c3"><div class="textstyle1"><div id="title"><div id="title_padding" ></div></div><div id="information"><div id="information_padding" ></div></div></div>
-</div></div>
-<div style="clear:both"></div></div></div></div>
-</div>  </div>
-<div class="textstyle1">
-<div id="main"><div class="textstyle2"><div id="text"><div id="text_padding" ></div></div></div>
-</div><span class="textstyle3"><br/></span>  </div>
-<div class="textstyle2">
-<div id="comment"></div>  </div>
-<div class="textstyle1">
-<span class="textstyle3"><br/></span><div  id="footer-placeholder" >
-</div>
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js">
-</script><script src="/config.js" defer></script>
-<script src="/blog.js" defer></script>
-<script src="/load-commons.js" defer></script>
-<script src="/oauth.js" defer></script>  </div>
+
+<div id="header-placeholder"></div>
+
+<main>
+  <nav class="crumb wrap" id="crumb">
+    <a href="/">首页</a><span class="s">/</span>
+    <a href="/index.html#list" id="crumbCat">分类</a><span class="s">/</span>
+    <span>正文</span>
+  </nav>
+
+  <article>
+    <!-- 文章头：封面在标题左侧，标题区居中；与正文共用左右分隔线 -->
+    <header class="article-head wrap">
+      <div class="article-cover" id="cover"></div>
+      <div class="head-main">
+        <span class="chip" id="category">正文</span>
+        <h1 id="title"></h1>
+        <p class="lede" id="lede"></p>
+        <div class="article-meta" id="meta"></div>
+      </div>
+    </header>
+
+    <div class="article-body" id="body"></div>
+
+    <!-- 反应条：「顶」(↑) 与普通表情同一套样式 -->
+    <div class="reaction-bar" id="reactions"></div>
+
+    <div class="article-foot" id="tags"></div>
+  </article>
+
+  <section class="comments" id="commentsSection">
+    <h2>评论 <span class="count" id="cCount"></span></h2>
+
+    <div class="login-hint" id="loginHint">登录后即可参与讨论 · <a id="loginLink">使用 GitHub 登录</a></div>
+    <div class="login-hint" id="closedHint" hidden>该文章已关闭评论。</div>
+
+    <div class="comment-form" id="commentForm" hidden>
+      <div id="vditor-container"></div>
+      <div class="cf-side"><button class="btn btn-primary btn-sm" id="cSubmit" type="button">发表评论</button></div>
+    </div>
+
+    <div class="pager" id="comment-pagination-top"></div>
+    <div id="comment-list"></div>
+    <div class="pager" id="comment-pagination-bottom"></div>
+  </section>
+
+  <section class="related wrap" id="relatedSection" hidden>
+    <h2>相关阅读</h2>
+    <div class="cards" id="related"></div>
+  </section>
+</main>
+
+<div id="footer-placeholder"></div>
+
+<script src="config.js"></script>
+<script src="assets/site.js" defer></script>
+<script src="assets/demo.js" defer></script>
+<script src="load-commons.js" defer></script>
+<script src="oauth.js" defer></script>
+<script src="blog.js" defer></script>
 </body>
 </html>

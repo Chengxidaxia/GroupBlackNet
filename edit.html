@@ -1,38 +1,144 @@
 <!DOCTYPE html>
-<html> 
+<html lang="zh-CN" data-theme="light">
 <head>
-	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<meta name="generator" content="RocketCake">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vditor@3.10.6/dist/index.css">
-<script src="https://unpkg.com/vditor/dist/index.min.js"></script>	<title></title>
-	<link rel="stylesheet" type="text/css" href="edit_html.css?h=9f1e9939">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>写稿 · 群档案</title>
+<link rel="icon" href="/favicon.ico" type="image/x-icon">
+<link rel="stylesheet" href="assets/site.css">
+<!-- Vditor 4.0（全功能，不精简）：本地优先，失败自动回退 CDN；版本号固定便于升级与缓存隔离 -->
+<link rel="stylesheet" href="vditor/4.0.0/dist/index.css">
+<script>
+(function () {
+  var LOCAL = 'vditor/4.0.0/dist/index.min.js';
+  var CDN = 'https://cdn.jsdelivr.net/npm/vditor@4.0.0/dist/index.min.js';
+  var s = document.createElement('script');
+  s.src = LOCAL;
+  s.onload = function () { window.__vditorFrom = 'local'; };
+  s.onerror = function () {
+    var c = document.createElement('script');
+    c.src = CDN;
+    c.onload = function () { window.__vditorFrom = 'cdn'; };
+    c.onerror = function () { window.__vditorFrom = 'none'; };
+    document.head.appendChild(c);
+  };
+  document.head.appendChild(s);
+})();
+</script>
+<script>/* 主题预设 */try{var t=localStorage.getItem('gb-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
 </head>
 <body>
-<div class="textstyle1">
-<div  id="header-placeholder" >
-</div>
+
+<div id="header-placeholder"></div>
+
+<main class="wrap wide">
+  <div class="page-head">
+    <div>
+      <h1>写稿</h1>
+      <p>正文用 Markdown（Vditor 4.0，工具栏最右侧可一键发布）；分类等信息写入正文首行 JSON。</p>
+    </div>
   </div>
-<div class="textstyle2">
-<div id="container_4dd2eac8"><div class="textstyle2"><div id="container_2ee72f7e"><div id="container_2ee72f7e_padding" ><div class="textstyle2"><span class="textstyle3"><br/></span><div id="container_7b322585"><div id="container_7b322585_padding" ><div class="textstyle1"><div id="container_5f88a5e0"><div id="container_5f88a5e0_padding" ><div class="textstyle1"><span class="textstyle4">标题</span><input type="text" value="" title="" name="TextEdit1"  id="title" >
-</div>
-<div style="clear:both"></div></div></div><div id="container_35965677"><div id="container_35965677_padding" ><div class="textstyle1"><input name="CheckBox2" type="checkbox" value="" title="" checked="checked"  id="noicon" >
-<span class="textstyle3">无封面</span><div id="upload"><div id="upload_padding" ></div></div></div>
-<div style="clear:both"></div></div></div><div id="container_5ce8949f"><div id="container_5ce8949f_padding" ><div class="textstyle1"><span class="textstyle3">简介<br/></span><input type="text" value="" title="" name="TextEdit2"  id="info" >
-</div>
-<div style="clear:both"></div></div></div></div>
-<div style="clear:both"></div></div></div></div>
-<div style="clear:both"></div></div></div></div>
-</div><div id="container_40fcb774"><div id="container_40fcb774_padding" ><div class="textstyle2"><div id="editing"><div id="editing_padding" ></div></div></div>
-<div style="clear:both"></div></div></div>  </div>
-<div class="textstyle1">
-<div  id="footer-placeholder" >
-</div>
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
-<script src="/config.js" defer></script>
-<script src="/edit.js" defer></script>
-<script src="/load-commons.js" defer></script>
-<script src="/oauth.js" defer></script><span class="textstyle3"><br/><br/></span>  </div>
+
+  <div class="editor-layout">
+    <!-- 左栏：卡片预览 + 首行 JSON -->
+    <aside class="sidebar left">
+      <div class="panel">
+        <h3>列表卡片预览</h3>
+        <div class="card-prev">
+          <div class="thumb" id="prevThumb"></div>
+          <div class="b">
+            <h4 id="prevTitle">标题</h4>
+            <p class="ex" id="prevEx">简介</p>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>正文首行 JSON</h3>
+        <div class="json-out" id="jsonOut"></div>
+        <p class="side-note">后端不变，所有新增字段（分类 ID、标签、是否允许评论、文字封面等）都写入这段 JSON，作为正文的第一行提交。</p>
+      </div>
+    </aside>
+
+    <!-- 右栏：表单 + 编辑器 -->
+    <div>
+      <div class="panel">
+        <h3>基本信息</h3>
+
+        <label class="field">
+          <span class="lb">标题 <span class="hint" id="titleCount">0 / 120</span></span>
+          <input class="inp title-inp" id="title" maxlength="120" placeholder="写一个清晰、有信息量的标题…">
+        </label>
+
+        <div class="field">
+          <span class="lb">分类 <span class="hint" id="catSrc">JSON 的 category（数字 ID）</span></span>
+          <div class="cat-grid" id="cats"></div>
+        </div>
+
+        <label class="field">
+          <span class="lb">简介 <span class="hint">JSON 的 info</span></span>
+          <textarea class="inp" id="info" rows="2" maxlength="200" placeholder="一句话说明这篇文章讲什么…"></textarea>
+        </label>
+
+        <label class="field">
+          <span class="lb">标签 <span class="hint">JSON 的 tags（逗号分隔）</span></span>
+          <input class="inp" id="tags" placeholder="用逗号分隔，如：归档, Markdown">
+        </label>
+
+        <div class="field">
+          <span class="lb">封面 <span class="hint">图片 → icon；文字 → coverText</span></span>
+          <div class="seg" id="coverSeg">
+            <button type="button" data-mode="image" class="on">上传图片</button>
+            <button type="button" data-mode="text">文字封面</button>
+            <button type="button" data-mode="none">无封面</button>
+          </div>
+
+          <div class="cover-row" id="coverImageRow">
+            <label class="cover-drop" id="coverDrop">
+              <div class="big">🖼️</div>
+              点击选择图片，或把图片拖到这里<br>
+              <span style="font-size:12px">支持 jpg / png / gif / webp / svg</span>
+              <input type="file" id="coverFile" accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml,image/x-icon" hidden>
+            </label>
+            <div class="cover-prev" id="coverPrev"></div>
+          </div>
+
+          <div id="coverTextRow" style="display:none">
+            <input class="inp" id="coverText" maxlength="16" placeholder="输入文字作为封面（最多 16 字），如：群档案 · 技术笔记">
+          </div>
+
+          <div id="coverNoneRow" style="display:none;color:var(--muted);font-size:13.5px">
+            不设置封面，列表与详情页使用分类渐变占位图。
+          </div>
+        </div>
+
+        <div class="field">
+          <span class="lb">其它设置 <span class="hint">同样写入首行 JSON</span></span>
+          <label class="switch"><input type="checkbox" id="allowComments" checked> 允许评论（allowComments）</label>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>正文</h3>
+        <div id="vdStatus" class="vd-status">编辑器加载中…</div>
+        <div class="editor-wrap">
+          <div id="vditor"></div>
+          <textarea id="mdFallback" spellcheck="false"></textarea>
+        </div>
+        <div class="foot-row">
+          <span class="grow" id="wordCount">0 字</span>
+          <button class="btn btn-primary" id="submitBtn" type="button">发布文章</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="footer-placeholder"></div>
+
+<script src="config.js"></script>
+<script src="assets/site.js" defer></script>
+<script src="load-commons.js" defer></script>
+<script src="oauth.js" defer></script>
+<script src="edit.js" defer></script>
 </body>
 </html>

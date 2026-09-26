@@ -1,11 +1,20 @@
-# 明文密钥，禁止提交（含 GitHub PAT / OAuth Secret / 图床 Key 等）
-新建文本文档.txt
+# 后端 Worker 源码（含 .env 凭据，暂不随站点仓库提交）
+backend/
 
-# RocketCake 工程文件
-GroupBlackNet.rcd
+# 凭据文件（双保险，防止将来调整 backend/ 规则时误提交）
+.env
+**/.env
+
+# 冗余的 Vditor 副本（待手动清理，勿提交）
+vditor__new/
 
 # 本地发布输出目录（站点文件已置于仓库根目录供 GitHub Pages 使用）
 Public/
 
 # WorkBuddy 项目记忆目录（非站点内容）
 .workbuddy/
+
+# 本地临时产物（无头浏览器 profile / 临时 DOM 等）
+_edge/
+_dom*.html
+_push_test.log

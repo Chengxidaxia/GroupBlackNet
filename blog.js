@@ -1,20 +1,21 @@
 // ============================================================
-// blog.js - 完整版（more 正确配置为对象）
+// blog.js — 详情页：正文 + 顶/表情 + 评论（含回复、表情、分页）
+// 数据：api.blacknet.cc.cd（读取）/ oauth.blacknet.cc.cd（写入）
+// 功能对齐旧版：@提及、#编号、代码复制、图片查看器、评论分页、
+//              嵌套回复、评论表情（每人每表情只计一次）、顶、相关阅读
 // ============================================================
-
-(function() {
+(function () {
   'use strict';
 
   const API_URL = (window.BLACKNET && window.BLACKNET.API_URL) || 'https://api.blacknet.cc.cd';
   const OAUTH_BASE = (window.BLACKNET && window.BLACKNET.OAUTH_BASE) || 'https://oauth.blacknet.cc.cd';
   const UPLOAD_URL = (window.BLACKNET && window.BLACKNET.UPLOAD_URL) || 'https://upload.blacknet.cc.cd';
-  const COMMENTS_PER_PAGE = 20;
   const DEFAULT_AVATAR = (window.BLACKNET && window.BLACKNET.DEFAULT_AVATAR) || 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png';
+  const COMMENTS_PER_PAGE = 20;
 
-  const titleEl = document.getElementById('title');
-  const infoEl = document.getElementById('information');
-  const textEl = document.getElementById('text');
-  const commentContainer = document.getElementById('comment');
+  const $ = id => document.getElementById(id);
+  const esc = s => (window.GB ? GB.esc(s) : String(s == null ? '' : s));
+  const toast = msg => (window.GB ? GB.toast(msg) : console.warn(msg));
 
   let discussionData = null;
   let isLoggedIn = false;
@@ -23,76 +24,72 @@
   let allComments = [];
   let totalComments = 0;
   let currentCommentPage = 1;
-  let totalPages = 1;
+  let totalCommentPages = 1;
   let isSubmitting = false;
-  let userReactions = {};
+  let allowComments = true;
+  let demoLocal = false;   // 本地预览：后端 CORS 未放行本机域名 → 使用演示数据并本地化交互
+  const myReactions = new Set();   // `${subjectId}|${content}`；顶用 content = 'UPVOTE'
 
-  // ---------- 样式 ----------
-  function injectStyles() {
-    if (document.getElementById('blog-styles')) return;
-    const style = document.createElement('style');
-    style.id = 'blog-styles';
-    style.textContent = `
-      .image-viewer-overlay {
-        position:fixed; top:0; left:0; width:100%; height:100%;
-        background:rgba(0,0,0,0.85);
-        display:flex; align-items:center; justify-content:center;
-        z-index:9999; cursor:grab;
-      }
-      .image-viewer-overlay.dragging { cursor:grabbing; }
-      .image-viewer-overlay .viewer-img {
-        max-width:90vw; max-height:90vh; object-fit:contain;
-        transition:transform 0.05s linear;
-        transform:translate(0,0) scale(1);
-        user-select:none; -webkit-user-drag:none;
-      }
-      .image-viewer-close {
-        position:fixed; top:20px; right:30px;
-        font-size:40px; color:#fff; opacity:0.7;
-        cursor:pointer; z-index:10000;
-        background:none; border:none; padding:10px;
-      }
-      .image-viewer-close:hover { opacity:1; }
-      .image-viewer-info {
-        position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
-        color:#ccc; font-size:14px; background:rgba(0,0,0,0.5);
-        padding:4px 12px; border-radius:12px;
-        pointer-events:none; z-index:10001;
-        font-family:sans-serif;
-      }
-      .temp-comment, .temp-reply { opacity:0.7; background:#f0f9f0; border-left:3px solid #2da44e; padding-left:8px; }
-
-      .pagination-btn { margin:0 2px; padding:4px 10px; border:1px solid #ccc; background:#fff; color:#333; cursor:pointer; border-radius:4px; font-size:12pt; transition:background 0.2s; }
-      .pagination-btn:hover { background:#e9ecef; }
-      .pagination-btn.active { background:#B1782E; color:#fff; border-color:#B1782E; }
-      .pagination-btn.disabled { opacity:0.5; cursor:not-allowed; }
-      .pagination-ellipsis { margin:0 4px; font-size:12pt; cursor:pointer; color:#0366d6; user-select:none; }
-      .pagination-ellipsis:hover { text-decoration:underline; }
-
-      .markdown-body pre { background:#F0F1F2 !important; border-radius:8px !important; padding:16px !important; overflow:auto !important; position:relative !important; }
-      .markdown-body pre code { background:transparent !important; color:#000 !important; padding:0 !important; font-family:SFMono-Regular,Consolas,monospace !important; font-size:13px !important; line-height:1.45 !important; white-space:pre !important; border-radius:0 !important; }
-      .markdown-body code:not(pre code) { background:#F0F1F2 !important; padding:0.2em 0.4em !important; border-radius:3px !important; color:#000 !important; font-size:85% !important; font-family:SFMono-Regular,Consolas,monospace !important; }
-      .markdown-body img { max-width:100% !important; max-height:500px !important; width:auto !important; height:auto !important; display:block !important; margin:10px 0 !important; }
-      blockquote { border-left:4px solid #dfe2e5 !important; color:#6a737d !important; padding-left:16px !important; margin-left:0 !important; margin-top:0 !important; margin-bottom:0 !important; }
-      .task-list-item { list-style-type:none !important; display:flex !important; align-items:flex-start !important; }
-      .task-list-item input[type="checkbox"] { margin-right:6px; margin-top:4px; width:16px; height:16px; flex-shrink:0; accent-color:#2da44e; }
-      .comment-item .markdown-body { font-size:14px; line-height:1.6; }
-
-      .reactions-container { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0; align-items:center; }
-      .reaction-item { display:flex; align-items:center; gap:4px; padding:4px 8px; border:1px solid #ddd; border-radius:16px; background:#f6f8fa; cursor:default; }
-      .reaction-item.reaction-btn { cursor:pointer; }
-      .upvote-item { margin-right:16px !important; border-radius:8px; padding:4px 12px; }
-      .upvote-item .upvote-icon { font-size:18px; line-height:1; }
-      .upvote-disabled { opacity:0.6; cursor:not-allowed; }
-    `;
-    document.head.appendChild(style);
+  /* ================= Markdown ================= */
+  let markedReady = false;
+  function renderMarkdown(text, imgMax) {
+    if (!text) return '';
+    if (typeof marked === 'undefined' || typeof marked.parse !== 'function') {
+      return esc(text).replace(/\n/g, '<br>');
+    }
+    if (!markedReady) {
+      try { marked.use({ gfm: true, breaks: true }); } catch (e) { /* 忽略 */ }
+      markedReady = true;
+    }
+    let html;
+    try { html = marked.parse(text); } catch (e) { return esc(text).replace(/\n/g, '<br>'); }
+    if (typeof DOMPurify !== 'undefined') {
+      html = DOMPurify.sanitize(html, {
+        ADD_TAGS: ['input'],
+        ADD_ATTR: ['type', 'checked', 'disabled', 'class', 'id', 'style', 'aria-label', 'target', 'rel']
+      });
+    }
+    // 保护已有 <a>，避免二次处理
+    const links = [];
+    html = html.replace(/<a\b[^>]*>[\s\S]*?<\/a>/gi, m => { links.push(m); return `@@L${links.length - 1}@@`; });
+    html = html.replace(/(^|[\s（(>])@([a-zA-Z0-9\-_]{1,39})/g,
+      (m, p, u) => `${p}<a class="mention" href="https://github.com/${u}" target="_blank" rel="noopener">@${u}</a>`);
+    html = html.replace(/(^|[\s（(>])#(\d+)/g,
+      (m, p, n) => `${p}<a href="/blog.html?d=${n}">#${n}</a>`);
+    html = html.replace(/@@L(\d+)@@/g, (m, i) => links[+i]);
+    return html;
   }
-  injectStyles();
 
-  // ---------- 图片查看器 ----------
+  /* ================= 代码复制 / 图片查看器 ================= */
+  function addCopyButtons() {
+    document.querySelectorAll('.article-body pre, .comment .c-body pre').forEach(pre => {
+      if (pre.querySelector('.copy-code-btn')) return;
+      const code = pre.querySelector('code');
+      if (!code) return;
+      const codeText = code.textContent;
+      const btn = document.createElement('button');
+      btn.className = 'copy-code-btn';
+      btn.type = 'button';
+      btn.textContent = '复制';
+      btn.addEventListener('click', async e => {
+        e.stopPropagation();
+        try { await navigator.clipboard.writeText(codeText); }
+        catch (err) {
+          const ta = document.createElement('textarea');
+          ta.value = codeText; document.body.appendChild(ta); ta.select();
+          try { document.execCommand('copy'); } catch (e2) {}
+          document.body.removeChild(ta);
+        }
+        btn.textContent = '已复制!';
+        setTimeout(() => { btn.textContent = '复制'; }, 2000);
+      });
+      pre.appendChild(btn);
+    });
+  }
+
   function initImageViewer() {
-    document.addEventListener('dblclick', function(e) {
-      const img = e.target.closest('.markdown-body img, .comment-item img');
+    document.addEventListener('dblclick', e => {
+      const img = e.target.closest('.article-body img, .comment .c-body img');
       if (!img) return;
       const src = img.getAttribute('src');
       if (!src) return;
@@ -104,754 +101,425 @@
   function showImageViewer(src) {
     const overlay = document.createElement('div');
     overlay.className = 'image-viewer-overlay';
-    overlay.style.cursor = 'grab';
-
     const img = document.createElement('img');
-    img.src = src;
-    img.className = 'viewer-img';
-    img.draggable = false;
-
+    img.src = src; img.className = 'viewer-img'; img.draggable = false;
     const closeBtn = document.createElement('button');
-    closeBtn.className = 'image-viewer-close';
-    closeBtn.textContent = '✕';
-    closeBtn.title = '关闭 (ESC)';
-
+    closeBtn.className = 'image-viewer-close'; closeBtn.textContent = '✕'; closeBtn.title = '关闭 (ESC)';
     const info = document.createElement('div');
-    info.className = 'image-viewer-info';
-    info.textContent = '滚轮缩放 · 拖拽移动';
-
-    overlay.appendChild(img);
-    overlay.appendChild(closeBtn);
-    overlay.appendChild(info);
+    info.className = 'image-viewer-info'; info.textContent = '滚轮缩放 · 拖拽移动 · 双击图片打开';
+    overlay.append(img, closeBtn, info);
     document.body.appendChild(overlay);
 
-    let scale = 1;
-    let translateX = 0;
-    let translateY = 0;
-    let isDragging = false;
-    let startX = 0, startY = 0;
-    let startTranslateX = 0, startTranslateY = 0;
-
-    function updateTransform() {
-      img.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
-    }
-
-    overlay.addEventListener('wheel', function(e) {
+    let scale = 1, tx = 0, ty = 0, dragging = false, sx = 0, sy = 0, stx = 0, sty = 0;
+    const apply = () => { img.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`; };
+    overlay.addEventListener('wheel', e => {
       e.preventDefault();
-      const delta = e.deltaY > 0 ? -0.1 : 0.1;
-      scale = Math.min(Math.max(0.2, scale + delta), 5);
-      updateTransform();
+      scale = Math.min(Math.max(0.2, scale + (e.deltaY > 0 ? -0.1 : 0.1)), 5);
+      apply();
     }, { passive: false });
-
-    overlay.addEventListener('mousedown', function(e) {
+    overlay.addEventListener('mousedown', e => {
       if (e.button !== 0) return;
-      isDragging = true;
-      overlay.style.cursor = 'grabbing';
-      startX = e.clientX;
-      startY = e.clientY;
-      startTranslateX = translateX;
-      startTranslateY = translateY;
-      document.addEventListener('mousemove', onMouseMove);
-      document.addEventListener('mouseup', onMouseUp);
+      dragging = true; overlay.classList.add('dragging');
+      sx = e.clientX; sy = e.clientY; stx = tx; sty = ty;
+      document.addEventListener('mousemove', move);
+      document.addEventListener('mouseup', up);
       e.preventDefault();
     });
-
-    function onMouseMove(e) {
-      if (!isDragging) return;
-      const dx = e.clientX - startX;
-      const dy = e.clientY - startY;
-      translateX = startTranslateX + dx;
-      translateY = startTranslateY + dy;
-      updateTransform();
-    }
-
-    function onMouseUp(e) {
-      if (!isDragging) return;
-      isDragging = false;
-      overlay.style.cursor = 'grab';
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-    }
-
-    overlay.addEventListener('dragstart', (e) => e.preventDefault());
-
-    function closeViewer() {
-      overlay.remove();
-      document.removeEventListener('keydown', escHandler);
-    }
-
-    closeBtn.addEventListener('click', function(e) {
-      e.stopPropagation();
-      closeViewer();
-    });
-
-    overlay.addEventListener('click', function(e) {
-      if (e.target === overlay && !isDragging) {
-        closeViewer();
-      }
-    });
-
-    function escHandler(e) {
-      if (e.key === 'Escape') {
-        closeViewer();
-      }
-    }
-    document.addEventListener('keydown', escHandler);
+    function move(e) { if (!dragging) return; tx = stx + (e.clientX - sx); ty = sty + (e.clientY - sy); apply(); }
+    function up() { dragging = false; overlay.classList.remove('dragging'); document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); }
+    overlay.addEventListener('dragstart', e => e.preventDefault());
+    closeBtn.addEventListener('click', e => { e.stopPropagation(); close(); });
+    overlay.addEventListener('click', e => { if (e.target === overlay && !dragging) close(); });
+    function onKey(e) { if (e.key === 'Escape') close(); }
+    document.addEventListener('keydown', onKey);
+    function close() { overlay.remove(); document.removeEventListener('keydown', onKey); }
   }
 
-  // ---------- 辅助函数 ----------
-  function base64Decode(str) {
-    try { return decodeURIComponent(escape(atob(str))); } catch(e) { return atob(str); }
-  }
-  function getAvatarUrl(user) {
-    return (user && user.avatarUrl) ? user.avatarUrl : DEFAULT_AVATAR;
-  }
-  function formatDate(dateStr) {
-    const date = new Date(dateStr);
-    return date.toLocaleString('zh-CN', {
-      year: 'numeric', month: 'long', day: 'numeric',
-      hour: '2-digit', minute: '2-digit'
-    });
-  }
-  const EMOJI_MAP = {
-    'THUMBS_UP': '👍', 'THUMBS_DOWN': '👎', 'LAUGH': '😄',
-    'HOORAY': '🎉', 'CONFUSED': '😕', 'HEART': '❤️',
-    'ROCKET': '🚀', 'EYES': '👀'
+  /* ================= 反应（顶 / 表情） ================= */
+  const EMOJI_TO_CONTENT = {
+    '👍': 'THUMBS_UP', '👎': 'THUMBS_DOWN', '😄': 'LAUGH', '🎉': 'HOORAY',
+    '😕': 'CONFUSED', '❤️': 'HEART', '🚀': 'ROCKET', '👀': 'EYES'
   };
-  function parseFirstLine(body) {
-    const lines = body.split('\n');
-    const firstLine = lines[0] || '';
-    let info = null;
-    let bodyText = '';
-    let isJson = false;
 
+  function rxBarHTML() {
+    const d = discussionData, sid = d.id;
+    const up = d.upvoteCount || 0;
+    if (isLoggedIn && d.viewerHasUpvoted) myReactions.add(sid + '|UPVOTE');
+    let html = `<button class="rx${myReactions.has(sid + '|UPVOTE') ? ' on' : ''}" data-kind="upvote" data-sid="${esc(sid)}" ${isLoggedIn ? '' : 'disabled'} title="顶这篇文章">↑ <span class="n">${up}</span></button>`;
+    (d.reactionGroups || []).forEach(g => {
+      const n = (g.users && g.users.totalCount) || 0;
+      if (n <= 0) return;
+      const on = isLoggedIn && g.viewerHasReacted;
+      if (on) myReactions.add(sid + '|' + g.content);
+      html += `<button class="rx${on ? ' on' : ''}" data-kind="reaction" data-sid="${esc(sid)}" data-content="${esc(g.content)}" ${isLoggedIn ? '' : 'disabled'}>
+        ${GB.emojiOf(g.content)} <span class="n">${n}</span></button>`;
+    });
+    if (isLoggedIn) html += `<button class="rx add" data-kind="add" title="添加表情">＋</button>`;
+    return html;
+  }
+
+  async function toggleSubjectReaction(btn) {
+    if (!isLoggedIn) { toast('请先登录'); return; }
+    const sid = btn.dataset.sid, content = btn.dataset.content;
+    const key = sid + '|' + content;
+    const wasActive = myReactions.has(key);
+    const next = !wasActive;
+    const nEl = btn.querySelector('.n');
+    const cur = parseInt(nEl.textContent, 10) || 0;
+
+    if (next) myReactions.add(key); else myReactions.delete(key);
+    btn.classList.toggle('on', next);
+    nEl.textContent = Math.max(0, cur + (next ? 1 : -1));
+    if (demoLocal) return;      // 演示模式：仅本地生效
+    btn.disabled = true;
     try {
-      const data = JSON.parse(firstLine);
-      isJson = true;
-      if (data.info) {
-        info = base64Decode(data.info);
+      const res = await fetch(`${OAUTH_BASE}/reaction`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subjectId: sid, content, action: next ? 'add' : 'remove' })
+      });
+      if (res.status === 409) {   // 状态已存在/不存在 → 反向修正
+        await fetch(`${OAUTH_BASE}/reaction`, {
+          method: 'POST', credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subjectId: sid, content, action: next ? 'remove' : 'add' })
+        });
+        if (next) myReactions.delete(key); else myReactions.add(key);
+        btn.classList.toggle('on', !next);
+        nEl.textContent = Math.max(0, cur + (next ? -1 : 1));
+      } else if (!res.ok) {
+        throw new Error('HTTP ' + res.status);
       }
-      const restLines = lines.slice(1);
-      bodyText = restLines.join('\n').trim();
     } catch (e) {
-      const trimmed = firstLine.trim();
-      if (trimmed) {
-        info = trimmed;
-      } else {
-        info = null;
-      }
-      const restLines = lines.slice(1);
-      bodyText = restLines.join('\n').trim();
+      console.error('Reaction 失败:', e);
+      // 回滚
+      if (next) myReactions.delete(key); else myReactions.add(key);
+      btn.classList.toggle('on', wasActive);
+      nEl.textContent = cur;
+      toast('操作失败，请稍后重试');
+    } finally {
+      btn.disabled = false;
     }
-    if (info === '' || info === null) info = null;
-    return { info, bodyText, isJson };
   }
 
-  // ---------- Markdown 渲染 ----------
-  let markedConfigured = false;
-  function renderMarkdown(text, imgMaxHeight = 500) {
-    if (!text) return '';
-    if (typeof marked === 'undefined' || typeof marked.parse !== 'function') {
-      return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
-    }
-    if (!markedConfigured) {
-      try {
-        marked.use({
-          gfm: true, breaks: true, pedantic: false, mangle: false, headerIds: false,
-          highlight: function(code, lang) {
-            if (typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) {
-              try { return hljs.highlight(code, { language: lang }).value; } catch(e) {}
-            }
-            return code;
-          }
-        });
-        markedConfigured = true;
-      } catch(e) { console.warn('marked 配置失败:', e); }
-    }
-    let html;
-    try { html = marked.parse(text); } catch(e) {
-      return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
-    }
-    if (typeof DOMPurify !== 'undefined') {
-      html = DOMPurify.sanitize(html, {
-        ADD_TAGS: ['input', 'task-list', 'task-list-item', 'blockquote', 'pre', 'code'],
-        ADD_ATTR: ['type', 'checked', 'disabled', 'class', 'id', 'style', 'aria-label', 'data-*'],
-        FORCE_ATTR: { 'input': { 'disabled': '' } },
-        ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|geo):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
+  async function toggleUpvote(btn, sid) {
+    if (!isLoggedIn) { toast('请先登录'); return; }
+    const key = sid + '|UPVOTE';
+    const wasActive = myReactions.has(key);
+    const next = !wasActive;
+    const cur = parseInt(btn.dataset.count || '0', 10);
+
+    if (next) myReactions.add(key); else myReactions.delete(key);
+    btn.classList.toggle('on', next);
+    btn.dataset.count = String(Math.max(0, cur + (next ? 1 : -1)));
+    const cntEl = btn.querySelector('.n');
+    if (cntEl) cntEl.textContent = btn.dataset.count;
+
+    if (demoLocal) return;      // 演示模式：仅本地生效
+    btn.disabled = true;
+    try {
+      const res = await fetch(`${OAUTH_BASE}/upvote`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subjectId: sid, action: next ? 'add' : 'remove' })
       });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+    } catch (e) {
+      console.error('Upvote 失败:', e);
+      if (next) myReactions.delete(key); else myReactions.add(key);
+      btn.classList.toggle('on', wasActive);
+      btn.dataset.count = String(cur);
+      const c2 = btn.querySelector('.n');
+      if (c2) c2.textContent = String(cur);
+      toast('操作失败，请稍后重试');
+    } finally {
+      btn.disabled = false;
     }
-    html = html.replace(/<pre>/gi, function(match) {
-      if (/style\s*=/i.test(match)) {
-        return match.replace(/style\s*=\s*(["'])([^"']*)\1/i, function(m, quote, style) {
-          return `style="${quote}${style}; background:#F0F1F2; border-radius:8px; padding:16px; overflow:auto; position:relative;${quote}"`;
-        });
-      } else {
-        return '<pre style="background:#F0F1F2; border-radius:8px; padding:16px; overflow:auto; position:relative;">';
-      }
-    });
-    html = html.replace(/<pre/g, '<pre class="markdown-body"');
-    const linkPlaceholders = [];
-    html = html.replace(/<a\b[^>]*>.*?<\/a>/gi, function(match) {
-      const index = linkPlaceholders.length;
-      linkPlaceholders.push(match);
-      return `@@PLACEHOLDER${index}@@`;
-    });
-    html = html.replace(/(^|\s)@([a-zA-Z0-9\-_]+)/g, function(match, prefix, username) {
-      return `${prefix}<a href="https://github.com/${username}" target="_blank" class="mention" style="color:#0366d6;text-decoration:none;">@${username}</a>`;
-    });
-    html = html.replace(/(^|\s)#(\d+)/g, function(match, prefix, num) {
-      return `${prefix}<a href="/blog.html?d=${num}" class="issue-link" style="color:#0366d6;text-decoration:none;">#${num}</a>`;
-    });
-    html = html.replace(/@@PLACEHOLDER(\d+)@@/g, function(match, index) {
-      return linkPlaceholders[parseInt(index)];
-    });
-    html = html.replace(/<img([^>]*)>/gi, function(match, attrs) {
-      if (/style\s*=/i.test(attrs)) {
-        attrs = attrs.replace(/style\s*=\s*(["'])([^"']*)\1/i, function(m, quote, style) {
-          return `style="${quote}${style}; display:block; margin:10px 0; max-width:100%; max-height:${imgMaxHeight}px; width:auto; height:auto;${quote}"`;
-        });
-      } else {
-        attrs += ` style="display:block; margin:10px 0; max-width:100%; max-height:${imgMaxHeight}px; width:auto; height:auto;"`;
-      }
-      return `<img${attrs}>`;
+  }
+
+  /* ================= 评论渲染 ================= */
+  function commentRxHTML(c) {
+    const sid = c.id;
+    const up = c.upvoteCount || 0;
+    const myUp = myReactions.has(sid + '|UPVOTE');
+    if (isLoggedIn && c.viewerHasUpvoted) myReactions.add(sid + '|UPVOTE');
+    const upOn = isLoggedIn && (c.viewerHasUpvoted || myUp);
+    let html = `<span class="c-rx${upOn ? ' on' : ''}" data-kind="cup" data-id="${esc(sid)}" data-count="${up}">↑ ${up}</span>`;
+    (c.reactionGroups || []).forEach(g => {
+      const n = (g.users && g.users.totalCount) || 0;
+      if (n <= 0) return;
+      const on = isLoggedIn && g.viewerHasReacted;
+      if (on) myReactions.add(sid + '|' + g.content);
+      html += `<span class="c-rx${on ? ' on' : ''}" data-kind="crx" data-id="${esc(sid)}" data-content="${esc(g.content)}">${GB.emojiOf(g.content)} ${n}</span>`;
     });
     return html;
   }
 
-  // ---------- 代码块复制按钮 ----------
-  function addCopyButtonsToCodeBlocks() {
-    document.querySelectorAll('.markdown-body pre, .comment-item pre, #text pre').forEach(pre => {
-      if (pre.querySelector('.copy-code-btn')) return;
-      const code = pre.querySelector('code');
-      if (!code) return;
-      let codeText = code.textContent;
-      const btn = document.createElement('button');
-      btn.className = 'copy-code-btn';
-      btn.textContent = '复制';
-      btn.style.cssText = `
-        position: absolute; top: 8px; right: 8px; padding: 4px 10px;
-        background: #2da44e; color: white; border: none; border-radius: 4px;
-        font-size: 12px; cursor: pointer; opacity: 0.7; transition: opacity 0.2s;
-        z-index: 10;
-      `;
-      btn.addEventListener('mouseenter', () => { btn.style.opacity = '1'; });
-      btn.addEventListener('mouseleave', () => { btn.style.opacity = '0.7'; });
-      btn.addEventListener('click', async function(e) {
-        e.stopPropagation();
-        try {
-          await navigator.clipboard.writeText(codeText);
-          btn.textContent = '已复制!';
-          setTimeout(() => { btn.textContent = '复制'; }, 2000);
-        } catch (err) {
-          const textarea = document.createElement('textarea');
-          textarea.value = codeText;
-          document.body.appendChild(textarea);
-          textarea.select();
-          document.execCommand('copy');
-          document.body.removeChild(textarea);
-          btn.textContent = '已复制!';
-          setTimeout(() => { btn.textContent = '复制'; }, 2000);
-        }
-      });
-      pre.style.position = 'relative';
-      pre.appendChild(btn);
-    });
-  }
+  function renderComment(c) {
+    const author = (c.author && c.author.login) || '未知';
+    const avatar = (c.author && c.author.avatarUrl) || DEFAULT_AVATAR;
+    const isTemp = !!c.isTemp;
+    const replies = (c.replies && c.replies.nodes) || [];
+    const sorted = replies.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-  // ============================================================
-  // Upvote 相关函数（保持不变）
-  // ============================================================
-  function renderUpvoteButton(subjectId, upvoteCount, viewerHasUpvoted, canInteract = false) {
-    const isActive = viewerHasUpvoted;
-    const borderColor = isActive ? '#0366d6' : '#ddd';
-    const bgColor = isActive ? '#dbedff' : '#f6f8fa';
-    const disabledClass = canInteract ? '' : ' upvote-disabled';
-    const interactiveAttr = canInteract ? `data-subject-id="${subjectId}"` : '';
-    const btnClass = canInteract ? 'reaction-item reaction-btn upvote-item' : 'reaction-item upvote-item upvote-disabled';
     return `
-      <div class="${btnClass}" ${interactiveAttr}
-           style="border:1px solid ${borderColor}; border-radius:8px; background:${bgColor}; ${canInteract ? 'cursor:pointer;' : 'cursor:not-allowed;'} margin-right:16px;">
-        <span class="upvote-icon">↑</span>
-        <span class="upvote-count" id="upvote-count-${subjectId}">${upvoteCount}</span>
-      </div>
-    `;
-  }
-
-  function renderReactionsForComment(comment) {
-    const canInteract = isLoggedIn;
-    const subjectId = comment.id;
-    const upvoteCount = comment.upvoteCount || 0;
-    const viewerHasUpvoted = comment.viewerHasUpvoted || false;
-
-    let html = '<div class="reactions-container">';
-    html += renderUpvoteButton(subjectId, upvoteCount, viewerHasUpvoted, canInteract);
-
-    if (comment.reactionGroups && comment.reactionGroups.length > 0) {
-      comment.reactionGroups.forEach(group => {
-        const count = group.users.totalCount;
-        const emoji = EMOJI_MAP[group.content] || group.content;
-        const countId = `reaction-count-${subjectId}-${group.content}`;
-        const viewerReacted = group.viewerHasReacted === true;
-        if (canInteract) userReactions[`${subjectId}-${group.content}`] = viewerReacted;
-        const isActive = viewerReacted && canInteract;
-        const borderColor = isActive ? '#0366d6' : '#ddd';
-        const bgColor = isActive ? '#dbedff' : '#f6f8fa';
-        const interactiveClass = canInteract ? 'reaction-btn' : '';
-        html += `
-          <div class="reaction-item ${interactiveClass}" data-subject-id="${subjectId}" data-reaction="${group.content}"
-               style="border:1px solid ${borderColor}; border-radius:16px; background:${bgColor}; ${canInteract ? 'cursor:pointer;' : ''}">
-            <span style="font-size:18px;">${emoji}</span>
-            <span id="${countId}" style="font-weight:bold;">${count}</span>
+      <div class="comment ${isTemp ? 'temp-comment' : ''}" data-id="${esc(c.id)}">
+        <span class="avatar lg"><img src="${esc(avatar)}" alt="" loading="lazy" onerror="this.remove()">${esc(GB.ini(author))}</span>
+        <div style="flex:1;min-width:0">
+          <div class="c-head">
+            <a href="https://github.com/${esc(author)}" target="_blank" rel="noopener"><b>@${esc(author)}</b></a>
+            <span class="muted">· ${GB.fmtDate(c.createdAt)}</span>
+            ${isTemp ? '<span style="color:var(--accent);font-size:12px">· 发送中…</span>' : ''}
           </div>
-        `;
-      });
-    }
-    html += '</div>';
-    return html;
-  }
-
-  function renderCommentTree(comments, level = 0) {
-    if (!comments || comments.length === 0) return '';
-    const sorted = [...comments].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    let html = '';
-    const indent = level * 20;
-    sorted.forEach(comment => {
-      const author = comment.author ? comment.author.login : '未知';
-      const avatar = comment.author ? getAvatarUrl(comment.author) : DEFAULT_AVATAR;
-      const createdAt = formatDate(comment.createdAt);
-      const isTemp = comment.isTemp || false;
-      const tempClass = isTemp ? (level === 0 ? 'temp-comment' : 'temp-reply') : '';
-      const bodyHtml = `<div class="markdown-body">${renderMarkdown(comment.body, 250)}</div>`;
-      const reactionHtml = renderReactionsForComment(comment);
-      const replies = comment.replies && comment.replies.nodes ? comment.replies.nodes : [];
-      const sortedReplies = replies.length ? [...replies].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)) : [];
-      const hasReplies = sortedReplies.length > 0;
-
-      html += `
-        <div class="comment-item ${tempClass}" style="border-bottom:1px solid #e1e4e8;padding:12px 0; text-align:left; margin-left:${indent}px;">
-          <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
-            <a href="https://github.com/${author}" target="_blank" style="display:flex; align-items:center; gap:8px; text-decoration:none; color:inherit;">
-              <img src="${avatar}" style="width:32px; height:32px; border-radius:50%;" alt="avatar" onerror="this.src='${DEFAULT_AVATAR}'" />
-              <span style="font-weight:bold;">${author}</span>
-            </a>
-            <span style="color:#888;font-size:12px;">${createdAt}</span>
-            ${isLoggedIn && !isTemp ? `<button class="reply-btn" data-comment-id="${comment.id}" style="border:none;background:none;cursor:pointer;color:#0366d6;font-size:12px;">回复</button>` : ''}
-            ${isTemp ? '<span style="color:#2da44e;font-size:12px;margin-left:8px;">⏳ 发送中...</span>' : ''}
-          </div>
-          <div style="margin-left:40px; font-size:14px; line-height:1.6;">${bodyHtml}</div>
-          ${reactionHtml}
-          <div class="reply-container" data-parent-id="${comment.id}" style="margin-top:8px;"></div>
-          ${hasReplies ? `<div class="replies-container" style="margin-left:20px;">${renderCommentTree(sortedReplies, level + 1)}</div>` : ''}
+          <div class="c-body">${renderMarkdown(c.body, 280)}</div>
+          ${isTemp ? '' : `
+            <div class="c-acts">
+              ${isLoggedIn ? `<button type="button" data-act="reply" data-id="${esc(c.id)}">↩ 回复</button>` : ''}
+              ${isLoggedIn ? `<button type="button" data-act="emoji" data-id="${esc(c.id)}">😊 表情</button>` : ''}
+              ${commentRxHTML(c)}
+            </div>
+            <div class="reply-box" data-reply-for="${esc(c.id)}">
+              <textarea placeholder="回复 @${esc(author)}…"></textarea>
+              <div class="cf-side">
+                <button class="btn btn-ghost btn-sm" data-act="cancel-reply" data-id="${esc(c.id)}" type="button">取消</button>
+                <button class="btn btn-primary btn-sm" data-act="send-reply" data-id="${esc(c.id)}" type="button">回复</button>
+              </div>
+            </div>`}
+          ${sorted.length ? `<div class="replies">${sorted.map(renderComment).join('')}</div>` : ''}
         </div>
-      `;
-    });
-    return html;
-  }
-  function renderComments(comments) {
-    if (!comments || comments.length === 0) return '<p style="text-align:center;color:#888;">暂无评论</p>';
-    const sortedTop = [...comments].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    return `<div style="border:1px solid #ddd; border-radius:8px; padding:10px; background:#ffffff; text-align:left;">${renderCommentTree(sortedTop)}</div>`;
+      </div>`;
   }
 
-  // ---------- 分页 ----------
-  function renderPagination(container, currentPage, totalPages, onPageChange) {
-    container.innerHTML = '';
-    if (totalPages <= 0) return;
-    const wrapper = document.createElement('div');
-    wrapper.style.cssText = 'display:flex; align-items:center; justify-content:center; gap:4px; flex-wrap:wrap; padding:10px 0;';
-    const prevBtn = document.createElement('button');
-    prevBtn.textContent = '‹';
-    prevBtn.className = 'pagination-btn' + (currentPage <= 1 ? ' disabled' : '');
-    if (currentPage > 1) prevBtn.addEventListener('click', () => onPageChange(currentPage - 1));
-    wrapper.appendChild(prevBtn);
-    const maxVisible = 5;
-    let pages = [];
-    if (totalPages <= maxVisible + 2) {
-      for (let i = 1; i <= totalPages; i++) pages.push(i);
-    } else {
-      pages.push(1);
-      let start = Math.max(2, currentPage - 2);
-      let end = Math.min(totalPages - 1, currentPage + 2);
-      if (end - start < maxVisible - 1) {
-        if (start === 2) end = Math.min(totalPages - 1, start + maxVisible - 2);
-        else if (end === totalPages - 1) start = Math.max(2, end - maxVisible + 2);
-      }
-      if (start > 2) pages.push('…');
-      for (let i = start; i <= end; i++) pages.push(i);
-      if (end < totalPages - 1) pages.push('…');
-      pages.push(totalPages);
-    }
-    pages.forEach(item => {
-      if (item === '…') {
-        const span = document.createElement('span');
-        span.textContent = '…';
-        span.className = 'pagination-ellipsis';
-        span.title = '点击跳转至指定页';
-        span.addEventListener('click', function() {
-          const input = prompt('请输入要跳转的页码（1-' + totalPages + '）:', currentPage);
-          if (input === null) return;
-          const page = parseInt(input, 10);
-          if (isNaN(page) || page < 1 || page > totalPages) {
-            alert('请输入有效页码（1-' + totalPages + '）');
-            return;
-          }
-          onPageChange(page);
-        });
-        wrapper.appendChild(span);
-      } else {
-        const btn = document.createElement('button');
-        btn.textContent = item;
-        btn.className = 'pagination-btn' + (item === currentPage ? ' active' : '');
-        btn.addEventListener('click', () => onPageChange(item));
-        wrapper.appendChild(btn);
-      }
-    });
-    const nextBtn = document.createElement('button');
-    nextBtn.textContent = '›';
-    nextBtn.className = 'pagination-btn' + (currentPage >= totalPages ? ' disabled' : '');
-    if (currentPage < totalPages) nextBtn.addEventListener('click', () => onPageChange(currentPage + 1));
-    wrapper.appendChild(nextBtn);
-    container.appendChild(wrapper);
-  }
-
-  // ---------- 查找嵌套评论 ----------
-  function findCommentById(comments, id) {
-    for (let c of comments) {
-      if (c.id === id) return c;
-      if (c.replies && c.replies.nodes) {
-        const found = findCommentById(c.replies.nodes, id);
-        if (found) return found;
-      }
+  function findCommentById(list, id) {
+    for (const c of list) {
+      if (String(c.id) === String(id)) return c;
+      const replies = (c.replies && c.replies.nodes) || [];
+      const found = findCommentById(replies, id);
+      if (found) return found;
     }
     return null;
   }
 
   function renderCommentsPage(page) {
-    const start = (page - 1) * COMMENTS_PER_PAGE;
-    const end = Math.min(start + COMMENTS_PER_PAGE, allComments.length);
-    const pageComments = allComments.slice(start, end);
-    const listDiv = document.getElementById('comment-list');
-    if (listDiv) {
-      listDiv.innerHTML = renderComments(pageComments);
-      addCopyButtonsToCodeBlocks();
-      bindReplyEvents();
-      bindReactionEvents();
-      bindUpvoteEvents();
-    }
-    const paginationTop = document.getElementById('comment-pagination-top');
-    const paginationBottom = document.getElementById('comment-pagination-bottom');
-    if (paginationTop) renderPagination(paginationTop, page, totalPages, (newPage) => renderCommentsPage(newPage));
-    if (paginationBottom) renderPagination(paginationBottom, page, totalPages, (newPage) => renderCommentsPage(newPage));
-    currentCommentPage = page;
+    const listDiv = $('comment-list');
+    if (!listDiv) return;
+    totalCommentPages = Math.max(1, Math.ceil(allComments.length / COMMENTS_PER_PAGE));
+    currentCommentPage = Math.min(Math.max(1, page), totalCommentPages);
+    const start = (currentCommentPage - 1) * COMMENTS_PER_PAGE;
+    const pageItems = allComments.slice(start, start + COMMENTS_PER_PAGE);
+
+    listDiv.innerHTML = pageItems.length
+      ? pageItems.map(renderComment).join('')
+      : '<div class="empty-note">还没有评论，来做第一个留言的人吧。</div>';
+
+    addCopyButtons();
+    renderCommentPager();
   }
 
-  // ---------- 回复事件 ----------
-  function bindReplyEvents() {
-    document.querySelectorAll('.reply-btn').forEach(btn => {
-      btn.removeEventListener('click', handleReplyClick);
-      btn.addEventListener('click', handleReplyClick);
-    });
-  }
-  function handleReplyClick(e) {
-    const btn = e.currentTarget;
-    const parentId = btn.dataset.commentId;
-    const container = document.querySelector(`.reply-container[data-parent-id="${parentId}"]`);
+  function buildPager(container, page, total, onChange) {
     if (!container) return;
-    const existing = container.querySelector('.reply-editor');
-    if (existing) { container.innerHTML = ''; return; }
-    const editorDiv = document.createElement('div');
-    editorDiv.className = 'reply-editor';
-    editorDiv.style.cssText = 'margin-top:8px; padding:8px; border:1px solid #ddd; border-radius:4px; background:#fff;';
-    editorDiv.innerHTML = `
-      <textarea rows="3" placeholder="写下你的回复..." style="width:100%; padding:4px; font-size:14px; border:1px solid #ccc; border-radius:4px;"></textarea>
-      <div style="margin-top:4px;">
-        <button class="reply-submit" data-parent-id="${parentId}" style="background:#2da44e; color:white; border:none; border-radius:4px; padding:4px 12px; cursor:pointer;">提交回复</button>
-        <button class="reply-cancel" style="background:#ccc; color:#333; border:none; border-radius:4px; padding:4px 12px; cursor:pointer; margin-left:4px;">取消</button>
-      </div>
-    `;
-    container.appendChild(editorDiv);
-    editorDiv.querySelector('.reply-cancel').addEventListener('click', function() {
-      container.innerHTML = '';
+    if (total <= 1) { container.innerHTML = ''; return; }
+    let html = `<button type="button" ${page <= 1 ? 'disabled' : ''} data-page="${page - 1}">‹</button>`;
+    const maxVisible = 5;
+    let pages = [];
+    if (total <= maxVisible + 2) { for (let i = 1; i <= total; i++) pages.push(i); }
+    else {
+      pages.push(1);
+      let s = Math.max(2, page - 2), e = Math.min(total - 1, page + 2);
+      if (e - s < maxVisible - 1) {
+        if (s === 2) e = Math.min(total - 1, s + maxVisible - 2);
+        else if (e === total - 1) s = Math.max(2, e - maxVisible + 2);
+      }
+      if (s > 2) pages.push('…');
+      for (let i = s; i <= e; i++) pages.push(i);
+      if (e < total - 1) pages.push('…');
+      pages.push(total);
+    }
+    pages.forEach(p => {
+      if (p === '…') html += `<span class="ellipsis" data-jump="1" title="跳转到指定页">…</span>`;
+      else html += `<button type="button" class="${p === page ? 'active' : ''}" data-page="${p}">${p}</button>`;
     });
-    editorDiv.querySelector('.reply-submit').addEventListener('click', async function() {
-      const textarea = editorDiv.querySelector('textarea');
-      const body = textarea.value.trim();
-      if (!body) { console.error('回复内容为空'); return; }
-      if (isSubmitting) return;
-      const parentId = this.dataset.parentId;
-      const tempReply = {
-        id: 'temp-reply-' + Date.now(),
-        body: body,
-        createdAt: new Date().toISOString(),
-        author: {
-          login: currentUser ? currentUser.login : '你',
-          avatarUrl: currentUser ? currentUser.avatarUrl : DEFAULT_AVATAR
-        },
-        reactionGroups: [],
-        isTemp: true
-      };
-      let parentComment = findCommentById(allComments, parentId);
-      if (!parentComment) { console.error('找不到父评论'); return; }
-      if (!parentComment.replies) parentComment.replies = { nodes: [] };
-      parentComment.replies.nodes.unshift(tempReply);
-      renderCommentsPage(currentCommentPage);
-      container.innerHTML = '';
-      isSubmitting = true;
+    html += `<button type="button" ${page >= total ? 'disabled' : ''} data-page="${page + 1}">›</button>`;
+    container.innerHTML = html;
+
+    if (container._boundFor !== onChange) {
+      container._boundFor = onChange;
+      container.addEventListener('click', e => {
+        const j = e.target.closest('[data-jump]');
+        if (j) {
+          const input = document.createElement('input');
+          input.className = 'jump'; input.type = 'number'; input.min = '1'; input.max = String(total);
+          input.placeholder = '页码';
+          j.replaceWith(input); input.focus();
+          const commit = () => {
+            const v = parseInt(input.value, 10);
+            if (v >= 1 && v <= total) onChange(v);
+            else { renderCommentPager(); toast('请输入 1 - ' + total + ' 之间的页码'); }
+          };
+          input.addEventListener('keydown', ev => {
+            if (ev.key === 'Enter') commit();
+            if (ev.key === 'Escape') renderCommentPager();
+          });
+          input.addEventListener('blur', () => { if (input.isConnected) renderCommentPager(); });
+          return;
+        }
+        const b = e.target.closest('button[data-page]');
+        if (!b || b.disabled) return;
+        const p = parseInt(b.dataset.page, 10);
+        if (p >= 1 && p <= total) onChange(p);
+      });
+    }
+  }
+
+  function renderCommentPager() {
+    const go = p => { renderCommentsPage(p); };
+    buildPager($('comment-pagination-top'), currentCommentPage, totalCommentPages, go);
+    buildPager($('comment-pagination-bottom'), currentCommentPage, totalCommentPages, go);
+  }
+
+  /* ================= 评论事件 ================= */
+  function bindCommentEvents() {
+    const listDiv = $('comment-list');
+    if (!listDiv || listDiv._bound) return;
+    listDiv._bound = true;
+
+    listDiv.addEventListener('click', async e => {
+      // 表情 chip / 评论顶
+      const chip = e.target.closest('.c-rx');
+      if (chip) {
+        if (!isLoggedIn) { toast('请先登录'); return; }
+        const cid = chip.dataset.id;
+        if (chip.dataset.kind === 'cup') {
+          chip.dataset.count = chip.dataset.count || '0';
+          await toggleUpvote(chip, cid);
+          return;
+        }
+        if (chip.dataset.kind === 'crx') {
+          if (findCommentById(allComments, cid)) await toggleSubjectReaction(chip);
+          return;
+        }
+      }
+
+      const act = e.target.closest('[data-act]');
+      if (!act) return;
+      const id = act.dataset.id;
+      const name = act.dataset.act;
+
+      if (name === 'reply') {
+        const box = listDiv.querySelector(`.reply-box[data-reply-for="${id}"]`);
+        if (!box) return;
+        box.classList.toggle('open');
+        if (box.classList.contains('open')) box.querySelector('textarea').focus();
+        return;
+      }
+      if (name === 'cancel-reply') {
+        const box = listDiv.querySelector(`.reply-box[data-reply-for="${id}"]`);
+        if (box) box.classList.remove('open');
+        return;
+      }
+      if (name === 'emoji') {
+        openEmojiPicker(act, id);
+        return;
+      }
+      if (name === 'send-reply') {
+        const box = listDiv.querySelector(`.reply-box[data-reply-for="${id}"]`);
+        if (!box) return;
+        const ta = box.querySelector('textarea');
+        const body = (ta.value || '').trim();
+        if (!body) { toast('回复内容不能为空'); return; }
+        await sendComment(body, id);
+        return;
+      }
+    });
+  }
+
+  function openEmojiPicker(anchor, commentId) {
+    const existing = document.querySelector('.picker');
+    if (existing) existing.remove();
+    const picker = document.createElement('div');
+    picker.className = 'picker';
+    picker.innerHTML = GB.EMOJI.map(x => `<button type="button" data-pick="${x}">${x}</button>`).join('');
+    document.body.appendChild(picker);
+    const r = anchor.getBoundingClientRect();
+    picker.style.top = Math.min(r.bottom + 6, window.innerHeight - picker.offsetHeight - 10) + 'px';
+    picker.style.left = Math.min(Math.max(8, r.left), window.innerWidth - picker.offsetWidth - 12) + 'px';
+
+    const close = ev => { if (!picker.contains(ev.target) && !anchor.contains(ev.target)) { picker.remove(); document.removeEventListener('click', close); } };
+    setTimeout(() => document.addEventListener('click', close), 0);
+    picker.addEventListener('click', async ev => {
+      const t = ev.target.closest('[data-pick]');
+      if (!t) return;
+      const emoji = t.dataset.pick;
+      const content = EMOJI_TO_CONTENT[emoji];
+      picker.remove();
+      if (!content) return;
+      const comment = findCommentById(allComments, commentId);
+      if (!comment) return;
+      // 若该表情已在页面上存在，直接切换它的按钮
+      const btn = document.querySelector(`.c-rx[data-kind="crx"][data-id="${commentId}"][data-content="${content}"]`);
+      if (btn) { await toggleSubjectReaction(btn); return; }
+      // 演示模式：直接在内存中新增该表情
+      if (demoLocal) {
+        if (!comment.reactionGroups) comment.reactionGroups = [];
+        comment.reactionGroups.push({ content, users: { totalCount: 1 }, viewerHasReacted: true });
+        myReactions.add(commentId + '|' + content);
+        renderCommentsPage(currentCommentPage);
+        return;
+      }
+      // 否则先调用接口，再重载
       try {
-        const payload = { discussionId: discussionData.id, body: body, parentCommentId: parentId };
-        console.log('[回复] 提交 payload:', payload);
-        const res = await fetch(`${OAUTH_BASE}/comment`, {
+        const res = await fetch(`${OAUTH_BASE}/reaction`, {
           method: 'POST', credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
+          body: JSON.stringify({ subjectId: commentId, content, action: 'add' })
         });
-        const data = await res.json();
-        console.log('[回复] 响应:', data);
-        if (res.ok) {
-          await loadDiscussionFull(discussionData.number);
-        } else {
-          parentComment.replies.nodes = parentComment.replies.nodes.filter(r => r.id !== tempReply.id);
-          renderCommentsPage(currentCommentPage);
-          console.error('回复失败:', data.error, data.details);
-        }
-      } catch (error) {
-        parentComment.replies.nodes = parentComment.replies.nodes.filter(r => r.id !== tempReply.id);
-        renderCommentsPage(currentCommentPage);
-        console.error('回复网络错误:', error);
-      } finally {
-        isSubmitting = false;
-      }
-    });
-  }
-
-  // ---------- Reaction 事件 ----------
-  function updateReactionCount(subjectId, content, delta) {
-    const countId = `reaction-count-${subjectId}-${content}`;
-    const el = document.getElementById(countId);
-    if (el) {
-      const current = parseInt(el.textContent, 10);
-      el.textContent = Math.max(0, current + delta);
-    }
-  }
-  function toggleReactionHighlight(item, active) {
-    if (active) {
-      item.style.borderColor = '#0366d6';
-      item.style.background = '#dbedff';
-    } else {
-      item.style.borderColor = '#ddd';
-      item.style.background = '#f6f8fa';
-    }
-  }
-  async function handleReactionClick(e) {
-    const item = e.currentTarget;
-    const subjectId = item.dataset.subjectId;
-    const content = item.dataset.reaction;
-    if (!subjectId || !content) return;
-    if (!isLoggedIn) { console.error('未登录，无法使用表情'); return; }
-    const key = `${subjectId}-${content}`;
-    const isActive = userReactions[key] === true;
-    const newActive = !isActive;
-    userReactions[key] = newActive;
-    toggleReactionHighlight(item, newActive);
-    updateReactionCount(subjectId, content, newActive ? 1 : -1);
-    item.style.opacity = '0.6';
-    item.style.pointerEvents = 'none';
-    try {
-      const action = newActive ? 'add' : 'remove';
-      const res = await fetch(`${OAUTH_BASE}/reaction`, {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subjectId, content, action })
-      });
-      if (res.ok) {
-        item.style.opacity = '1';
-        item.style.pointerEvents = 'auto';
-        return;
-      }
-      if (res.status === 409) {
-        const reverseAction = newActive ? 'remove' : 'add';
-        await fetch(`${OAUTH_BASE}/reaction`, {
-          method: 'POST', credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ subjectId, content, action: reverseAction })
-        });
-        userReactions[key] = !newActive;
-        toggleReactionHighlight(item, !newActive);
-        updateReactionCount(subjectId, content, newActive ? -1 : 1);
-        item.style.opacity = '1';
-        item.style.pointerEvents = 'auto';
-        return;
-      }
-      const errData = await res.json();
-      console.error('Reaction 错误:', errData);
-      userReactions[key] = isActive;
-      toggleReactionHighlight(item, isActive);
-      updateReactionCount(subjectId, content, isActive ? 1 : -1);
-      item.style.opacity = '1';
-      item.style.pointerEvents = 'auto';
-    } catch (error) {
-      console.error('Reaction 异常:', error);
-      userReactions[key] = isActive;
-      toggleReactionHighlight(item, isActive);
-      updateReactionCount(subjectId, content, isActive ? 1 : -1);
-      item.style.opacity = '1';
-      item.style.pointerEvents = 'auto';
-    }
-  }
-  function bindReactionEvents() {
-    document.querySelectorAll('.reaction-item.reaction-btn:not(.upvote-item)').forEach(el => {
-      el.removeEventListener('click', handleReactionClick);
-      el.addEventListener('click', handleReactionClick);
-    });
-  }
-
-  // ---------- Upvote 事件 ----------
-  async function handleUpvoteClick(e) {
-    const item = e.currentTarget;
-    const subjectId = item.dataset.subjectId;
-    if (!subjectId) return;
-    if (!isLoggedIn) { console.error('请先登录'); return; }
-
-    const isActive = item.style.borderColor === 'rgb(3, 102, 214)';
-    const action = isActive ? 'remove' : 'add';
-    const countSpan = item.querySelector('.upvote-count');
-    const currentCount = parseInt(countSpan.textContent, 10);
-    const newCount = isActive ? currentCount - 1 : currentCount + 1;
-
-    countSpan.textContent = newCount;
-    if (isActive) {
-      item.style.borderColor = '#ddd';
-      item.style.background = '#f6f8fa';
-    } else {
-      item.style.borderColor = '#0366d6';
-      item.style.background = '#dbedff';
-    }
-    item.style.pointerEvents = 'none';
-
-    try {
-      const res = await fetch(`${OAUTH_BASE}/upvote`, {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subjectId, action })
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        countSpan.textContent = currentCount;
-        if (isActive) {
-          item.style.borderColor = '#0366d6';
-          item.style.background = '#dbedff';
-        } else {
-          item.style.borderColor = '#ddd';
-          item.style.background = '#f6f8fa';
-        }
-        console.error('Upvote 失败:', data.error);
-      }
-    } catch (error) {
-      countSpan.textContent = currentCount;
-      if (isActive) {
-        item.style.borderColor = '#0366d6';
-        item.style.background = '#dbedff';
-      } else {
-        item.style.borderColor = '#ddd';
-        item.style.background = '#f6f8fa';
-      }
-      console.error('Upvote 网络错误:', error);
-    } finally {
-      item.style.pointerEvents = 'auto';
-    }
-  }
-
-  function bindUpvoteEvents() {
-    document.querySelectorAll('.upvote-item.reaction-btn').forEach(el => {
-      el.removeEventListener('click', handleUpvoteClick);
-      el.addEventListener('click', handleUpvoteClick);
-    });
-  }
-
-  // ---------- 提交评论 ----------
-  async function submitComment() {
-    if (isSubmitting) return;
-    if (!vditorInstance) { console.error('编辑器未初始化'); return; }
-    const body = vditorInstance.getValue().trim();
-    if (!body) { console.error('评论内容为空'); return; }
-    if (!discussionData) { console.error('讨论数据未加载'); return; }
-    const tempComment = {
-      id: 'temp-' + Date.now(),
-      body: body,
-      createdAt: new Date().toISOString(),
-      author: { login: currentUser ? currentUser.login : '你', avatarUrl: currentUser ? currentUser.avatarUrl : DEFAULT_AVATAR },
-      reactionGroups: [], replies: { nodes: [] }, isTemp: true
-    };
-    allComments.unshift(tempComment);
-    renderCommentsPage(currentCommentPage);
-    vditorInstance.setValue('');
-    isSubmitting = true;
-    const toolbarBtn = document.querySelector('.vditor-toolbar__item[data-name="submit"]');
-    if (toolbarBtn) toolbarBtn.style.pointerEvents = 'none';
-    try {
-      const payload = { discussionId: discussionData.id, body: body };
-      console.log('[评论] 提交 payload:', payload);
-      const res = await fetch(`${OAUTH_BASE}/comment`, {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      console.log('[评论] 响应:', data);
-      if (res.ok) {
+        if (!res.ok && res.status !== 409) throw new Error('HTTP ' + res.status);
+        myReactions.add(commentId + '|' + content);
         await loadDiscussionFull(discussionData.number);
-      } else {
-        allComments = allComments.filter(c => c.id !== tempComment.id);
-        renderCommentsPage(currentCommentPage);
-        console.error('评论失败:', data.error, data.details);
+      } catch (err) {
+        console.error('添加表情失败:', err);
+        toast('添加表情失败，请稍后重试');
       }
-    } catch (error) {
-      allComments = allComments.filter(c => c.id !== tempComment.id);
-      renderCommentsPage(currentCommentPage);
-      console.error('评论网络错误:', error);
-    } finally {
-      isSubmitting = false;
-      if (toolbarBtn) toolbarBtn.style.pointerEvents = 'auto';
-    }
+    });
   }
 
-  // ---------- 初始化 Vditor ----------
-  // ---------- 初始化 Vditor ----------
-  function initVditor() {
-    const editorContainer = document.getElementById('vditor-container');
-    if (!editorContainer) return;
-    if (!isLoggedIn) {
-      editorContainer.innerHTML = '<p style="text-align:center;color:#888;padding:20px;">登录后即可评论</p>';
+  /* ================= 评论编辑器（Vditor） ================= */
+  async function initVditor() {
+    const host = $('vditor-container');
+    if (!host) return;
+    if (!isLoggedIn) { host.innerHTML = ''; return; }
+    host.innerHTML = '<div class="vd-status">评论编辑器加载中…</div>';
+    const ok = await waitVditor();
+    if (!ok) {
+      host.innerHTML = '';
+      const ta = document.createElement('textarea');
+      ta.className = 'inp'; ta.rows = 4; ta.placeholder = '写下你的评论…（支持 Markdown 与 @提及）';
+      host.appendChild(ta);
+      host._fallback = ta;
+      toast('Vditor 未加载，已降级为普通文本框');
       return;
     }
-    if (typeof Vditor === 'undefined') {
-      editorContainer.innerHTML = '<p style="color:red;">Vditor 未加载</p>';
-      return;
-    }
-    if (vditorInstance) {
-      vditorInstance.destroy();
-      vditorInstance = null;
-    }
-    editorContainer.innerHTML = '';
+    host.innerHTML = '';
+    if (vditorInstance) { try { vditorInstance.destroy(); } catch (e) {} vditorInstance = null; }
 
-    vditorInstance = new Vditor(editorContainer, {
-      height: 200,
+    vditorInstance = new Vditor(host, {
+      cdn: (window.BLACKNET && window.BLACKNET.VDITOR_BASE) || 'vditor/4.0.0',
+      height: 220,
       minHeight: 150,
       mode: 'wysiwyg',
-      placeholder: '写下你的评论...',
+      placeholder: '写下你的评论… 支持 Markdown 与 @提及',
       value: '',
       cache: { enable: false },
       lang: 'zh_CN',
-      // 移除 cdn 配置，避免与外部加载的 Vditor 冲突
       icon: 'ant',
-      theme: 'classic',
+      theme: document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'classic',
       upload: {
         url: `${UPLOAD_URL}/`,
         fieldName: 'file',
         accept: 'image/jpeg,image/png,image/gif,image/webp,image/svg+xml',
         max: 32 * 1024 * 1024,
         multiple: false,
-        withCredentials: true,
+        withCredentials: true
       },
       toolbar: [
         'emoji', 'headings', 'bold', 'italic', 'strike', 'link', '|',
@@ -859,177 +527,319 @@
         'quote', 'line', 'code', 'inline-code', 'insert-before', 'insert-after', '|',
         'upload', 'record', 'table', '|',
         'undo', 'redo', '|',
-        'fullscreen', 'edit-mode', 'both',
-        {
-          name: 'more',
-          toolbar: ['both', 'code-theme', 'content-theme', 'export', 'outline', 'preview', 'devtools', 'info', 'help']
-        },
-        '|',
-        {
-          name: 'submit',
-          icon: '<svg viewBox="0 0 32 32" style="fill: #2da44e; width: 18px; height: 18px;"><path d="M6 4l20 12-20 12z"></path></svg>',
-          tip: '提交评论',
-          click: submitComment
-        }
+        'fullscreen', 'edit-mode',
+        { name: 'more', toolbar: ['both', 'code-theme', 'content-theme', 'export', 'outline', 'preview', 'devtools', 'info', 'help'] }
       ],
       toolbarConfig: { pin: true },
-      outline: { enable: true, position: 'left' }
+      outline: { enable: false },
+      input: () => {},
+      after: () => {}
     });
-
-    setTimeout(function() {
-      const outline = document.querySelector('.vditor-outline');
-      if (outline) { outline.style.left = '0'; outline.style.right = 'auto'; }
-    }, 200);
   }
-  // ---------- 加载讨论 ----------
-  async function loadDiscussionFull(discussionNumber) {
-    userReactions = {};
-    try {
-      const res = await fetch(`${API_URL}/?d=${discussionNumber}&cfirst=100`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      discussionData = data.discussion;
-      if (!discussionData) throw new Error('Discussion not found');
 
-      commentContainer.innerHTML = '';
+  function waitVditor(timeout) {
+    const limit = timeout || 10000;
+    return new Promise(resolve => {
+      let waited = 0;
+      (function poll() {
+        if (typeof Vditor !== 'undefined') return resolve(true);
+        if (waited >= limit) return resolve(false);
+        waited += 200; setTimeout(poll, 200);
+      })();
+    });
+  }
 
-      const titleText = discussionData.title || '无标题';
-      document.title = titleText + ' - 群档案';
-      titleEl.innerHTML = `<span style="font-size:26pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; font-weight:bold;">${titleText}</span>`;
+  function getCommentBody() {
+    if (vditorInstance && typeof vditorInstance.getValue === 'function') return vditorInstance.getValue().trim();
+    const host = $('vditor-container');
+    if (host && host._fallback) return (host._fallback.value || '').trim();
+    return '';
+  }
+  function clearCommentBody() {
+    if (vditorInstance) vditorInstance.setValue('');
+    const host = $('vditor-container');
+    if (host && host._fallback) host._fallback.value = '';
+  }
 
-      const { info, bodyText } = parseFirstLine(discussionData.body);
-      if (info && info.trim()) {
-        infoEl.innerHTML = `<span style="font-size:14pt; font-family:Arial, Helvetica, sans-serif; color:#FFFFFF; font-weight:bold;">${renderMarkdown(info)}</span>`;
+  /* ================= 评论提交 ================= */
+  async function sendComment(body, parentCommentId) {
+    if (isSubmitting) return;
+    if (!discussionData) { toast('文章数据未加载完成'); return; }
+    if (!body) { toast('内容不能为空'); return; }
+
+    // 本地演示：评论 / 回复直接写入内存，便于完整预览交互
+    if (demoLocal) {
+      const node = {
+        id: 'demo-' + Date.now(), body,
+        createdAt: new Date().toISOString(),
+        author: { login: (currentUser && currentUser.login) || 'demo-user' },
+        reactionGroups: [], upvoteCount: 0, viewerHasUpvoted: false, replies: { nodes: [] }
+      };
+      if (parentCommentId) {
+        const parent = findCommentById(allComments, parentCommentId);
+        if (!parent) { toast('找不到被回复的评论'); return; }
+        if (!parent.replies) parent.replies = { nodes: [] };
+        parent.replies.nodes.unshift(node);
+        renderCommentsPage(currentCommentPage);
       } else {
-        infoEl.innerHTML = '';
+        allComments.unshift(node);
+        clearCommentBody();
+        renderCommentsPage(1);
       }
+      totalComments = allComments.length;
+      if ($('cCount')) $('cCount').textContent = String(totalComments);
+      toast(parentCommentId ? '回复已发布（演示）' : '评论已发布（演示）');
+      return;
+    }
 
-      textEl.innerHTML = `<div class="markdown-body" style="padding:0 10px; text-align:left;">${renderMarkdown(bodyText)}</div>`;
-      addCopyButtonsToCodeBlocks();
+    const temp = {
+      id: 'temp-' + Date.now(),
+      body,
+      createdAt: new Date().toISOString(),
+      author: {
+        login: (currentUser && currentUser.login) || '你',
+        avatarUrl: (currentUser && currentUser.avatarUrl) || DEFAULT_AVATAR
+      },
+      reactionGroups: [], upvoteCount: 0, replies: { nodes: [] }, isTemp: true
+    };
 
-      const discussionId = discussionData.id;
-      const upvoteCount = discussionData.upvoteCount || 0;
-      const viewerHasUpvoted = discussionData.viewerHasUpvoted || false;
-
-      let reactionHtml = '<div class="reactions-container">';
-      reactionHtml += renderUpvoteButton(discussionId, upvoteCount, viewerHasUpvoted, isLoggedIn);
-
-      if (discussionData.reactionGroups && discussionData.reactionGroups.length > 0) {
-        discussionData.reactionGroups.forEach(group => {
-          const count = group.users.totalCount;
-          const emoji = EMOJI_MAP[group.content] || group.content;
-          const countId = `reaction-count-${discussionId}-${group.content}`;
-          const viewerReacted = group.viewerHasReacted === true;
-          if (isLoggedIn) userReactions[`${discussionId}-${group.content}`] = viewerReacted;
-          const isActive = viewerReacted && isLoggedIn;
-          const borderColor = isActive ? '#0366d6' : '#ddd';
-          const bgColor = isActive ? '#dbedff' : '#f6f8fa';
-          const interactiveClass = isLoggedIn ? 'reaction-btn' : '';
-          reactionHtml += `
-            <div class="reaction-item ${interactiveClass}" data-subject-id="${discussionId}" data-reaction="${group.content}"
-                 style="border:1px solid ${borderColor}; border-radius:16px; background:${bgColor}; ${isLoggedIn ? 'cursor:pointer;' : ''}">
-              <span style="font-size:18px;">${emoji}</span>
-              <span id="${countId}" style="font-weight:bold;">${count}</span>
-            </div>
-          `;
-        });
-      }
-      reactionHtml += '</div>';
-
-      const reactionDiv = document.createElement('div');
-      reactionDiv.id = 'discussion-reactions';
-      reactionDiv.innerHTML = reactionHtml;
-      commentContainer.appendChild(reactionDiv);
-
-      bindUpvoteEvents();
-      bindReactionEvents();
-
-      const editorContainer = document.createElement('div');
-      editorContainer.id = 'vditor-container';
-      editorContainer.style.cssText = 'margin:10px 0; text-align:left;';
-      commentContainer.appendChild(editorContainer);
-      if (isLoggedIn) {
-        if (typeof Vditor !== 'undefined') {
-          initVditor();
-        } else {
-          loadVditorScript().then(initVditor).catch(err => console.error('Vditor 加载失败:', err));
-        }
-      } else {
-        editorContainer.innerHTML = '<p style="text-align:center;color:#888;padding:20px;">登录后即可评论</p>';
-      }
-
-      const paginationTop = document.createElement('div');
-      paginationTop.id = 'comment-pagination-top';
-      commentContainer.appendChild(paginationTop);
-
-      const commentListDiv = document.createElement('div');
-      commentListDiv.id = 'comment-list';
-      commentListDiv.style.cssText = 'text-align:left; margin-top:20px;';
-      commentContainer.appendChild(commentListDiv);
-
-      const paginationBottom = document.createElement('div');
-      paginationBottom.id = 'comment-pagination-bottom';
-      commentContainer.appendChild(paginationBottom);
-
-      allComments = discussionData.comments.nodes || [];
-      allComments.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-      totalComments = discussionData.comments.totalCount || 0;
-      totalPages = Math.ceil(totalComments / COMMENTS_PER_PAGE) || 1;
-      currentCommentPage = 1;
-
+    if (parentCommentId) {
+      const parent = findCommentById(allComments, parentCommentId);
+      if (!parent) { toast('找不到被回复的评论'); return; }
+      if (!parent.replies) parent.replies = { nodes: [] };
+      parent.replies.nodes.unshift(temp);
+      renderCommentsPage(currentCommentPage);
+    } else {
+      allComments.unshift(temp);
       renderCommentsPage(1);
-      bindReplyEvents();
+      clearCommentBody();
+    }
 
-    } catch (error) {
-      console.error('加载讨论失败:', error);
-      textEl.innerHTML = '<p style="color:red;">加载失败，请稍后重试。</p>';
+    isSubmitting = true;
+    try {
+      const payload = { discussionId: discussionData.id, body };
+      if (parentCommentId) payload.parentCommentId = parentCommentId;
+      const res = await fetch(`${OAUTH_BASE}/comment`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        await loadDiscussionFull(discussionData.number);
+        toast(parentCommentId ? '回复已发布' : '评论已发布');
+      } else {
+        removeTemp(temp.id);
+        toast('发布失败：' + (data.error || ('HTTP ' + res.status)));
+      }
+    } catch (e) {
+      console.error('评论提交失败:', e);
+      removeTemp(temp.id);
+      toast('网络错误，发布失败');
+    } finally {
+      isSubmitting = false;
     }
   }
 
-  function loadVditorScript() {
-    return new Promise((resolve, reject) => {
-      if (typeof Vditor !== 'undefined') { resolve(); return; }
-      const link = document.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = 'https://cdn.jsdelivr.net/npm/vditor@3.10.6/dist/index.css';
-      document.head.appendChild(link);
-      const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/vditor@3.10.6/dist/index.min.js';
-      script.onload = resolve;
-      script.onerror = () => reject(new Error('Vditor 加载失败'));
-      document.head.appendChild(script);
+  function removeTemp(id) {
+    allComments = allComments.filter(c => c.id !== id);
+    allComments.forEach(c => {
+      if (c.replies && c.replies.nodes) c.replies.nodes = c.replies.nodes.filter(r => r.id !== id);
     });
+    renderCommentsPage(currentCommentPage);
   }
 
-  async function checkLoginStatus() {
+  /* ================= 主流程 ================= */
+  async function loadDiscussionFull(number, prefetched) {
+    if (demoLocal && window.GB_DEMO) prefetched = window.GB_DEMO.discussion(number);
+    let data;
+    if (prefetched) {
+      data = { discussion: prefetched };
+    } else {
+      const res = await fetch(`${API_URL}/?d=${number}&cfirst=100`);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      data = await res.json();
+    }
+    discussionData = data.discussion;
+    if (!discussionData) throw new Error('Discussion not found');
+
+    const titleText = discussionData.title || '无标题';
+    document.title = titleText + ' · 群档案';
+
+    const meta = GB.parseFirstLine(discussionData.body || '');
+    allowComments = meta.allowComments !== false;
+    const cat = GB.catInfo(GB.catIdOf(discussionData, meta), discussionData.category && discussionData.category.name);
+
+    // 文章头
+    $('title').textContent = titleText;
+    $('lede').textContent = meta.info || '';
+    const catEl = $('category');
+    catEl.textContent = cat.name;
+    catEl.style.background = `hsl(${cat.hue} 62% 42%)`;
+    $('crumbCat').textContent = cat.name;
+    $('cover').innerHTML = GB.coverHTML({ icon: meta.icon, coverText: meta.coverText, category: cat.id }, { fallbackName: cat.name, size: 44 });
+
+    const author = (discussionData.author && discussionData.author.login) || '匿名';
+    const avatar = (discussionData.author && discussionData.author.avatarUrl) || DEFAULT_AVATAR;
+    const upv = discussionData.upvoteCount || 0;
+    const reactTotal = (discussionData.reactionGroups || []).reduce((a, g) => a + ((g.users && g.users.totalCount) || 0), 0);
+    $('meta').innerHTML = `
+      <span class="who">
+        <span class="avatar lg"><img src="${esc(avatar)}" alt="" loading="lazy" onerror="this.remove()">${esc(GB.ini(author))}</span>
+        <a href="https://github.com/${esc(author)}" target="_blank" rel="noopener">@${esc(author)}</a>
+      </span>
+      <span class="stat">🕑 ${GB.fmtDate(discussionData.createdAt)}</span>
+      <span class="right">
+        <span class="stat">↑ ${upv}</span>
+        <span class="stat">🔥 ${reactTotal}</span>
+        <span class="stat">💬 ${(discussionData.comments && discussionData.comments.totalCount) || 0}</span>
+      </span>`;
+
+    // 正文
+    $('body').innerHTML = meta.bodyText ? renderMarkdown(meta.bodyText) : '<p class="muted">（本文没有正文内容）</p>';
+    addCopyButtons();
+
+    // 反应条
+    const bar = $('reactions');
+    bar.innerHTML = rxBarHTML();
+    if (!bar._bound) {
+      bar._bound = true;
+      bar.addEventListener('click', e => {
+        const b = e.target.closest('.rx');
+        if (!b) return;
+        if (b.dataset.kind === 'upvote') { toggleUpvote(b, b.dataset.sid); return; }
+        if (b.dataset.kind === 'reaction') { toggleSubjectReaction(b); return; }
+        if (b.dataset.kind === 'add') { openEmojiPicker(b, discussionData.id); }
+      });
+    }
+
+    // 标签
+    const tags = meta.tags && meta.tags.length ? meta.tags : [];
+    $('tags').innerHTML = tags.length
+      ? `<span class="muted" style="font-size:13px">标签</span>` + tags.map(t => `<a class="tag" href="/index.html#list"># ${esc(t)}</a>`).join('')
+      : '';
+
+    // 评论
+    allComments = ((discussionData.comments && discussionData.comments.nodes) || [])
+      .slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    totalComments = (discussionData.comments && discussionData.comments.totalCount) || 0;
+    $('cCount').textContent = totalComments ? `${totalComments}` : '';
+    renderCommentsPage(1);
+
+    // 评论区可用性
+    const hint = $('loginHint');
+    const form = $('commentForm');
+    const closed = $('closedHint');
+    if (!allowComments) {
+      hint.hidden = true; form.hidden = true; closed.hidden = false;
+    } else if (isLoggedIn) {
+      hint.hidden = true; form.hidden = false; closed.hidden = true;
+      if (typeof Vditor === 'undefined' && !$('vditor-container')._fallback) {
+        // 编辑器脚本尚未加载：先等一次（blog.js 在 head 里同步引入，通常已就绪）
+      }
+      initVditor();
+    } else {
+      hint.hidden = false; form.hidden = true; closed.hidden = true;
+    }
+  }
+
+  async function loadRelated(number) {
+    let pool = null;
+    if (demoLocal && window.GB_DEMO) {
+      pool = window.GB_DEMO.posts.filter(p => p.number !== number);
+    } else {
+      try {
+        const res = await fetch(`${API_URL}/?first=24`);
+        if (!res.ok) return;
+        const data = await res.json();
+        pool = (data.nodes || []).filter(p => p.number !== number);
+      } catch (e) {
+        console.warn('相关阅读加载失败:', e);
+        return;
+      }
+    }
+    if (!pool || !pool.length) return;
+      const cur = GB.parseFirstLine(discussionData.body || '');
+      const curCat = GB.catIdOf(discussionData, cur);
+      pool.sort((a, b) => {
+        const ca = GB.catIdOf(a, GB.parseFirstLine(a.body || '')) === curCat ? 1 : 0;
+        const cb = GB.catIdOf(b, GB.parseFirstLine(b.body || '')) === curCat ? 1 : 0;
+        if (ca !== cb) return cb - ca;
+        return new Date(b.createdAt) - new Date(a.createdAt);
+      });
+      const picks = pool.slice(0, 3);
+      $('related').innerHTML = picks.map(p => {
+        const pm = GB.parseFirstLine(p.body || '');
+        const pc = GB.catInfo(GB.catIdOf(p, pm), p.category && p.category.name);
+        return `
+          <a class="card" href="/blog.html?d=${p.number}">
+            <div class="thumb">
+              ${GB.coverHTML({ icon: pm.icon, coverText: pm.coverText, category: pc.id }, { fallbackName: pc.name, size: 30 })}
+              <span class="chip" style="background:hsl(${pc.hue} 62% 42%)">${esc(pc.name)}</span>
+            </div>
+            <div class="card-body">
+              <h3>${esc(p.title || '无标题')}</h3>
+              <div class="card-foot"><span>${GB.fmtShort(p.createdAt)}</span><span>💬 ${(p.comments && p.comments.totalCount) || 0}</span></div>
+            </div>
+          </a>`;
+      }).join('');
+      $('relatedSection').hidden = false;
+  }
+
+  async function checkLogin() {
     try {
       const res = await fetch(`${OAUTH_BASE}/me`, { credentials: 'include' });
-      if (res.ok) {
-        isLoggedIn = true;
-        currentUser = await res.json();
-        console.log('已登录:', currentUser.login);
-      } else {
-        isLoggedIn = false;
-      }
-    } catch(e) {
+      if (res.ok) { isLoggedIn = true; currentUser = await res.json(); return; }
       isLoggedIn = false;
+    } catch (e) { isLoggedIn = false; }
+    // 本地预览：登录接口同样被 CORS 拦，按演示登录处理，便于预览评论编辑器等交互
+    if (window.GB && GB.demoMode) {
+      isLoggedIn = true;
+      currentUser = { login: 'demo-user' };
     }
   }
 
   async function init() {
     const params = new URLSearchParams(window.location.search);
     const d = params.get('d');
-    if (!d) { window.location.href = '/404.html'; return; }
     const number = parseInt(d, 10);
-    if (isNaN(number) || number <= 0) { window.location.href = '/404.html'; return; }
-    await checkLoginStatus();
-    await loadDiscussionFull(number);
+    if (!d || isNaN(number) || number <= 0) { window.location.href = '/404.html'; return; }
+
+    if (window.GB) await GB.catReady;
+    await checkLogin();
+
+    try {
+      await loadDiscussionFull(number);
+    } catch (e) {
+      console.error('加载失败:', e);
+      if (window.GB && GB.demoMode && window.GB_DEMO) {
+        demoLocal = true;
+        GB.showDemoNotice();
+        await loadDiscussionFull(number, window.GB_DEMO.discussion(number));
+      } else {
+        $('body').innerHTML = '<p style="color:var(--accent)">加载失败，请稍后重试。</p>';
+        return;
+      }
+    }
+
+    bindCommentEvents();
+    const cs = $('cSubmit');
+    if (cs) cs.addEventListener('click', () => {
+      const body = getCommentBody();
+      if (!body) { toast('请先输入评论内容'); return; }
+      sendComment(body, null);
+    });
+    const ll = $('loginLink');
+    if (ll) ll.addEventListener('click', () => {
+      const btn = document.getElementById('login');
+      if (btn) btn.click();
+      else window.location.href = `${OAUTH_BASE}/login`;
+    });
+
     initImageViewer();
+    loadRelated(number);
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
 })();
