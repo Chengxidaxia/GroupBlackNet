@@ -173,9 +173,11 @@
 
   /* ---------------- 渲染：分类 tabs / 侧栏 ---------------- */
   function renderTabs() {
-    const used = [];
-    allPosts.forEach(p => { const c = catOf(p); if (!GB.isGeneral(c) && !used.some(x => x.id === c.id)) used.push(c); });
-    used.sort((a, b) => a.id - b.id);
+    // 分类栏直接读 GB.cats：正式环境来自 CF 存储（KV categories），
+    // KV 里新增的分类（如「新闻」）即使还没有文章也会出现在栏里
+    const used = (window.GB && GB.cats ? GB.cats.slice() : [])
+      .filter(c => c && c.id && !GB.isGeneral(c))
+      .sort((a, b) => a.id - b.id);
     const tabs = $('tabs');
     if (tabs) {
       tabs.innerHTML = `<button class="tab ${categoryFilter === 0 ? 'active' : ''}" data-cat="0">全部</button>`

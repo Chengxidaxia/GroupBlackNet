@@ -161,8 +161,9 @@
     const o = opts || {};
     const cat = catInfo(meta && meta.category, o.fallbackName);
     if (meta && meta.icon) {
+      // 渐变占位始终渲染在图片下层：图标 404 / 加载失败被移除后自动露出，不再留空白
       const fallback = `<div class="cover-fill" style="background:${grad(cat.hue)}"><span style="font-size:${o.size || 40}px">${esc(coverLabel(cat))}</span></div>`;
-      return `<img src="${esc(meta.icon)}" alt="" loading="lazy" onerror="this.remove()">` + (o.placeholder ? fallback : '');
+      return `<img src="${esc(meta.icon)}" alt="" loading="lazy" style="position:relative;z-index:1" onerror="this.remove()">` + fallback;
     }
     if (meta && meta.coverText) {
       return `<div class="cover-fill" style="background:${grad(cat.hue)}"><span style="font-size:${o.small ? 16 : Math.round((o.size || 40) * 0.66)}px">${esc(meta.coverText)}</span></div>`;

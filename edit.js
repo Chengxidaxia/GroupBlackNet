@@ -17,6 +17,7 @@
   const toast = msg => (window.GB ? GB.toast(msg) : console.warn(msg));
 
   let vditor = null;
+  let vdReady = false;           // after() 触发后才可安全调 getValue（Lute WASM 异步加载）
   let coverMode = 'image';       // image | text | none
   let coverUrl = '';             // 上传成功后的图片地址
   let coverDataURL = '';         // 本地预览
@@ -136,7 +137,12 @@
   const INITIAL_MD = '';
 
   function getMD() {
-    if (vditor && typeof vditor.getValue === 'function') return vditor.getValue();
+    // Lute（WASM）异步加载完成、after() 触发前，getValue 必然抛
+    // 「Cannot read properties of undefined (reading 'VditorDOM2Md')」→ 就绪前一律回退
+    if (vditor && vdReady && typeof vditor.getValue === 'function') {
+      try { return vditor.getValue(); }
+      catch (e) { console.warn('getValue 尚未就绪：', e); return ''; }
+    }
     const fb = $('mdFallback');
     return fb ? fb.value : '';
   }
@@ -148,6 +154,8 @@
     el.style.display = kind === 'ok' ? 'none' : 'block';
   }
   function degradeToTextarea(msg) {
+    vdReady = false;
+    vditor = null;
     const ta = $('mdFallback');
     if (ta) {
       ta.style.display = 'block';
@@ -223,8 +231,17 @@
         ],
         toolbarConfig: { pin: true },
         input: () => updateAll(),
-        after: () => updateAll()
+        after: () => { vdReady = true; updateAll(); }
       });
+      if (!window.__vditorFrom || window.__vditorFrom !== 'cdn') {
+        // 本地 Vditor 若 Lute 加载失败（网络/路径问题），8 秒后仍未就绪则降级
+        setTimeout(() => {
+          if (!vdReady && vditor) {
+            console.warn('Vditor after() 超时未触发，降级为文本框');
+            degradeToTextarea('编辑器初始化超时（Lute 未就绪），已降级为普通文本框。');
+          }
+        }, 8000);
+      }
     } catch (e) {
       console.error('Vditor 初始化失败：', e);
       degradeToTextarea('Vditor 初始化失败：' + (e && e.message ? e.message : e) + '（已降级为普通文本框）');

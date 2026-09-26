@@ -16,8 +16,8 @@ window.BLACKNET = {
 
   // ---- Cloudflare 存储（注意：不是 CF R2；用 KV / D1，经 Worker 暴露为 JSON 接口）----
   // 留空即使用内置兜底数据；填写后自动切换（页面会显示数据来源）。
-  CATEGORY_URL:      '',   // 分类列表，如 https://api.blacknet.cc.cd/categories
-  ANNOUNCEMENTS_URL: '',   // 公告列表，如 https://api.blacknet.cc.cd/announcements
+  CATEGORY_URL:      'https://api.blacknet.cc.cd/categories',       // 分类列表（KV: categories）
+  ANNOUNCEMENTS_URL: 'https://api.blacknet.cc.cd/announcements',    // 公告列表（KV: announcements）
 
   // ---- Vditor（自托管，带版本号便于升级与缓存隔离）----
   // 目录结构：vditor/4.0.0/dist/…（Vditor 的 cdn 选项会自动在其后拼 dist/）
