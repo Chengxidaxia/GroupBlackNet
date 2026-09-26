@@ -48,7 +48,7 @@
   function coverOf(p, opts) {
     const m = meta(p);
     const c = catOf(p);
-    return GB.coverHTML({ icon: m.icon, coverText: m.coverText, category: c.id }, Object.assign({ fallbackName: c.name }, opts || {}));
+    return GB.coverHTML({ icon: m.icon, coverText: m.coverText, category: c.id, tpl: m.tpl }, Object.assign({ fallbackName: c.name }, opts || {}));
   }
   function avatarHTML(p, cls) {
     const url = avatarOf(p);

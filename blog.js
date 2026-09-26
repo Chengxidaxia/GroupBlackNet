@@ -735,7 +735,7 @@
       const sep = crumbCat.previousElementSibling;   // 前面的「/」
       if (sep && sep.classList.contains('s')) sep.hidden = general;
     }
-    $('cover').innerHTML = GB.coverHTML({ icon: meta.icon, coverText: meta.coverText, category: cat.id }, { fallbackName: cat.name, size: 44 });
+    $('cover').innerHTML = GB.coverHTML({ icon: meta.icon, coverText: meta.coverText, category: cat.id, tpl: meta.tpl }, { fallbackName: cat.name, size: 44 });
 
     const author = (discussionData.author && discussionData.author.login) || '匿名';
     const avatar = (discussionData.author && discussionData.author.avatarUrl) || DEFAULT_AVATAR;
@@ -832,7 +832,7 @@
         return `
           <a class="card" href="/blog.html?d=${p.number}">
             <div class="thumb">
-              ${GB.coverHTML({ icon: pm.icon, coverText: pm.coverText, category: pc.id }, { fallbackName: pc.name, size: 30 })}
+              ${GB.coverHTML({ icon: pm.icon, coverText: pm.coverText, category: pc.id, tpl: pm.tpl }, { fallbackName: pc.name, size: 30 })}
               ${GB.isGeneral(pc) ? '' : `<span class="chip" style="background:hsl(${pc.hue} 62% 42%)">${esc(pc.name)}</span>`}
             </div>
             <div class="card-body">

@@ -273,14 +273,17 @@
     const coverText = ($('coverText') && $('coverText').value.trim()) || '';
 
     let iconUrl = '';
-    if (coverMode === 'image') iconUrl = coverUrl || extractFirstImage(md) || DEFAULT_ICON;
-    // text / none：icon 留空，由前端按 coverText 或分类渐变呈现
+    // 只在用户真的选了图片封面时才写入 icon；不再兜底 DEFAULT_ICON，
+    // 避免烤死的默认封面与分类模板/文字封面冲突（显示层按 tpl 规则裁定）
+    if (coverMode === 'image') iconUrl = coverUrl || extractFirstImage(md) || '';
+    // text / none：icon 留空，显示层按 tpl 规则呈现（none → 模板封面）
 
     const firstLine = JSON.stringify({
       info: GB.b64e(info),
       icon: iconUrl ? GB.b64e(iconUrl) : '',
       coverText: coverMode === 'text' ? coverText : '',
       category: category,
+      tpl: coverMode === 'none',
       allowComments: allow,
       tags: tags
     });
@@ -307,7 +310,18 @@
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        const n = data.discussion && data.discussion.number;
+        let n = data.discussion && data.discussion.number;
+        if (!n) {
+          // 兼容旧版 oauth Worker（只返回 {success:true}）：反查最新文章号
+          try {
+            const apiUrl = (window.BLACKNET && window.BLACKNET.API_URL) || 'https://api.blacknet.cc.cd';
+            const r = await fetch(apiUrl + '/?first=1', { cache: 'no-store' });
+            if (r.ok) {
+              const d2 = await r.json();
+              if (d2.nodes && d2.nodes[0] && d2.nodes[0].number) n = d2.nodes[0].number;
+            }
+          } catch (e) { console.warn('反查文章号失败:', e); }
+        }
         toast('发布成功');
         setTimeout(() => { window.location.href = n ? `/blog.html?d=${n}` : '/index.html'; }, 500);
         return;
@@ -374,6 +388,7 @@
   <span class="k">"icon"</span>: <span class="s">"${iconPh}"</span>,
   <span class="k">"coverText"</span>: <span class="s">"${jq(useText ? ctext : '')}"</span>,
   <span class="k">"category"</span>: <span class="n">${category}</span>,
+  <span class="k">"tpl"</span>: <span class="b">${coverMode === 'none'}</span>,
   <span class="k">"allowComments"</span>: <span class="b">${allow}</span>,
   <span class="k">"tags"</span>: [${tagsHtml}]
 }`;

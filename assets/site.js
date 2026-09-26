@@ -130,13 +130,14 @@
   }
 
   /* ---------------- 首行 JSON（文章元数据） ---------------- */
-  // 结构：{"info":b64,"icon":b64,"coverText":"","category":3,"allowComments":true,"tags":[...]}
+  // 结构：{"info":b64,"icon":b64,"coverText":"","category":3,"tpl":false,"allowComments":true,"tags":[...]}
+  // tpl（可选布尔）：是否使用分类模板封面。缺省时按「有分类→模板、无分类→默认」裁定。
   function parseFirstLine(body) {
     const src = String(body == null ? '' : body);
     const lines = src.split('\n');
     const first = (lines[0] || '').trim();
     const rest = lines.slice(1).join('\n').trim();
-    const out = { info: null, icon: null, coverText: '', category: null, allowComments: true, tags: [], bodyText: rest, isJson: false };
+    const out = { info: null, icon: null, coverText: '', category: null, tpl: null, allowComments: true, tags: [], bodyText: rest, isJson: false };
     if (first.charAt(0) !== '{') { out.info = first || null; return out; }
     try {
       const d = JSON.parse(first);
@@ -145,6 +146,7 @@
       out.icon = d.icon ? b64d(d.icon) : null;
       out.coverText = d.coverText || '';
       out.category = (d.category != null ? d.category : null);
+      out.tpl = (typeof d.tpl === 'boolean') ? d.tpl : null;
       out.allowComments = d.allowComments !== false;
       out.tags = Array.isArray(d.tags) ? d.tags.filter(Boolean) : [];
     } catch (e) {
@@ -155,20 +157,27 @@
     return out;
   }
 
-  /* ---------------- 封面（icon 图片 > coverText 文字 > 分类渐变） ---------------- */
+  /* ---------------- 封面裁定（tpl > 分类 > 默认） ---------------- */
   // 返回一段 HTML；请放在 position:relative 的容器内
+  // 规则（与编辑页写入的 tpl 布尔键配套，解决新旧封面方案冲突）：
+  //   1) tpl=true  → 分类模板封面（渐变）
+  //   2) tpl=false → 自定义封面：icon > coverText > 模板兜底
+  //   3) 无 tpl 键  → 有分类 → 模板封面；无分类 → 默认封面（icon/coverText 原样）
   function coverHTML(meta, opts) {
     const o = opts || {};
     const cat = catInfo(meta && meta.category, o.fallbackName);
+    const tpl = `<div class="cover-fill" style="background:${grad(cat.hue)}"><span style="font-size:${o.small ? 15 : (o.size || 42)}px">${esc(coverLabel(cat))}</span></div>`;
+    const hasCat = !!(meta && meta.category != null && Number(meta.category) !== 0);
+    const useTpl = (meta && typeof meta.tpl === 'boolean') ? meta.tpl : hasCat;
+    if (useTpl) return tpl;
     if (meta && meta.icon) {
-      // 渐变占位始终渲染在图片下层：图标 404 / 加载失败被移除后自动露出，不再留空白
-      const fallback = `<div class="cover-fill" style="background:${grad(cat.hue)}"><span style="font-size:${o.size || 40}px">${esc(coverLabel(cat))}</span></div>`;
-      return `<img src="${esc(meta.icon)}" alt="" loading="lazy" style="position:relative;z-index:1" onerror="this.remove()">` + fallback;
+      // 图标 404 / 加载失败被移除后自动露出下层渐变，不再留空白
+      return `<img src="${esc(meta.icon)}" alt="" loading="lazy" style="position:relative;z-index:1" onerror="this.remove()">` + tpl;
     }
     if (meta && meta.coverText) {
       return `<div class="cover-fill" style="background:${grad(cat.hue)}"><span style="font-size:${o.small ? 16 : Math.round((o.size || 40) * 0.66)}px">${esc(meta.coverText)}</span></div>`;
     }
-    return `<div class="cover-fill" style="background:${grad(cat.hue)}"><span style="font-size:${o.small ? 15 : (o.size || 42)}px">${esc(coverLabel(cat))}</span></div>`;
+    return tpl;
   }
 
   /* ---------------- 加载动画 ---------------- */
