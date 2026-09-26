@@ -325,6 +325,8 @@
 
   /* ---------------- 联动更新 ---------------- */
   function escapeAttr(s) { return esc(s); }
+  // 预览按「实际会发送的 JSON 字面量」展示：先 JSON 转义、再 HTML 转义
+  function jq(s) { return esc(JSON.stringify(String(s == null ? '' : s)).slice(1, -1)); }
 
   function updateAll() {
     const title = ($('title') && $('title').value.trim()) || '';
@@ -363,14 +365,14 @@
     const useText = coverMode === 'text' && ctext;
     const infoPh = info ? `&lt;base64 简介 ${info.length} 字&gt;` : '';
     const iconPh = useImg ? `&lt;base64 图片 ${Math.round((coverDataURL || '').length / 1024)} KB&gt;` : '';
-    const tagsHtml = tags.map(t => `<span class="s">"${esc(t)}"</span>`).join(', ');
+    const tagsHtml = tags.map(t => `<span class="s">"${jq(t)}"</span>`).join(', ');
     const out = $('jsonOut');
     if (out) {
       out.innerHTML =
 `{
   <span class="k">"info"</span>: <span class="s">"${infoPh}"</span>,
   <span class="k">"icon"</span>: <span class="s">"${iconPh}"</span>,
-  <span class="k">"coverText"</span>: <span class="s">"${esc(useText ? ctext : '')}"</span>,
+  <span class="k">"coverText"</span>: <span class="s">"${jq(useText ? ctext : '')}"</span>,
   <span class="k">"category"</span>: <span class="n">${category}</span>,
   <span class="k">"allowComments"</span>: <span class="b">${allow}</span>,
   <span class="k">"tags"</span>: [${tagsHtml}]
