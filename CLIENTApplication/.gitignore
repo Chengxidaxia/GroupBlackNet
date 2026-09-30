@@ -1,0 +1,20 @@
+# 只忽略构建产物；源码全部入库
+out/
+dist/
+build/
+*.class
+*.jar
+!.gitkeep
+
+# IDE
+.idea/
+*.iml
+.vscode/
+nbproject/private/
+
+# 系统
+Thumbs.db
+.DS_Store
+
+# 本地运行数据（登录态缓存等，运行时写到用户目录，这里兜底）
+*.log

@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  群档案客户端 · Launch4j 启动器配置
+  生成：launch4jc.exe launcher\launch4j-config.xml
+  产物：out\GroupBlackNet.exe（把 jar 打进 exe，单文件双跑；不需要旁边放 jar）
+
+  说明：
+   · <jar> / <outfile> / <icon> 的相对路径以**本配置文件所在目录**为基准
+   · 依赖目标机已装 JRE/JDK 21+（提示会指向 Adoptium 下载页）
+     —— 若要免装 Java，把 <jre><path> 指向一个便携 JRE 目录即可（见 README）
+-->
+<launch4jConfig>
+  <!-- jar 打进 exe：单文件交付 -->
+  <dontWrapJar>false</dontWrapJar>
+  <!-- gui：双击不弹黑色控制台窗口 -->
+  <headerType>gui</headerType>
+  <jar>../out/GroupBlackNet-Client.jar</jar>
+  <outfile>../out/GroupBlackNet.exe</outfile>
+  <errTitle>群档案 · 启动失败</errTitle>
+  <cmdLine></cmdLine>
+  <chdir>.</chdir>
+  <priority>normal</priority>
+  <!-- 目标机缺少合适 JRE 时，弹窗里给出的下载地址 -->
+  <downloadUrl>https://adoptium.net/temurin/releases/?version=21</downloadUrl>
+  <supportUrl>https://grp.blacknet.cc.cd</supportUrl>
+  <stayAlive>false</stayAlive>
+  <restartOnCrash>false</restartOnCrash>
+  <manifest></manifest>
+  <icon>app.ico</icon>
+  <classPath>
+    <mainClass>com.groupblacknet.client.App</mainClass>
+  </classPath>
+  <!-- 单实例：重复双击时激活已有窗口，不会开出第二个进程 -->
+  <singleInstance>
+    <mutexName>GroupBlackNet-Client-1</mutexName>
+    <windowTitle>群档案 · 客户端</windowTitle>
+  </singleInstance>
+  <jre>
+    <!-- 留空 = 用系统已安装的 JRE；要捆绑便携 JRE 就填相对/绝对路径 -->
+    <path></path>
+    <bundledJre64Bit>false</bundledJre64Bit>
+    <bundledJreAsFallback>false</bundledJreAsFallback>
+    <minVersion>21.0.0</minVersion>
+    <jdkPreference>preferJre</jdkPreference>
+    <runtimeBits>64/32</runtimeBits>
+  </jre>
+  <versionInfo>
+    <fileVersion>1.0.0.0</fileVersion>
+    <txtFileVersion>1.0.0</txtFileVersion>
+    <fileDescription>群档案 桌面客户端</fileDescription>
+    <copyright>Copyright (C) 2026 GroupBlackNet</copyright>
+    <productVersion>1.0.0.0</productVersion>
+    <txtProductVersion>1.0.0</txtProductVersion>
+    <productName>群档案</productName>
+    <companyName>GroupBlackNet</companyName>
+    <internalName>GroupBlackNet</internalName>
+    <originalFilename>GroupBlackNet.exe</originalFilename>
+  </versionInfo>
+</launch4jConfig>
