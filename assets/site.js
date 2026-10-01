@@ -19,18 +19,13 @@
   };
   const EMOJI = ['👍', '👎', '😄', '🎉', '😕', '❤️', '🚀', '👀'];
 
-  // 分类数字 ID → 名称 / 色相（兜底；正式环境从 CF 存储读取）
-  const CATS_FALLBACK = [
-    { id: 1, name: '公告', hue: 352 },
-    { id: 2, name: '资讯', hue: 214 },
-    { id: 3, name: '技术', hue: 168 },
-    { id: 4, name: '活动', hue: 32 },
-    { id: 5, name: '随笔', hue: 276 }
-  ];
-  // 旧数据可能是 GitHub Discussion 分类名（英文）
-  const LEGACY_CAT = { Announcements: 1, 公告: 1, 资讯: 2, 技术: 3, 活动: 4, 随笔: 5 };
+  // 旧数据可能是 GitHub Discussion 分类名（英文）或首行 JSON 里的中文分类名。
+  // 数字 id 以线上 CF 存储（KV categories）为准：1公告 2新闻 3资讯 4技术 5活动 6随笔
+  const LEGACY_CAT = { Announcements: 1, 公告: 1, 新闻: 2, 资讯: 3, 技术: 4, 活动: 5, 随笔: 6 };
 
-  let CATS = CATS_FALLBACK.slice();
+  // 分类列表不再内置兜底：正式环境必须从 CF 存储拉取；
+  // 拉取失败时为空（写稿页会据此提示无法发稿）。
+  let CATS = [];
 
   /* ---------------- 基础工具 ---------------- */
   const esc = s => String(s == null ? '' : s)
@@ -108,7 +103,7 @@
   const catReady = new Promise(res => { catReadyResolve = res; });
   async function loadCategories() {
     const url = CFG.CATEGORY_URL;
-    if (!url) { GB.catSource = 'fallback'; catReadyResolve(CATS); return CATS; }
+    if (!url) { GB.catSource = 'none'; catReadyResolve(CATS); return CATS; }
     try {
       const res = await fetch(url, { cache: 'no-cache' });
       if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -120,10 +115,10 @@
         hue: Number(c && c.hue != null ? c.hue : (214 + i * 29) % 360)
       })).filter(c => c.name);
       if (norm.length) { CATS = norm; GB.catSource = 'remote'; }
-      else { GB.catSource = 'fallback'; }
+      else { GB.catSource = 'empty'; }
     } catch (e) {
-      console.warn('[categories] 远端不可用，使用内置兜底：', e);
-      GB.catSource = 'fallback';
+      console.warn('[categories] 分类拉取失败（无本地兜底，分类为空）：', e);
+      GB.catSource = 'error';
     }
     catReadyResolve(CATS);
     return CATS;
@@ -324,9 +319,9 @@
 
   /* ---------------- 暴露 ---------------- */
   const GB = {
-    CFG, EMOJI, EMOJI_MAP, CATS_FALLBACK, LEGACY_CAT,
+    CFG, EMOJI, EMOJI_MAP, LEGACY_CAT,
     get cats() { return CATS; },
-    catSource: 'fallback',
+    catSource: 'loading',
     catReady,
     esc, b64d, b64e, ini, fmtDate, fmtShort,
     hueOf, nameOf, catInfo, catIdOf, isAnnouncement, grad, isGeneral, coverLabel,

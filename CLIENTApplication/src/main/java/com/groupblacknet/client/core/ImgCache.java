@@ -8,6 +8,10 @@ import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -40,6 +44,10 @@ public final class ImgCache {
             .followRedirects(HttpClient.Redirect.NORMAL)
             .build();
 
+    /** 磁盘持久化缓存目录：~/.groupblacknet-client/cache/img（与主题/登录同目录约定）。 */
+    private static final Path CACHE_DIR =
+            Path.of(System.getProperty("user.home"), ".groupblacknet-client", "cache", "img");
+
     private ImgCache() {}
 
     private static String key(String url, int w, int h, boolean cover) {
@@ -70,13 +78,19 @@ public final class ImgCache {
         }
         POOL.submit(() -> {
             try {
-                HttpResponse<byte[]> res = HTTP.send(HttpRequest.newBuilder(URI.create(url))
-                                .timeout(Duration.ofSeconds(20))
-                                .header("User-Agent", "GroupBlackNet-Client/" + Config.VERSION)
-                                .GET().build(),
-                        HttpResponse.BodyHandlers.ofByteArray());
-                if (res.statusCode() >= 400) throw new java.io.IOException("HTTP " + res.statusCode());
-                BufferedImage raw = ImageIO.read(new ByteArrayInputStream(res.body()));
+                // 先读磁盘缓存，命中则跳过网络请求
+                byte[] bytes = readDisk(url);
+                if (bytes == null) {
+                    HttpResponse<byte[]> res = HTTP.send(HttpRequest.newBuilder(URI.create(url))
+                                    .timeout(Duration.ofSeconds(20))
+                                    .header("User-Agent", "GroupBlackNet-Client/" + Config.VERSION)
+                                    .GET().build(),
+                            HttpResponse.BodyHandlers.ofByteArray());
+                    if (res.statusCode() >= 400) throw new java.io.IOException("HTTP " + res.statusCode());
+                    bytes = res.body();
+                    writeDisk(url, bytes);
+                }
+                BufferedImage raw = ImageIO.read(new ByteArrayInputStream(bytes));
                 if (raw == null) throw new java.io.IOException("不是有效图片");
                 Image out = cover ? cover(raw, w, h) : fit(raw, w, h);
                 CACHE.put(k, out);
@@ -86,6 +100,42 @@ public final class ImgCache {
                 if (onFail != null) SwingUtilities.invokeLater(onFail);
             }
         });
+    }
+
+    /* ---------------- 磁盘持久化缓存 ---------------- */
+
+    /** URL → 稳定文件名（SHA-256 十六进制）。 */
+    private static String hashOf(String s) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] d = md.digest(s.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder(d.length * 2);
+            for (byte b : d) sb.append(String.format("%02x", b));
+            return sb.toString();
+        } catch (Exception e) {
+            return Integer.toHexString(s.hashCode());
+        }
+    }
+
+    private static Path diskFile(String url) {
+        return CACHE_DIR.resolve(hashOf(url) + ".bin");
+    }
+
+    /** 读磁盘缓存；未命中或出错返回 null（静默降级为重新下载）。 */
+    private static byte[] readDisk(String url) {
+        try {
+            Path f = diskFile(url);
+            if (Files.exists(f) && Files.size(f) > 0) return Files.readAllBytes(f);
+        } catch (Exception ignored) { }
+        return null;
+    }
+
+    /** 写磁盘缓存；失败静默忽略（下次仍会重新下载，不影响功能）。 */
+    private static void writeDisk(String url, byte[] data) {
+        try {
+            Files.createDirectories(CACHE_DIR);
+            Files.write(diskFile(url), data);
+        } catch (Exception ignored) { }
     }
 
     /* ---------------- 图形处理 ---------------- */

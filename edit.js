@@ -49,10 +49,17 @@
   async function setupCategories() {
     if (window.GB) await GB.catReady;
     const hint = $('catSrc');
-    const src = (window.GB && GB.catSource) === 'remote' ? 'CF 存储' : '内置兜底';
-    if (hint) hint.textContent = `JSON 的 category（数字 ID）· 来源：${src}`;
     const list = (window.GB && GB.cats) || [];
-    if (!list.some(c => c.id === category) && list[0]) category = list[0].id;
+    if (!list.length) {
+      // 分类未加载成功：无分类可选，发稿自然也不可行
+      if (hint) hint.textContent = '分类加载失败，无法选择分类，暂时无法发稿。';
+      renderCats();
+      updateAll();
+      return;
+    }
+    const src = (window.GB && GB.catSource) === 'remote' ? 'CF 存储' : '未加载';
+    if (hint) hint.textContent = `JSON 的 category（数字 ID）· 来源：${src}`;
+    if (!list.some(c => c.id === category)) category = list[0].id;
     renderCats();
     updateAll();
   }
@@ -261,6 +268,8 @@
 
   async function submitDiscussion() {
     if (isSubmitting) return;
+    const list = (window.GB && GB.cats) || [];
+    if (!list.length) { toast('分类加载失败，暂时无法发稿'); return; }
     const title = ($('title') && $('title').value.trim()) || '';
     if (!title) { toast('请输入标题'); $('title').focus(); return; }
 

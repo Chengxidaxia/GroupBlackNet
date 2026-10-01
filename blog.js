@@ -646,7 +646,7 @@
       createdAt: new Date().toISOString(),
       author: {
         login: (currentUser && currentUser.login) || '你',
-        avatarUrl: (currentUser && currentUser.avatarUrl) || DEFAULT_AVATAR
+        avatarUrl: (currentUser && currentUser.avatar_url) || DEFAULT_AVATAR
       },
       reactionGroups: [], upvoteCount: 0, replies: { nodes: [] }, isTemp: true
     };

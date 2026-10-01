@@ -16,6 +16,9 @@
       icon: b64(meta.icon || ''),
       coverText: meta.coverText || '',
       category: meta.category,
+      // 有图片/文字封面 → tpl:false（自定义）；否则 → tpl:true（分类模板）
+      // 与 site.js 的 coverHTML 裁定规则对齐，避免演示数据的封面被模板吞掉
+      tpl: !(meta.icon || meta.coverText),
       allowComments: meta.allowComments !== false,
       tags: meta.tags || []
     }) + '\n\n' + md;
@@ -163,7 +166,10 @@
   ];
 
   // 组装为“与真实接口一致”的形态：body = 首行 JSON + Markdown
-  posts.forEach(p => { p.body = mkBody(p._meta, p._md); });
+  posts.forEach(p => {
+    p._meta.tpl = !(p._meta.icon || p._meta.coverText);
+    p.body = mkBody(p._meta, p._md);
+  });
 
   const COMMENT_SEED = [
     {
