@@ -9,18 +9,20 @@
 `book/assets/js/core/api.js` 里 `loadIndex()` 与 `fetchBook()` 用同一套顺序：
 
 ```
-① 同源       <站点>/docs/books/index.json          站点仓库里就有 → 最快，天然免 CORS
-② jsDelivr   https://cdn.jsdelivr.net/gh/OWNER/REPO@BRANCH/docs/books/...
-             https://fastly.jsdelivr.net/gh/...     ← 备用节点
-             https://gcore.jsdelivr.net/gh/...      ← 备用节点
-③ raw        https://raw.githubusercontent.com/OWNER/REPO/BRANCH/docs/books/...
+① 同源          <站点>/docs/books/index.json      站点仓库里就有 → 最快，天然免 CORS
+② jsDelivr 并发   cdn / fastly / gcore 三个节点同时发，谁先回用谁
+③ raw           https://raw.githubusercontent.com/OWNER/REPO/BRANCH/docs/books/...
 ```
 
-任一源成功即返回，失败/超时/内容不对（比如站点返回了 404 页面或 SPA 的 HTML）自动换下一个。
-每个源都有超时（默认同源 5s、CDN 8s），一个源卡住不会拖死整页。
+三层之间是串行，CDN 层内部是**并发竞速**（`Promise.any`）。
+失败 / 超时 / 内容不对（站点返回 404 页或 SPA 的 HTML）都会自动落到下一层。
+每层都有超时（同源 5s、CDN 8s），卡住的源不会拖死整页。
 
-顺序理由：同源永远最快；BookBlackNet 仓库单独存在时同源会 404，几百毫秒内落到 CDN；
-raw 只作最后兜底（国内直连不稳，但不会有 CDN 的中转延迟）。
+为什么 CDN 层要并发：实测国内 `cdn.jsdelivr.net` 和 `fastly.jsdelivr.net` 会整段超时
+（各等 8 秒），串行的话首屏要白等十几秒；并发之后总耗时 = 最快节点（`gcore` 约 0.7–3s）。
+
+顺序理由：同源永远最快；书籍仓库单独存在时同源 404，几百毫秒内落到 CDN；
+raw 只作最后兜底（国内直连不稳，但路径最短）。
 
 配置全在 `book/assets/js/config.js`：
 
@@ -63,11 +65,22 @@ node scripts/cdn-urls.mjs            # 列出全部数据源 URL
 node scripts/cdn-urls.mjs --check    # 逐个实测（状态码 / 耗时 / 大小）
 ```
 
-**基线状态（2026-10-28 实测）**：书籍仓库 `Chengxidaxia/BookBlackNet` 还不存在，
-4 个数据源全部 404，这是预期的。等该仓库建好、`docs/books/` 推进去之后应当全绿。
+**基线状态（2026-10-29 实测，仓库已建好并推送）**：
 
-> 注意：站点自身仍然可用 —— `scripts/netlify-build.sh` 会把 `book/docs/` 一起复制进
-> `dist/book/docs/`，所以「同源」这一层始终有书。CDN 只服务于「书籍仓库独立」的部署形态。
+| 源 | index.json | .book | 备注 |
+|---|---|---|---|
+| 同源（`grp.blacknet.cc.cd/book/`） | 200 | 200 | GitHub Pages 直出，最快 |
+| `gcore.jsdelivr.net` | 200 / 3.1s | 200 / 0.7s | 当前最稳的 CDN 节点 |
+| `cdn.jsdelivr.net` | 200 / 3.5s（曾超时） | 200 / 3.5s | 波动大 |
+| `fastly.jsdelivr.net` | 超时 | — | 本机网络下不可用 |
+| `raw.githubusercontent.com` | 失败 | 失败 | 本机网络下不可用 |
+
+只要同源或任一 CDN 节点通，整条链路就算健康。
+`.book` 从 jsDelivr 返回的 MIME 是 `application/vnd.framemaker`（jsDelivr 的扩展名猜测），
+前端用 `res.text()` 读，不受影响。
+
+> 站点自身始终可用 —— `scripts/netlify-build.sh` 会把 `book/docs/` 一起复制进
+> `dist/book/docs/`，所以「同源」这一层有兜底。CDN 服务于「书籍仓库独立」的部署形态。
 
 ## 4. jsDelivr 的硬限制
 
@@ -103,8 +116,21 @@ node scripts/cdn-urls.mjs --check    # 逐个实测（状态码 / 耗时 / 大�
 1. 建仓库 `Chengxidaxia/BookBlackNet`（public）。
 2. 把 `book/docs/books/` 原样推到该仓库（`index.json` + `*.book`）。
 3. 确认默认分支是 `main`（不是就去改 `config.js` 的 `BRANCH`）。
-4. 跑 `node scripts/cdn-urls.mjs --check`，四个源应有响应。
-5. 打开站点首页，F12 看 `<html data-book-source="cdn">` —— 值为 `cdn` 说明
-   同源没书、成功走了 jsDelivr；为 `site` 说明站点自带了书（也正常）。
+4. 跑 `node scripts/cdn-urls.mjs --check`，至少同源或一个 CDN 节点可用即可。
+5. 打开站点首页，F12 看 `<html data-book-source="...">` —— `site` 表示走同源，
+   `cdn` 表示同源没书、成功落到 jsDelivr，`none` 表示三层全挂。
 6. 发布一本书，看 Network 里 `.book` 请求是否带 `?v=b...` —— 带上了说明
    `bustCdn()` 生效，刷新即可看到新版本。
+
+## 7. 同步本地改动到书籍仓库
+
+`BookBlackNet` 仓库是书籍的唯一真源（在线写作台的发布直接写它），本地 `book/docs`
+只是开发副本。改完站点文件后一条命令同步：
+
+```bash
+bash scripts/sync-book-repo.sh          # 复制 → 提交 → 推送（SSH，不弹凭据）
+DRY=1 bash scripts/sync-book-repo.sh    # 只看会改什么
+```
+
+> 注意：脚本是「覆盖同名 + 新增」，**不会删除**目标仓库里多出来的文件。
+> 要删书请在网页端下架，或手动 `git rm`。

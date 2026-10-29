@@ -85,10 +85,12 @@ python -m http.server 8123 --directory book     # 只调试书阁
 书籍不走 Netlify Functions，直接按下面的顺序取：
 
 ```
-同源 /docs/books/... → cdn.jsdelivr.net → fastly → gcore → raw.githubusercontent
+同源 /docs/books/...   →   jsDelivr 三节点并发竞速   →   raw.githubusercontent
 ```
 
-版本戳机制、缓存刷新、国内可达性与验收命令都在 **[CDN.md](CDN.md)**。
+CDN 层是并发的（`Promise.any`），谁先回用谁 —— 实测国内 `cdn.jsdelivr.net` /
+`fastly` 常整段超时，串行会白等十几秒。版本戳机制、缓存刷新、国内可达性与验收命令
+都在 **[CDN.md](CDN.md)**。
 
 排查时看 `<html data-book-source="site|cdn|raw|none">`：
 首页与阅读页都会写这个属性，一眼看出当前用的是哪一层。
