@@ -19,3 +19,10 @@ _edge/
 _dom*.html
 _push_test.log
 .wrangler
+
+# Netlify 构建产物（本地跑 scripts/netlify-build.sh 生成）
+dist/
+dist*/
+
+# 无头浏览器临时 profile
+_edge*/

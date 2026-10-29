@@ -1,0 +1,96 @@
+# ============================================================
+# netlify.toml — 群档案（主站）+ 群书阁（book/）同域部署
+# 部署：Netlify 连接 Chengxidaxia/GroupBlackNet，构建命令见下。
+# 产物由 scripts/netlify-build.sh 组装到 dist/，源码与本地工具不发布。
+# 书籍数据源：同源 docs/books → jsDelivr → raw.githubusercontent
+#             （见 book/assets/js/config.js 的 CDN 段）
+# ============================================================
+
+[build]
+  command = "bash scripts/netlify-build.sh"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# 本地预览：netlify dev 会先跑一遍构建再起静态服务
+[dev]
+  command = "bash scripts/netlify-build.sh && python -m http.server 8888 --directory dist"
+  targetPort = 8888
+  port = 8888
+  framework = "#static"
+  autoLaunch = false
+
+# ------------------------------------------------------------
+# 重定向（顺序即优先级：先具体，后通配）
+# ------------------------------------------------------------
+[[redirects]]
+  from = "/book"
+  to = "/book/"
+  status = 301
+
+# 无扩展名直达（关掉 Pretty URLs 也能用）
+[[redirects]]
+  from = "/book/read"
+  to = "/book/read.html"
+  status = 200
+
+[[redirects]]
+  from = "/book/write"
+  to = "/book/write.html"
+  status = 200
+
+# 子站自己的 404（Netlify 只认产物根目录的 404.html，子目录需显式指定）
+[[redirects]]
+  from = "/book/*"
+  to = "/book/404.html"
+  status = 404
+
+# 主站兜底 404
+[[redirects]]
+  from = "/*"
+  to = "/404.html"
+  status = 404
+
+# ------------------------------------------------------------
+# 响应头
+# ------------------------------------------------------------
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-Frame-Options = "SAMEORIGIN"
+    Permissions-Policy = "geolocation=(), microphone=(), camera=()"
+
+# 站点自身脚本/样式：改版后要立刻生效
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+# Vditor 带版本号目录，可长缓存
+[[headers]]
+  for = "/vditor/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# 群书阁：页面与脚本不缓存（发布后立刻可见）
+[[headers]]
+  for = "/book/*"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+# 书籍密文：短缓存 + 强制二进制，避免被当 HTML 解析
+# 注意：Netlify 同名头「后匹配者覆盖」，所以更具体的规则要放在后面
+[[headers]]
+  for = "/book/docs/books/*"
+  [headers.values]
+    Cache-Control = "public, max-age=60"
+    Content-Type = "application/octet-stream"
+    Content-Disposition = "inline"
