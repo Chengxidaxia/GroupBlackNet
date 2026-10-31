@@ -9,6 +9,8 @@
 
   const OAUTH_BASE = (window.BLACKNET && window.BLACKNET.OAUTH_BASE) || 'https://oauth.blacknet.cc.cd';
   const UPLOAD_URL = (window.BLACKNET && window.BLACKNET.UPLOAD_URL) || 'https://upload.blacknet.cc.cd';
+  // 跨域只读接口统一走网络层：站点配了同源反代就走反代，没有就直连
+  const netFetch = (window.GB && GB.net && GB.net.fetch) ? GB.net.fetch : fetch;
   const DEFAULT_ICON = (window.BLACKNET && window.BLACKNET.DEFAULT_ICON) || 'https://grp.blacknet.cc.cd/img/pole.jpg';
   const VDITOR_BASE = (window.BLACKNET && window.BLACKNET.VDITOR_BASE) || 'vditor/4.0.0';
 
@@ -324,7 +326,7 @@
           // 兼容旧版 oauth Worker（只返回 {success:true}）：反查最新文章号
           try {
             const apiUrl = (window.BLACKNET && window.BLACKNET.API_URL) || 'https://api.blacknet.cc.cd';
-            const r = await fetch(apiUrl + '/?first=1', { cache: 'no-store' });
+            const r = await netFetch(apiUrl + '/?first=1', { cache: 'no-store' });
             if (r.ok) {
               const d2 = await r.json();
               if (d2.nodes && d2.nodes[0] && d2.nodes[0].number) n = d2.nodes[0].number;

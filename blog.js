@@ -10,6 +10,8 @@
   const API_URL = (window.BLACKNET && window.BLACKNET.API_URL) || 'https://api.blacknet.cc.cd';
   const OAUTH_BASE = (window.BLACKNET && window.BLACKNET.OAUTH_BASE) || 'https://oauth.blacknet.cc.cd';
   const UPLOAD_URL = (window.BLACKNET && window.BLACKNET.UPLOAD_URL) || 'https://upload.blacknet.cc.cd';
+  // 跨域只读接口统一走网络层：站点配了同源反代就走反代，没有就直连
+  const netFetch = (window.GB && GB.net && GB.net.fetch) ? GB.net.fetch : fetch;
   const DEFAULT_AVATAR = (window.BLACKNET && window.BLACKNET.DEFAULT_AVATAR) || 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png';
   const COMMENTS_PER_PAGE = 20;
 
@@ -704,7 +706,7 @@
     if (prefetched) {
       data = { discussion: prefetched };
     } else {
-      const res = await fetch(`${API_URL}/?d=${number}&cfirst=100`);
+      const res = await netFetch(`${API_URL}/?d=${number}&cfirst=100`);
       if (!res.ok) throw new Error('HTTP ' + res.status);
       data = await res.json();
     }
@@ -807,7 +809,7 @@
       pool = window.GB_DEMO.posts.filter(p => p.number !== number);
     } else {
       try {
-        const res = await fetch(`${API_URL}/?first=24`);
+        const res = await netFetch(`${API_URL}/?first=24`);
         if (!res.ok) return;
         const data = await res.json();
         pool = (data.nodes || []).filter(p => p.number !== number);

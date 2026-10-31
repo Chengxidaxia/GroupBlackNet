@@ -21,5 +21,24 @@ window.BLACKNET = {
 
   // ---- Vditor（自托管，带版本号便于升级与缓存隔离）----
   // 目录结构：vditor/4.0.0/dist/…（Vditor 的 cdn 选项会自动在其后拼 dist/）
-  VDITOR_BASE: 'vditor/4.0.0'
+  VDITOR_BASE: 'vditor/4.0.0',
+
+  // ---- 前端同源反代（仅前端使用，后端不需要任何改动）----
+  // 后端 CORS 只放行固定域名，站点换域名部署（Netlify / 自定义域 / 预览域）
+  // 后数据接口会被浏览器拦掉。这里让前端在「需要的时候」改走站点同源路径：
+  //     https://api.blacknet.cc.cd/?first=24  →  /proxy/api.blacknet.cc.cd/?first=24
+  // 转发规则写在 netlify.toml（同源请求不做 CORS 校验，后端一行都不用改）。
+  //
+  // mode : 'auto'   先试反代，站点没配就自动改直连（默认，推荐）
+  //        'always' 只走反代（强制，站点没配就直接失败，便于排查）
+  //        'off'    完全直连（关掉这套机制）
+  // hosts: 允许走反代的地址。**只放只读接口**；oauth / upload 依赖 Cookie，
+  //        经反代后 Cookie 的 Domain 对不上会掉登录态，绝不能加进来。
+  PROXY: {
+    mode: 'auto',
+    base: '/proxy',
+    hosts: [
+      'api.blacknet.cc.cd'        // 文章列表 / 详情 / 分类 / 公告（全部 GET）
+    ]
+  }
 };

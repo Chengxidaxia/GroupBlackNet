@@ -7,6 +7,8 @@
   'use strict';
 
   const API_URL = (window.BLACKNET && window.BLACKNET.API_URL) || 'https://api.blacknet.cc.cd';
+  // 跨域只读接口统一走网络层：站点配了同源反代就走反代，没有就直连
+  const netFetch = (window.GB && GB.net && GB.net.fetch) ? GB.net.fetch : fetch;
   const PAGE_SIZE = 20;
   const HERO_COUNT = 4;
 
@@ -354,7 +356,7 @@
       const url = after
         ? `${API_URL}/?first=100&after=${encodeURIComponent(after)}`
         : `${API_URL}/?first=100`;
-      const res = await fetch(url);
+      const res = await netFetch(url);
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
       const nodes = data.nodes || [];

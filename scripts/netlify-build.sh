@@ -79,7 +79,7 @@ count=$(find "$DIST" -type f | wc -l | tr -d ' ')
 size=$(du -sh "$DIST" 2>/dev/null | cut -f1)
 echo "产物：$DIST（$count 个文件，约 $size）"
 
-for must in index.html assets/site.css assets/site.js \
+for must in index.html assets/site.css assets/site.js assets/net.js \
             book/index.html book/read.html book/write.html book/404.html \
             book/assets/js/config.js book/docs/books/index.json; do
   [ -e "$DIST/$must" ] || { echo "!! 产物缺少 $must" >&2; exit 1; }

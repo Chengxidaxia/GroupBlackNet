@@ -11,6 +11,15 @@
 
   const CFG = window.BLACKNET || {};
 
+  /* ---------------- 网络层 ----------------
+     所有「跨域的只读接口」统一走 net.fetch：站点有同源反代且需要时自动改走
+     反代，没有就直连，调用方写法不变。带 Cookie 的写接口（oauth / upload）
+     不要走这里，理由见 config.js 的 PROXY 注释。
+     net.js 没加载时退回原生 fetch，功能不受影响。 */
+  const net = (window.BNNET && window.BNNET.create)
+    ? window.BNNET.create(CFG.PROXY)
+    : { fetch: fetch, state: { mode: 'off' }, canProxy: () => false };
+
   /* ---------------- 常量 ---------------- */
   // GitHub reaction 枚举 → emoji
   const EMOJI_MAP = {
@@ -105,7 +114,7 @@
     const url = CFG.CATEGORY_URL;
     if (!url) { GB.catSource = 'none'; catReadyResolve(CATS); return CATS; }
     try {
-      const res = await fetch(url, { cache: 'no-cache' });
+      const res = await net.fetch(url, { cache: 'no-cache' });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
       const list = Array.isArray(data) ? data : (data.list || data.categories || []);
@@ -226,7 +235,7 @@
     const url = CFG.ANNOUNCEMENTS_URL;
     if (!url) return null;           // 未配置 → 交给页面自行降级（如首页用「公告」分类）
     try {
-      const res = await fetch(url, { cache: 'no-cache' });
+      const res = await net.fetch(url, { cache: 'no-cache' });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
       const list = Array.isArray(data) ? data : (data.list || data.announcements || []);
@@ -328,6 +337,7 @@
     parseFirstLine, coverHTML,
     toast, renderTicker, loadAnnouncements, loadCategories,
     loadingHTML, pageLoading,
+    net,
     initHeader, initReveal,
     demoMode, showDemoNotice,
     emojiOf: content => EMOJI_MAP[content] || content

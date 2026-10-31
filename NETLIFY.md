@@ -3,6 +3,62 @@
 > 目标：**不改功能、不改后端**，让整个项目可以整体切到 Netlify。
 > 书籍读取的多源（同源 → jsDelivr → raw）见 [CDN.md](CDN.md)。
 
+## 0. 从注册到上线（一次性操作）
+
+### 0.1 注册
+
+1. <https://app.netlify.com/signup> → **用 GitHub 账号登录**（省掉邮箱验证，后面拉仓库也更顺）。
+2. 选 **Starter（免费）**；团队名随便填（只影响 `<团队名>.netlify.app` 前缀）。
+3. 免费额度：100GB 流量/月、300 分钟构建/月、单账号 1 个并发构建 —— 这个体量远远够。
+
+### 0.2 授权仓库
+
+1. 登录后点 **Add new site → Import an existing project → GitHub**。
+2. 首次会跳 GitHub 授权页。**勾 Only select repositories，只选** `GroupBlackNet`
+   （要建书阁独立站再加 `BookBlackNet`）。别选 All repositories —— 这个 App 能读全部仓库。
+3. 回到 Netlify，仓库列表里就能看到它们了。
+
+### 0.3 建主站（主站 + 书阁同域，推荐）
+
+1. 选 `Chengxidaxia/GroupBlackNet`。
+2. 构建设置：Netlify 自动读根目录 `netlify.toml`，已写死
+   `command = bash scripts/netlify-build.sh`、`publish = dist`。
+   **Base directory 留空，两个输入框不用改。**
+3. 点 **Deploy site**。首次构建 1–2 分钟（`vditor/` 有 300+ 文件）。
+4. 拿到 `https://<随机名>.netlify.app` 后立刻验三件事：
+   - 首页出文章列表、分类栏有分类；
+   - `/book/` 出书架；
+   - F12 Console 没有 CORS 报错（若报，说明反代没生效，看 §5.1）。
+
+### 0.4 建书阁独立站（只有想把书阁放独立域名时才做）
+
+1. 再点一次 **Add new site**，仍然选 `GroupBlackNet` 仓库。
+2. **Base directory 填 `book`** ← 关键，填错 Netlify 会读根目录那份主站配置。
+3. Build command 留空，Publish directory 填 `.`（或直接让它读 `book/netlify.toml`）。
+
+### 0.5 绑自定义域名
+
+以主站 `grp.blacknet.cc.cd` 为例：
+
+1. Site configuration → **Domain management → Add a domain** → 填 `grp.blacknet.cc.cd`。
+2. Netlify 给出一个 CNAME 目标，形如 `<site-name>.netlify.app`。
+3. 去 Cloudflare 改 DNS：`grp` 这条记录改成 **CNAME → 上面那个目标**，
+   代理状态先设 **DNS only（灰云）**。
+4. 等 Netlify 里证书状态变成 **Let's Encrypt issued**（几分钟），再打开 **Force HTTPS**。
+   证书签发期间**不要开橙云**，否则验证容易失败。
+5. 想省事也可以先不绑域名，直接用 `*.netlify.app` 跑一段时间。
+
+> ⚠️ 换域名前想清楚：后端 CORS 白名单现在是 `grp.blacknet.cc.cd`。
+> 继续用这个域 → 后端一行不用改；换成别的域 → 数据接口会被 CORS 拦，
+> 这时靠 **§5.1 的前端反代**兜住，后端依旧不用改。
+
+### 0.6 之后每次改代码
+
+push 到 `main` → 自动构建部署。历史与回滚看 **Deploys** 页。
+开 PR 会生成 Deploy Preview（预览域同样受 CORS 限制，靠反代兜）。
+
+---
+
 ## 1. 三种部署形态
 
 | 形态 | 仓库 / 目录 | 配置 | 访问 |
@@ -80,7 +136,41 @@ python -m http.server 8123 --directory book     # 只调试书阁
 | 7 | 大小写 | Netlify 是 Linux，**区分大小写**。现有引用全部小写，新增文件保持一致 |
 | 8 | 构建缓存 | `vditor/` 约 24MB / 300+ 文件，首次构建 1–2 分钟，之后走缓存 |
 
-## 5. 数据源
+## 5. 数据流通：前端反代 + 书籍多源
+
+### 5.1 前端同源反代（后端零改动）
+
+**问题**：后端（CF Worker）的 CORS 只放行 `https://grp.blacknet.cc.cd`。站点一换域名
+（Netlify 预览域 / 自定义域 / 本机预览），数据接口就被浏览器直接拦掉。
+
+**做法**：不让后端改，让前端在需要时改走站点自己的同源路径，由 Netlify 转发：
+
+| 前端原本要请求 | 前端实际请求 | Netlify 转发到 |
+|---|---|---|
+| `https://api.blacknet.cc.cd/?first=24` | `/proxy/api.blacknet.cc.cd/?first=24` | `https://api.blacknet.cc.cd/?first=24` |
+| `https://api.github.com/repos/...` | `/proxy/api.github.com/repos/...` | `https://api.github.com/repos/...` |
+| `https://raw.githubusercontent.com/...` | `/proxy/raw.githubusercontent.com/...` | 同左 |
+
+同源请求浏览器**不做 CORS 校验、不发预检**，所以后端 CORS 白名单保持原样即可。
+
+**实现**：`assets/net.js`（书阁是 `book/assets/js/core/net.js`，同一份内容），
+配置在各站的 `config.js → PROXY`。
+
+| 配置 | 说明 |
+|---|---|
+| `mode: 'auto'`（默认） | 先试反代；站点没配这条转发（拿到 404 页）或网络错 → **自动改直连**，本会话内不再试 |
+| `mode: 'always'` | 只走反代，失败就失败。排查用 |
+| `mode: 'off'` | 完全直连。不想要这套机制就改它 |
+| `hosts` | 白名单，只放**只读接口** |
+
+> ⚠️ **oauth / upload 绝不能走反代**：它们依赖 Cookie，经反代后 Cookie 的 Domain
+> 对不上，登录态会直接掉。所以 `PROXY.hosts` 里没有它们，`netlify.toml` 也没配对应转发。
+
+**排查**：Console 会打印 `[proxy] 站内反代不可用（HTTP 404），本会话改直连：/proxy/...`；
+`GB.net.state`（主站）/ `BKN.api.net.state`（书阁）里有 `hits / misses / dead`。
+单测：`node scripts/test-proxy.mjs`（26 项）。
+
+### 5.2 书籍多源
 
 书籍不走 Netlify Functions，直接按下面的顺序取：
 
