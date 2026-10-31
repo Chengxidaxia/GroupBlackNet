@@ -31,6 +31,21 @@
 # 重定向（顺序即优先级：先具体，后通配）
 # ------------------------------------------------------------
 
+# GitHub 登录态（同源 Function）：替代直连 oauth.blacknet.cc.cd/me。
+# Cookie github_token（Domain=.blacknet.cc.cd）同域自动携带，Function 服务端
+# 拿它问 GitHub /user。同源零 CORS、走 Netlify 边缘（CF 直连慢）。
+[[redirects]]
+  from = "/api/gh/*"
+  to = "/.netlify/functions/gh-auth/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/gh"
+  to = "/.netlify/functions/gh-auth"
+  status = 200
+  force = true
+
 # ---- 前端同源反代（后端零改动）----
 # 前端在「跨域被拦」时会把请求改写成同源路径：/proxy/<host>/<原路径>
 # 同源请求浏览器不做 CORS 校验、不发预检，所以后端 CORS 白名单保持原样即可。

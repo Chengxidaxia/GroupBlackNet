@@ -7,6 +7,7 @@
   'use strict';
 
   const OAUTH_BASE = (window.BLACKNET && window.BLACKNET.OAUTH_BASE) || 'https://oauth.blacknet.cc.cd';
+  const GH_LOCAL = '/api/gh';   // 同源 Function：快、零 CORS；失败回退 CF oauth 直连
   const toast = msg => { if (window.GB && GB.toast) GB.toast(msg); else console.warn(msg); };
 
   // ---------- 延迟初始化函数 ----------
@@ -67,6 +68,15 @@
 
     // ---------- 登出（刷新页面） ----------
     async function logout() {
+      // 主路径：同源 Function（清 Cookie + 顺带清 CF 侧）
+      try {
+        const res = await fetch(`${GH_LOCAL}/logout`, { method: 'POST', credentials: 'include' });
+        if (res.ok) {
+          setLoggedOut();
+          window.location.reload();
+          return;
+        }
+      } catch (e) { /* 本地无 Function → 走 CF 兜底 */ }
       try {
         const res = await fetch(`${OAUTH_BASE}/logout`, { credentials: 'include' });
         if (res.ok) {
@@ -84,6 +94,16 @@
 
     // ---------- 检查登录状态 ----------
     async function checkLoginStatus() {
+      // 主路径：同源 Function（读 Cookie github_token 问 GitHub），比直连 CF 快得多
+      try {
+        const res = await fetch(`${GH_LOCAL}/me`, { credentials: 'include' });
+        if (res.ok) {
+          setLoggedIn(await res.json());
+          return true;
+        }
+        if (res.status === 401) { setLoggedOut(); return false; }
+        // 其他状态（404=无 Function 等）→ 继续走 CF 兜底
+      } catch (e) { /* 网络/无 Function → CF 兜底 */ }
       try {
         const res = await fetch(`${OAUTH_BASE}/me`, { credentials: 'include' });
         if (res.ok) {
