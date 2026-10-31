@@ -5,7 +5,7 @@ function memStore() {
   const m = new Map();
   return {
     get: async k => (m.has(k) ? m.get(k) : null),
-    put: async (k, v) => { m.set(k, v); },
+    set: async (k, v) => { m.set(k, v); },
     delete: async k => { m.delete(k); },
     _m: m,
   };
