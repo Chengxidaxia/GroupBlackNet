@@ -33,7 +33,7 @@ fi
 
 # ---- 复制站点文件（覆盖同名；源里删掉的文件不会跟着删） ----
 cd "$ROOT/book"
-for item in index.html read.html write.html 404.html CNAME assets docs netlify.toml README.md; do
+for item in index.html read.html write.html editor.html 404.html CNAME assets docs netlify.toml README.md; do
   [ -e "$item" ] && cp -r "$item" "$WORK/"
 done
 touch "$WORK/.nojekyll"
