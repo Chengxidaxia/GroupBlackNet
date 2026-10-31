@@ -179,5 +179,28 @@ console.log('\n[同源反代] 判定与降级\n');
   eq('T12 无白名单时跨域都可代理', calls, ['/proxy/api.github.com/user']);
 }
 
+/* T13 skipOn：本页域名已在后端放行 → 直连，不发探测请求 */
+{
+  const { create, calls } = load(() => res(200, '{}', 'application/json'));
+  const net = create({
+    mode: 'auto', base: '/proxy', hosts: HOSTS,
+    skipOn: ['site.example.com']
+  });
+  await net.fetch(API);
+  eq('T13 skipOn 命中时直连', calls, [API]);
+  eq('T13 未写反代标记', net.state.hits + net.state.misses, 0);
+}
+
+/* T14 skipOn 只按本页域名判断：换个域部署就照常走反代 */
+{
+  const { create, calls } = load(() => res(200, '{}', 'application/json'));
+  const net = create({
+    mode: 'auto', base: '/proxy', hosts: HOSTS,
+    skipOn: ['other.example.com']
+  });
+  await net.fetch(API);
+  eq('T14 未命中 skipOn 则走反代', calls, ['/proxy/api.blacknet.cc.cd/?first=24']);
+}
+
 console.log('\n' + (fail ? '✗ ' : '✓ ') + pass + ' 通过 / ' + fail + ' 失败\n');
 process.exit(fail ? 1 : 0);

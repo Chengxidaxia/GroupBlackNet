@@ -34,11 +34,18 @@ window.BLACKNET = {
   //        'off'    完全直连（关掉这套机制）
   // hosts: 允许走反代的地址。**只放只读接口**；oauth / upload 依赖 Cookie，
   //        经反代后 Cookie 的 Domain 对不上会掉登录态，绝不能加进来。
+  //
+  // skipOn: 在这些「本页域名」上直接直连 —— 后端 CORS 本来就放行它们，
+  //         没必要先发一次 /proxy 探测（只会白多几百毫秒）。
+  //         换成别的域部署时不用改这里，新域没命中 skipOn 就会自动走反代。
   PROXY: {
     mode: 'auto',
     base: '/proxy',
     hosts: [
       'api.blacknet.cc.cd'        // 文章列表 / 详情 / 分类 / 公告（全部 GET）
+    ],
+    skipOn: [
+      'grp.blacknet.cc.cd'        // 生产域：后端 CORS 白名单里，直连即可
     ]
   }
 };
