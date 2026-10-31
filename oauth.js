@@ -20,9 +20,12 @@
       const next = q.get('login-next');
       if (!next) return;
       if (!/^https:\/\/[a-z0-9.-]+\.blacknet\.cc\.cd\//.test(next)) return;   // 仅本站系子域
-      try { sessionStorage.setItem('return_to', next); } catch (e) {}
+      // 注意：必须先 replaceState 再存 return_to，且不能走 login()
+      // （login() 会把 return_to 覆盖成当前页地址，导致回调后回不到书阁）
       window.history.replaceState(null, '', '/');
-      login();
+      try { sessionStorage.setItem('return_to', next); } catch (e) {}
+      const rememberNext = rememberCheck ? rememberCheck.checked : false;
+      window.location.href = `${OAUTH_BASE}/login${rememberNext ? '?remember=true' : ''}`;
     })();
 
     const loginBtn = document.getElementById('login');
