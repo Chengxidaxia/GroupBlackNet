@@ -53,5 +53,13 @@ fi
 
 git add -A
 git commit -q -m "sync: 从主仓库同步 book/（$(date +%Y-%m-%d\ %H:%M)）"
-GIT_SSH_COMMAND="$SSH_CMD" git push origin main 2>&1 | tail -4
-echo "· 已推送。jsDelivr 缓存约 3 分钟内自动换新；急用可：node scripts/cdn-urls.mjs --purge"
+
+# 不要接管道（tail / head 会提前关闭 stdout，git 拿到 SIGPIPE 可能没推完就退出）
+GIT_SSH_COMMAND="$SSH_CMD" git push origin main || true
+
+if [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ]; then
+  echo "· 已推送。jsDelivr 缓存约 3 分钟内自动换新；急用可：node scripts/cdn-urls.mjs --purge"
+else
+  echo "!! 推送没完成（本地领先远端）。重跑一次本脚本即可，或手动：cd \"$WORK\" && git push origin main" >&2
+  exit 1
+fi
