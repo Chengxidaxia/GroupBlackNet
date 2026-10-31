@@ -1,0 +1,6 @@
+{
+  "name": "groupblacknet",
+  "private": true,
+  "description": "群档案主站（静态 + Vercel/Netlify Functions）。type:module 让 Vercel 以 ESM 解析 api/*.js",
+  "type": "module"
+}
