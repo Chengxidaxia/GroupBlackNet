@@ -478,6 +478,10 @@ button{font-family:var(--sans)}
   .wrap{padding:0 18px}
   .nav{display:none}
   .menu-btn{display:grid}
+  /* 移动菜单是竖排：外链箭头回到文字后面，别贴着行尾 */
+  .nav a.nav-out{padding-right:14px}
+  .nav a.nav-out::before{position:static;transform:none;margin-left:5px;font-size:.78em;vertical-align:1px}
+  .nav a.nav-out::after{right:14px}
   .brand small{display:none}
   .brand{font-size:22px}
   .hero-body h1{font-size:29px}
