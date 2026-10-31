@@ -139,6 +139,10 @@ button{font-family:var(--sans)}
 .nav a::after{content:"";position:absolute;left:14px;right:14px;bottom:4px;height:2px;background:var(--accent);transform:scaleX(0);transform-origin:left;transition:transform .25s ease}
 .nav a:hover{color:var(--ink)}
 .nav a:hover::after,.nav a.active::after{transform:scaleX(1)}
+/* 站外链接（书阁）：右上小箭头，保留悬停下划线 */
+.nav a.nav-out{padding-right:26px}
+.nav a.nav-out::before{content:"↗";position:absolute;right:9px;top:50%;transform:translateY(-50%);font-size:10px;line-height:1;opacity:.5;pointer-events:none}
+.nav a.nav-out::after{right:26px}
 .header-actions{margin-left:auto;display:flex;align-items:center;gap:10px}
 .menu-btn{display:none}
 .remember{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);cursor:pointer;user-select:none}

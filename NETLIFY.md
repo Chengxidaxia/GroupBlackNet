@@ -30,23 +30,46 @@
    - `/book/` 出书架；
    - F12 Console 没有 CORS 报错（若报，说明反代没生效，看 §5.1）。
 
-### 0.4 建书阁独立站（只有想把书阁放独立域名时才做）
+### 0.4 建书阁独立站（正式域名 `book.blacknet.cc.cd`）
 
-1. 再点一次 **Add new site**，仍然选 `GroupBlackNet` 仓库。
-2. **Base directory 填 `book`** ← 关键，填错 Netlify 会读根目录那份主站配置。
-3. Build command 留空，Publish directory 填 `.`（或直接让它读 `book/netlify.toml`）。
+书阁的正式域名是 **`book.blacknet.cc.cd`**，走独立站点，不跟主站混在一个产物里。
+
+两条路，二选一：
+
+| 路线 | 做法 | 取舍 |
+|---|---|---|
+| **A. Netlify 独立站**（推荐） | 再点一次 **Add new site** → 仍选 `GroupBlackNet` 仓库 → **Base directory 填 `book`** → Build command 留空 → Publish directory `.` | 与主站同一套部署流程，push 即更新；`/proxy/` 反代可用 |
+| **B. GitHub Pages** | 用已经推好的 `Chengxidaxia/BookBlackNet` 仓库（根即站点）→ Settings → Pages → Custom domain 填 `book.blacknet.cc.cd` | 零成本、零构建；但 Pages 上没有 `/proxy/`，反代会自动降级为直连 |
+
+> **Base directory 必须填 `book`**，填错 Netlify 会去读根目录那份 `netlify.toml`（那是主站的配置）。
+>
+> 走 B 路线时别忘了：仓库根需要 `CNAME` 文件，内容就一行 `book.blacknet.cc.cd`。
+> `bash scripts/sync-book-repo.sh` 会自动带上这个文件。
+
+书阁的站点根里本来就带 `docs/books/`，所以 `book.blacknet.cc.cd` 下的书籍读取
+**同源层直接命中**，不需要 jsDelivr 参与（CDN 只是备份）。
 
 ### 0.5 绑自定义域名
 
-以主站 `grp.blacknet.cc.cd` 为例：
+两个域各绑一次，步骤完全一样：
 
-1. Site configuration → **Domain management → Add a domain** → 填 `grp.blacknet.cc.cd`。
+| 站点 | 域名 | 说明 |
+|---|---|---|
+| 主站 | `grp.blacknet.cc.cd` | 后端 CORS 白名单里的域，**保持不变最省事** |
+| 书阁 | `book.blacknet.cc.cd` | 独立站，新增一条 DNS 记录 |
+
+每个站点分别做：
+
+1. Site configuration → **Domain management → Add a domain** → 填对应域名。
 2. Netlify 给出一个 CNAME 目标，形如 `<site-name>.netlify.app`。
-3. 去 Cloudflare 改 DNS：`grp` 这条记录改成 **CNAME → 上面那个目标**，
+3. 去 Cloudflare 改 DNS：把 `grp` / `book` 这条记录改成 **CNAME → 上面那个目标**，
    代理状态先设 **DNS only（灰云）**。
 4. 等 Netlify 里证书状态变成 **Let's Encrypt issued**（几分钟），再打开 **Force HTTPS**。
    证书签发期间**不要开橙云**，否则验证容易失败。
 5. 想省事也可以先不绑域名，直接用 `*.netlify.app` 跑一段时间。
+
+> 书阁是纯静态 + 前端直连 GitHub，**不涉及后端 CORS**，绑什么域都不会被拦。
+> 只有主站的数据接口受 CORS 限制。
 
 > ⚠️ 换域名前想清楚：后端 CORS 白名单现在是 `grp.blacknet.cc.cd`。
 > 继续用这个域 → 后端一行不用改；换成别的域 → 数据接口会被 CORS 拦，
@@ -63,8 +86,8 @@ push 到 `main` → 自动构建部署。历史与回滚看 **Deploys** 页。
 
 | 形态 | 仓库 / 目录 | 配置 | 访问 |
 |---|---|---|---|
-| 主站 + 书阁（推荐） | `GroupBlackNet`，根目录 | 根 `netlify.toml` | `https://<域>/` 与 `https://<域>/book/` |
-| 书阁独立站 | `BookBlackNet`，`book/` 内容为仓库根 | `book/netlify.toml` | `https://<书域>/` |
+| 主站 + 书阁（推荐） | `GroupBlackNet`，根目录 | 根 `netlify.toml` | `https://grp.blacknet.cc.cd/` 与 `https://grp.blacknet.cc.cd/book/` |
+| 书阁独立站 | `BookBlackNet`，`book/` 内容为仓库根 | `book/netlify.toml` | `https://book.blacknet.cc.cd/` |
 | 书阁挂在主站子目录 | 同「主站 + 书阁」 | 同上 | 无需额外配置 |
 
 两套配置都在仓库里：

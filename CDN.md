@@ -69,7 +69,8 @@ node scripts/cdn-urls.mjs --check    # 逐个实测（状态码 / 耗时 / 大�
 
 | 源 | index.json | .book | 备注 |
 |---|---|---|---|
-| 同源（`grp.blacknet.cc.cd/book/`） | 200 | 200 | GitHub Pages 直出，最快 |
+| 同源（`book.blacknet.cc.cd`） | — | — | 正式域名，站点根就带 `docs/books/`，最快 |
+| 同源（`grp.blacknet.cc.cd/book/`） | 200 | 200 | 备用入口，GitHub Pages 直出 |
 | `gcore.jsdelivr.net` | 200 / 3.1s | 200 / 0.7s | 当前最稳的 CDN 节点 |
 | `cdn.jsdelivr.net` | 200 / 3.5s（曾超时） | 200 / 3.5s | 波动大 |
 | `fastly.jsdelivr.net` | 超时 | — | 本机网络下不可用 |
@@ -79,8 +80,9 @@ node scripts/cdn-urls.mjs --check    # 逐个实测（状态码 / 耗时 / 大�
 `.book` 从 jsDelivr 返回的 MIME 是 `application/vnd.framemaker`（jsDelivr 的扩展名猜测），
 前端用 `res.text()` 读，不受影响。
 
-> 站点自身始终可用 —— `scripts/netlify-build.sh` 会把 `book/docs/` 一起复制进
-> `dist/book/docs/`，所以「同源」这一层有兜底。CDN 服务于「书籍仓库独立」的部署形态。
+> 站点自身始终可用 —— `book.blacknet.cc.cd` 的站点根就带 `docs/books/`；
+> 主站 `scripts/netlify-build.sh` 也会把 `book/docs/` 一起复制进 `dist/book/docs/`，
+> 于是 `grp.blacknet.cc.cd/book/` 同样能当同源兜底。CDN 服务于「书籍仓库独立」的部署形态。
 
 ## 4. jsDelivr 的硬限制
 
@@ -108,8 +110,12 @@ node scripts/cdn-urls.mjs --check    # 逐个实测（状态码 / 耗时 / 大�
 1. **自建反代**：Cloudflare Worker 反代 `cdn.jsdelivr.net`，把地址填进 `CDN.base`；
 2. **换存储**：把书放对象存储（R2 / B2），同样填 `CDN.base`，路径结构保持一致即可。
 
-`CDN.base` 的约定是「站点根 + 相对路径」，例如填 `https://book.blacknet.cc.cd`，
-就会请求 `https://book.blacknet.cc.cd/docs/books/index.json`。
+`CDN.base` 的约定是「站点根 + 相对路径」。正式站 `book.blacknet.cc.cd` 的站点根里
+本来就有 `docs/books/`，所以**默认留空**——同源这一层已经是最快、最近的源。
+只有另建了镜像（Worker 反代 / 对象存储）时才填，例如填 `https://cdn.example.com`
+就会请求 `https://cdn.example.com/docs/books/index.json`。
+
+> 别把 `CDN.base` 填成本站域名：那等于绕开超时保护又跑一遍同源，纯浪费。
 
 ## 6. 上线步骤
 
@@ -117,8 +123,8 @@ node scripts/cdn-urls.mjs --check    # 逐个实测（状态码 / 耗时 / 大�
 2. 把 `book/docs/books/` 原样推到该仓库（`index.json` + `*.book`）。
 3. 确认默认分支是 `main`（不是就去改 `config.js` 的 `BRANCH`）。
 4. 跑 `node scripts/cdn-urls.mjs --check`，至少同源或一个 CDN 节点可用即可。
-5. 打开站点首页，F12 看 `<html data-book-source="...">` —— `site` 表示走同源，
-   `cdn` 表示同源没书、成功落到 jsDelivr，`none` 表示三层全挂。
+5. 打开 `https://book.blacknet.cc.cd/`，F12 看 `<html data-book-source="...">` ——
+   `site` 表示走同源（预期值），`cdn` 表示同源没书、成功落到 jsDelivr，`none` 表示三层全挂。
 6. 发布一本书，看 Network 里 `.book` 请求是否带 `?v=b...` —— 带上了说明
    `bustCdn()` 生效，刷新即可看到新版本。
 

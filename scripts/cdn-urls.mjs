@@ -38,6 +38,7 @@ const REPO = pick('REPO_NAME', 'BookBlackNet');
 const BRANCH = pick('BRANCH', 'main');
 const BOOKS_DIR = pick('BOOKS_DIR', 'docs/books');
 const INDEX_FILE = pick('INDEX_FILE', 'docs/books/index.json');
+const SITE_URL = (pick('SITE_URL', '') || '').replace(/\/+$/, '');   // 正式站域名
 
 // hosts: [ 'a', 'b' ] —— 只取 CDN 段里的字符串
 const cdnBlock = (src.match(/CDN\s*:\s*\{[\s\S]*?\n\s{2}\}/) || [''])[0];
@@ -59,6 +60,7 @@ const files = [INDEX_FILE, ...books.map(f => BOOKS_DIR + '/' + f)];
 
 /* ---------------- URL 生成 ---------------- */
 const ghPath = p => '/gh/' + OWNER + '/' + REPO + '@' + BRANCH + '/' + p;
+const siteUrl = p => SITE_URL ? SITE_URL + '/' + p : '';
 const cdnUrl = (host, p) => 'https://' + host + ghPath(p);
 const rawUrl = p => 'https://raw.githubusercontent.com/' + OWNER + '/' + REPO + '/' + BRANCH + '/' + p;
 const purgeUrl = p => 'https://purge.jsdelivr.net/gh/' + OWNER + '/' + REPO + '@' + BRANCH + '/' + p;
@@ -79,6 +81,12 @@ if (has('--purge')) {
   console.log('仓库  ' + OWNER + '/' + REPO + '@' + BRANCH);
   console.log('文件  index.json + ' + books.length + ' 本 .book');
   console.log('');
+  if (SITE_URL) {
+    console.log('— 同源「正式站」（最快，站点自带的书籍）—');
+    console.log('    ' + siteUrl(INDEX_FILE));
+    for (const f of books) console.log('    ' + siteUrl(BOOKS_DIR + '/' + f));
+    console.log('');
+  }
   console.log('— jsDelivr（按顺序尝试，前面的挂了自动换下一个）—');
   for (const h of HOSTS) {
     console.log('  [' + h + ']');
@@ -97,6 +105,8 @@ if (has('--purge')) {
 }
 
 /* ---------------- 连通性探测 ---------------- */
+const looksJson = t => /^[[{]/.test(String(t).trim());
+
 async function probe(url) {
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), TIMEOUT);
@@ -107,7 +117,8 @@ async function probe(url) {
     const ms = Date.now() - t0;
     const type = res.headers.get('content-type') || '';
     const len = body.length;
-    const ok = res.ok && len > 2;
+    // 不只是 200：站点 404 页 / SPA 兜底页也会是 200 + HTML，内容不对就当失败
+    const ok = res.ok && len > 2 && looksJson(body);
     return { url, ok, status: res.status, ms, type, bytes: len, note: ok ? '' : body.slice(0, 80).replace(/\s+/g, ' ') };
   } catch (e) {
     return { url, ok: false, status: 0, ms: Date.now() - t0, type: '', bytes: 0, note: e.name === 'AbortError' ? '超时' : e.message };
@@ -118,6 +129,7 @@ async function probe(url) {
 
 if (has('--check')) {
   const targets = [];
+  if (SITE_URL) targets.push(siteUrl(INDEX_FILE));
   for (const h of HOSTS) targets.push(cdnUrl(h, INDEX_FILE));
   targets.push(rawUrl(INDEX_FILE));
 
@@ -131,5 +143,9 @@ if (has('--check')) {
   const good = out.checked.filter(r => r.ok).length;
   console.log('');
   console.log(good + '/' + out.checked.length + ' 个数据源可用');
+  const siteHit = out.checked[0] && SITE_URL && out.checked[0].url.startsWith(SITE_URL);
+  if (siteHit && !out.checked[0].ok) {
+    console.log('提示：' + SITE_URL + ' 不通通常是「域名还没绑 / DNS 未生效」，绑好后再跑一次。');
+  }
   if (has('--json')) console.log(JSON.stringify(out, null, 2));
 }
