@@ -1,0 +1,49 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "bash scripts/netlify-build.sh",
+  "outputDirectory": "dist",
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "rewrites": [
+    { "source": "/api/discussions", "destination": "/api/discussions" },
+    { "source": "/api/gh", "destination": "/api/gh" },
+    { "source": "/api/gh/:path*", "destination": "/api/gh" },
+    { "source": "/api/oauth/:path*", "destination": "/api/oauth" },
+    { "source": "/api/oauth", "destination": "/api/oauth" },
+
+    { "source": "/proxy/api.github.com/:path*", "destination": "https://api.github.com/:path*" },
+    { "source": "/proxy/raw.githubusercontent.com/:path*", "destination": "https://raw.githubusercontent.com/:path*" },
+    { "source": "/proxy/oauth.blacknet.cc.cd/:path*", "destination": "https://oauth.blacknet.cc.cd/:path*" },
+    { "source": "/proxy/upload.blacknet.cc.cd/:path*", "destination": "https://upload.blacknet.cc.cd/:path*" },
+    { "source": "/proxy/img.blacknet.cc.cd/:path*", "destination": "https://img.blacknet.cc.cd/:path*" },
+    { "source": "/proxy/api.blacknet.cc.cd/:path*", "destination": "https://api.blacknet.cc.cd/:path*" },
+
+    { "source": "/book", "destination": "/book/", "statusCode": 301 },
+    { "source": "/book/read", "destination": "/book/read.html" },
+    { "source": "/book/write", "destination": "/book/write.html" },
+    { "source": "/book/:path*", "destination": "/book/404.html" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
+        { "key": "Permissions-Policy", "value": "geolocation=(), microphone=(), camera=()" }
+      ]
+    },
+    { "source": "/assets/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }] },
+    { "source": "/img/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=2592000" }] },
+    { "source": "/vditor/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }] },
+    { "source": "/book/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }] },
+    {
+      "source": "/book/docs/books/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=60" },
+        { "key": "Content-Type", "value": "application/octet-stream" },
+        { "key": "Content-Disposition", "value": "inline" }
+      ]
+    }
+  ]
+}
