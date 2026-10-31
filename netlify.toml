@@ -36,8 +36,25 @@
 # 同源请求浏览器不做 CORS 校验、不发预检，所以后端 CORS 白名单保持原样即可。
 # 对应前端配置：config.js → PROXY（mode: 'auto'，站点没这条转发会自动改直连）。
 #
-# ⚠️ 只反代只读接口。oauth / upload 依赖 Cookie，经反代后 Cookie 的
-#    Domain 对不上会直接掉登录态，所以故意不配它们。
+# 群书阁登录/图床复用（Cookie Domain=.blacknet.cc.cd 全子域生效，
+# 同源代理请求会自动携带；上传也支持 Bearer PAT 鉴权）
+[[redirects]]
+  from = "/proxy/oauth.blacknet.cc.cd/*"
+  to = "https://oauth.blacknet.cc.cd/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/proxy/upload.blacknet.cc.cd/*"
+  to = "https://upload.blacknet.cc.cd/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/proxy/img.blacknet.cc.cd/*"
+  to = "https://img.blacknet.cc.cd/:splat"
+  status = 200
+  force = true
 [[redirects]]
   from = "/proxy/api.blacknet.cc.cd/*"
   to = "https://api.blacknet.cc.cd/:splat"
@@ -102,6 +119,12 @@
   for = "/assets/*"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
+
+# 静态图片：Netlify CDN + 浏览器各缓存 30 天
+[[headers]]
+  for = "/img/*"
+  [headers.values]
+    Cache-Control = "public, max-age=2592000"
 
 [[headers]]
   for = "/*.html"

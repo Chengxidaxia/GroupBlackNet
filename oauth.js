@@ -11,6 +11,19 @@
 
   // ---------- 延迟初始化函数 ----------
   function initOAuth() {
+    // ---------- 书阁等子域的登录中转：grp?login-next=<url> ----------
+    // Cookie Domain=.blacknet.cc.cd 全子域生效，这里只负责走一遍
+    // OAuth 流程，成功后 handleCallback() 会跳回 login-next 地址。
+    (function loginNext() {
+      const q = new URLSearchParams(window.location.search);
+      const next = q.get('login-next');
+      if (!next) return;
+      if (!/^https:\/\/[a-z0-9.-]+\.blacknet\.cc\.cd\//.test(next)) return;   // 仅本站系子域
+      try { sessionStorage.setItem('return_to', next); } catch (e) {}
+      window.history.replaceState(null, '', '/');
+      login();
+    })();
+
     const loginBtn = document.getElementById('login');
     const logoutBtn = document.getElementById('logout');
     const rememberCheck = document.getElementById('remember');
