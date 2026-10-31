@@ -32,9 +32,15 @@ function writeJSON(p, v) { fs.writeFileSync(p, JSON.stringify(v, null, 2)); }
 
 /* ---------------- 抓取 ---------------- */
 
-// 令牌来源（优先级）：环境变量 GB_GH_TOKEN → .workbuddy/tmp/gh_token.txt（单行）
+// 令牌来源（优先级）：环境变量 GB_GH_TOKEN → backend/.env 的 GITHUB_TOKEN → .workbuddy/tmp/gh_token.txt（单行）
 const GH_TOKEN = process.env.GB_GH_TOKEN
-  || (() => { try { return fs.readFileSync(path.join(ROOT, '.workbuddy', 'tmp', 'gh_token.txt'), 'utf8').trim(); } catch (e) { return ''; } })();
+  || (() => { try {
+        const envTxt = fs.readFileSync(path.join(ROOT, 'backend', '.env'), 'utf8');
+        const m = envTxt.match(/^GITHUB_TOKEN\s*=\s*["']?([^\s"']+)["']?\s*$/m);
+        if (m) return m[1].trim();
+      } catch (e) {}
+      try { return fs.readFileSync(path.join(ROOT, '.workbuddy', 'tmp', 'gh_token.txt'), 'utf8').trim(); } catch (e) { return ''; }
+    })();
 let SOURCE = null;   // 'api' | 'graphql'，首次请求时探测
 
 async function ghGraphQL(query, variables) {
@@ -42,7 +48,7 @@ async function ghGraphQL(query, variables) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + GH_TOKEN, 'User-Agent': 'GroupBlackNet-img-migrate/1.0' },
     body: JSON.stringify({ query, variables }),
-    signal: AbortSignal.timeout(60000),
+    signal: AbortSignal.timeout(180000),
   });
   const j = await r.json();
   if (j.errors) throw new Error('GraphQL: ' + (j.errors[0]?.message || '?'));
@@ -136,15 +142,15 @@ async function fetchDiscussionComments(number) {
 /* ---------------- 提取 ---------------- */
 
 const URL_RE = /https?:\/\/[^\s<>"')\]]+/gi;
+// 已知图床域名（无扩展名也收）：QQ 群图、CF img、pixhost
+const KNOWN_HOST_RE = /img\.blacknet\.cc\.cd|[a-z0-9.]+\.pixhost\.to|(^|\.)qpic\.cn|multimedia\.nt\.qq\.com(\.cn)?|[a-z0-9.]+\.qq\.com|gchat\.qpic\.cn/i;
 
 function extractImages(text) {
   if (!text) return [];
   const out = new Set();
   for (const m of String(text).matchAll(URL_RE)) {
     let u = m[0].replace(/[),.]+$/, '');
-    const isImgHost = u.includes(IMG_HOST);
-    if (!isImgHost && !IMG_EXT.test(u)) continue;
-    // 去掉 markdown 尾部括号情形 ) 已在上面的字符类排除
+    if (!KNOWN_HOST_RE.test(u) && !IMG_EXT.test(u)) continue;
     out.add(u);
   }
   return [...out];
@@ -202,7 +208,7 @@ async function pixhostUpload(buf, name) {
   // 直链：show 页里解析（imgN.pixhost.to/images/…）
   let direct = null;
   try {
-    const page = await fetch(j.show_url, { signal: AbortSignal.timeout(60000) });
+    const page = await fetch(j.show_url, { signal: AbortSignal.timeout(180000) });
     const t = await page.text();
     const m = t.match(/https:\/\/[a-z0-9.]+\.pixhost\.to\/images\/[^\s"'<>]+/i);
     direct = m && m[0];
@@ -222,10 +228,18 @@ async function cmdMigrate(limit, dry) {
   for (const [i, u] of todo.entries()) {
     if (dry && i >= (limit || 5)) break;
     try {
-      const r = await fetch(u, { signal: AbortSignal.timeout(60000) });
+      const r = await fetch(u, {
+        signal: AbortSignal.timeout(180000),
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126 Safari/537.36', 'Referer': 'https://grp.blacknet.cc.cd/' },
+      });
       if (!r.ok) throw new Error('下载 ' + r.status);
       const buf = Buffer.from(await r.arrayBuffer());
-      const name = u.split('/').pop().split('?')[0] || ('img_' + i);
+      const ct = (r.headers.get('content-type') || '').toLowerCase();
+      let name = (u.split('/').pop().split('?')[0] || ('img_' + i)).slice(0, 80);
+      if (!/\.(png|jpe?g|gif|webp|bmp|svg|avif)$/i.test(name)) {
+        const ext = ct.includes('png') ? '.png' : ct.includes('gif') ? '.gif' : ct.includes('webp') ? '.webp' : '.jpg';
+        name += ext;
+      }
       if (!dry) {
         const up = await pixhostUpload(buf, name);
         map[u] = { ...up, size: buf.length, at: new Date().toISOString() };
