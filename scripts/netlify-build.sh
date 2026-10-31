@@ -59,11 +59,12 @@ if [ -d "$ROOT/book" ]; then
 
   # 书籍目录：按需决定是否带密文
   if [ "${BOOKS_INCLUDE:-1}" = "0" ]; then
-    # 只保留书目索引，正文交给 jsDelivr / raw（首页列表照旧可用）
-    mkdir -p "$DIST/book/docs/books"
-    [ -f "$ROOT/book/docs/books/index.json" ] && \
-      cp "$ROOT/book/docs/books/index.json" "$DIST/book/docs/books/"
-    echo "· BOOKS_INCLUDE=0：产物不含 .book，正文改由 CDN 提供"
+    # 完全不带书籍数据。原因：前端读取顺序是「同源优先」——
+    # 若产物里塞一份本地 index.json，线上就会一直读这份过期副本，
+    # 在线写作台发布的新书永远不出现。留空让同源 404，
+    # 前端自然落到 jsDelivr，读到书籍仓库的真源。
+    rm -rf "$DIST/book/docs" 2>/dev/null || true
+    echo "· BOOKS_INCLUDE=0：产物不含 docs/books，书籍全部走 CDN 真源"
   elif [ -d "$ROOT/book/docs" ]; then
     cp -r "$ROOT/book/docs" "$DIST/book/"
   fi
@@ -81,9 +82,14 @@ echo "产物：$DIST（$count 个文件，约 $size）"
 
 for must in index.html assets/site.css assets/site.js assets/net.js \
             book/index.html book/read.html book/write.html book/404.html \
-            book/assets/js/config.js book/docs/books/index.json; do
+            book/assets/js/config.js; do
   [ -e "$DIST/$must" ] || { echo "!! 产物缺少 $must" >&2; exit 1; }
 done
+
+# 带书籍时才检查索引（BOOKS_INCLUDE=0 是「故意不带」，不是缺文件）
+if [ "${BOOKS_INCLUDE:-1}" != "0" ]; then
+  [ -e "$DIST/book/docs/books/index.json" ] || { echo "!! 产物缺少 book/docs/books/index.json" >&2; exit 1; }
+fi
 
 # 密文不该以明文出现：抽查 .book 是否都是 JSON 且带 crypto 字段
 bad=0

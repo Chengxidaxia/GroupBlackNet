@@ -12,6 +12,12 @@
 
 [build.environment]
   NODE_VERSION = "22"
+  # 主站产物里的 /book/ 只是备用入口，**故意不带书籍数据**：
+  # 前端读书籍是「同源优先」，带一份本地副本会导致线上永远读过期内容
+  # （在线写作台发布的书写进 BookBlackNet 仓库，不写主仓库）。
+  # 留空 → 同源 404 → 前端自动落到 jsDelivr 取真源。
+  # 书阁正式站 book.blacknet.cc.cd 直接部署 BookBlackNet 仓库，那里同源就是真源。
+  BOOKS_INCLUDE = "0"
 
 # 本地预览：netlify dev 会先跑一遍构建再起静态服务
 [dev]
