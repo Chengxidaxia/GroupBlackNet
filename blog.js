@@ -194,13 +194,13 @@
     if (demoLocal) return;      // 演示模式：仅本地生效
     rxSetBusy(el, true);
     try {
-      const res = await fetch(`${OAUTH_BASE}/reaction`, {
+      const res = await GB.apiFetch(`${OAUTH_BASE}/reaction`, {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ subjectId: sid, content, action: next ? 'add' : 'remove' })
       });
       if (res.status === 409) {   // 状态已存在/不存在 → 反向修正
-        await fetch(`${OAUTH_BASE}/reaction`, {
+        await GB.apiFetch(`${OAUTH_BASE}/reaction`, {
           method: 'POST', credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ subjectId: sid, content, action: next ? 'remove' : 'add' })
@@ -241,7 +241,7 @@
     if (demoLocal) return;      // 演示模式：仅本地生效
     rxSetBusy(el, true);
     try {
-      const res = await fetch(`${OAUTH_BASE}/upvote`, {
+      const res = await GB.apiFetch(`${OAUTH_BASE}/upvote`, {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ subjectId: sid, action: next ? 'add' : 'remove' })
@@ -506,7 +506,7 @@
 
       // 否则先调用接口，再重载
       try {
-        const res = await fetch(`${OAUTH_BASE}/reaction`, {
+        const res = await GB.apiFetch(`${OAUTH_BASE}/reaction`, {
           method: 'POST', credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ subjectId: targetId, content, action: 'add' })
@@ -669,7 +669,7 @@
     try {
       const payload = { discussionId: discussionData.id, body };
       if (parentCommentId) payload.parentCommentId = parentCommentId;
-      const res = await fetch(`${OAUTH_BASE}/comment`, {
+      const res = await GB.apiFetch(`${OAUTH_BASE}/comment`, {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -848,7 +848,7 @@
 
   async function checkLogin() {
     try {
-      const res = await fetch(`${OAUTH_BASE}/me`, { credentials: 'include' });
+      const res = await GB.apiFetch(`${OAUTH_BASE}/me`, { credentials: 'include' });
       if (res.ok) { isLoggedIn = true; currentUser = await res.json(); return; }
       isLoggedIn = false;
     } catch (e) { isLoggedIn = false; }

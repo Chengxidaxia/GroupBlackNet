@@ -46,6 +46,22 @@
   status = 200
   force = true
 
+# Discussions 只读代理（同源 Function，替代 CF api Worker）
+# 需环境变量 GH_TOKEN（Netlify UI 配置）
+[[redirects]]
+  from = "/api/discussions"
+  to = "/.netlify/functions/api"
+  status = 200
+  force = true
+
+# GitHub OAuth 全量（登录/回调/评论/反应/顶/发帖，替代 CF oauth Worker）
+# 需环境变量 GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET（Netlify UI 配置）
+[[redirects]]
+  from = "/api/oauth/*"
+  to = "/.netlify/functions/oauth/:splat"
+  status = 200
+  force = true
+
 # ---- 前端同源反代（后端零改动）----
 # 前端在「跨域被拦」时会把请求改写成同源路径：/proxy/<host>/<原路径>
 # 同源请求浏览器不做 CORS 校验、不发预检，所以后端 CORS 白名单保持原样即可。

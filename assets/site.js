@@ -327,6 +327,26 @@
   }
 
   /* ---------------- 暴露 ---------------- */
+  /* ---------------- 同源 Function 优先 + CF 兜底 ----------------
+     config.js 的 API_URL / OAUTH_BASE 已指向同源 /api/*（Netlify Functions）。
+     Function 不存在（本地静态预览等）或 5xx 时自动落 CF Worker，调用点无感。 */
+  async function apiFetch(url, init) {
+    try {
+      const r = await fetch(url, init);
+      if (url.indexOf('/api/') !== 0) return r;
+      if (r.status !== 404 && r.status < 500) return r;
+      // Function 缺失（404，被静态 404 捕获）或后端错误（5xx）→ CF 兜底
+    } catch (e) {
+      if (url.indexOf('/api/') !== 0) throw e;
+      // 网络错误 → CF 兜底
+    }
+    const cf = url
+      .replace('/api/discussions', CFG.API_URL_CF || 'https://api.blacknet.cc.cd')
+      .replace('/api/oauth', CFG.OAUTH_BASE_CF || 'https://oauth.blacknet.cc.cd');
+    if (cf === url) return fetch(url, init);
+    return fetch(cf, init);
+  }
+
   const GB = {
     CFG, EMOJI, EMOJI_MAP, LEGACY_CAT,
     get cats() { return CATS; },
@@ -338,6 +358,7 @@
     toast, renderTicker, loadAnnouncements, loadCategories,
     loadingHTML, pageLoading,
     net,
+    apiFetch,
     initHeader, initReveal,
     demoMode, showDemoNotice,
     emojiOf: content => EMOJI_MAP[content] || content

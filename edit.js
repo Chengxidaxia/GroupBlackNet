@@ -314,7 +314,7 @@
     if (tbBtn) tbBtn.style.pointerEvents = 'none';
 
     try {
-      const res = await fetch(`${OAUTH_BASE}/discussion`, {
+      const res = await GB.apiFetch(`${OAUTH_BASE}/discussion`, {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title, body: fullBody })
@@ -409,7 +409,7 @@
   /* ---------------- 登录 / 初始化 ---------------- */
   async function checkLogin() {
     try {
-      const res = await fetch(`${OAUTH_BASE}/me`, { credentials: 'include' });
+      const res = await GB.apiFetch(`${OAUTH_BASE}/me`, { credentials: 'include' });
       isLoggedIn = res.ok;
       return isLoggedIn;
     } catch (e) { return false; }
