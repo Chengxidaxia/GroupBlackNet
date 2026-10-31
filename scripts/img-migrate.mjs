@@ -32,7 +32,9 @@ function writeJSON(p, v) { fs.writeFileSync(p, JSON.stringify(v, null, 2)); }
 
 /* ---------------- 抓取 ---------------- */
 
-const GH_TOKEN = process.env.GB_GH_TOKEN || '';
+// 令牌来源（优先级）：环境变量 GB_GH_TOKEN → .workbuddy/tmp/gh_token.txt（单行）
+const GH_TOKEN = process.env.GB_GH_TOKEN
+  || (() => { try { return fs.readFileSync(path.join(ROOT, '.workbuddy', 'tmp', 'gh_token.txt'), 'utf8').trim(); } catch (e) { return ''; } })();
 let SOURCE = null;   // 'api' | 'graphql'，首次请求时探测
 
 async function ghGraphQL(query, variables) {
