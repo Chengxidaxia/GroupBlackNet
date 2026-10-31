@@ -1,0 +1,2 @@
+# shell 脚本必须 LF：Netlify 构建机的 bash 不认 CRLF
+*.sh text eol=lf
