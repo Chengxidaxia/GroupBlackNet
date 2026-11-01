@@ -1,6 +1,6 @@
 // ============================================================
 // api-core.mjs — GitHub Discussions 只读代理核心（移植自 CF api Worker）
-// 环境变量: GH_TOKEN（Netlify Site configuration → Environment variables）
+// 环境变量: GH_TOKEN（Vercel Project → Settings → Environment Variables）
 // 路由: /api/discussions?first=N&after=… | /api/discussions?d=N&cfirst=…&cafter=…
 // 分类/公告已改静态 JSON（assets/data/），不再走本 Function。
 // ============================================================

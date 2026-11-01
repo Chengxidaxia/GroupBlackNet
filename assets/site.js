@@ -29,11 +29,11 @@
   const EMOJI = ['👍', '👎', '😄', '🎉', '😕', '❤️', '🚀', '👀'];
 
   // 旧数据可能是 GitHub Discussion 分类名（英文）或首行 JSON 里的中文分类名。
-  // 数字 id 以线上 CF 存储（KV categories）为准：1公告 2新闻 3资讯 4技术 5活动 6随笔
+  // 数字 id 以 assets/data/categories.json 为准：1公告 2新闻 3资讯 4技术 5活动 6随笔
   const LEGACY_CAT = { Announcements: 1, 公告: 1, 新闻: 2, 资讯: 3, 技术: 4, 活动: 5, 随笔: 6 };
 
-  // 分类列表不再内置兜底：正式环境必须从 CF 存储拉取；
-  // 拉取失败时为空（写稿页会据此提示无法发稿）。
+  // 分类列表不再内置兜底：正式环境从站点静态 JSON（assets/data/categories.json）拉取，
+  // 与站点同源、随 git 发布；拉取失败时为空（写稿页会据此提示无法发稿）。
   let CATS = [];
 
   /* ---------------- 基础工具 ---------------- */
@@ -107,7 +107,7 @@
     return nm === 'Announcements';
   }
 
-  // 分类列表：正式环境从 CF 存储（KV / D1，经 Worker 暴露 JSON）读取；失败则用内置兜底
+  // 分类列表：读站点静态 JSON（assets/data/categories.json，随 git 发布，同源零 CORS）
   let catReadyResolve;
   const catReady = new Promise(res => { catReadyResolve = res; });
   async function loadCategories() {
@@ -328,7 +328,7 @@
 
   /* ---------------- 暴露 ---------------- */
   /* ---------------- 同源 Function 优先 + CF 兜底 ----------------
-     config.js 的 API_URL / OAUTH_BASE 已指向同源 /api/*（Netlify Functions）。
+     config.js 的 API_URL / OAUTH_BASE 已指向同源 /api/*（Vercel Functions）。
      Function 不存在（本地静态预览等）或 5xx 时自动落 CF Worker，调用点无感。 */
   async function apiFetch(url, init) {
     try {

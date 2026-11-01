@@ -1,6 +1,6 @@
 // ============================================================
 // oauth-core.mjs — GitHub OAuth 全量移植（自 CF oauth Worker）
-// 环境变量（Netlify UI 配置）:
+// 环境变量（Vercel Project → Settings → Environment Variables）:
 //   GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET
 //   OAUTH_REDIRECT_URI（默认 https://grp.blacknet.cc.cd/api/oauth/callback）
 //   FRONTEND_URL（登录成功后回跳，默认 https://grp.blacknet.cc.cd）

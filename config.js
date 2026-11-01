@@ -1,12 +1,12 @@
 // ============================================================
 // config.js — 全局配置（集中管理，避免各脚本重复硬编码）
-// 后端已迁移到 Netlify Functions（同源 /api/*），CF Worker 仅作兜底。
+// 后端已迁移到 Vercel Functions（同源 /api/*），CF Worker 仅作兜底。
 // 修改后端域名 / 数据源时只需改这里；各页面脚本通过 window.BLACKNET 读取。
 // ============================================================
 window.BLACKNET = {
-  // ---- 后端服务（主：同源 Netlify Function；兜底：CF Worker）----
-  // 主路径走站点自身 Functions（零 CORS、零质询、Netlify 边缘）；
-  // Function 缺失（如本地静态预览）时各调用点经 GB.apiFetch 自动落 CF。
+  // ---- 后端服务（主：同源 Vercel Function；兜底：CF Worker）----
+  // 主路径走站点自身 Functions（零 CORS、零质询、Vercel 边缘）；
+  // Function 缺失（如本地静态预览、Function 报 5xx）时各调用点经 GB.apiFetch 自动落 CF。
   API_URL:        '/api/discussions',                  // 数据接口（GitHub Discussions 只读代理）
   OAUTH_BASE:     '/api/oauth',                        // GitHub OAuth（登录/评论/反应/顶/发帖）
   API_URL_CF:     'https://api.blacknet.cc.cd',        // 兜底：CF api Worker
@@ -27,7 +27,7 @@ window.BLACKNET = {
   VDITOR_BASE: 'vditor/4.0.0',
 
   // ---- 前端同源反代（仅前端使用，后端不需要任何改动）----
-  // 后端 CORS 只放行固定域名，站点换域名部署（Netlify / 自定义域 / 预览域）
+  // 后端 CORS 只放行固定域名，站点换域名部署（Vercel / 自定义域 / 预览域）
   // 后数据接口会被浏览器拦掉。这里让前端在「需要的时候」改走站点同源路径：
   //     https://api.blacknet.cc.cd/?first=24  →  /proxy/api.blacknet.cc.cd/?first=24
   // 转发规则写在 netlify.toml（同源请求不做 CORS 校验，后端一行都不用改）。

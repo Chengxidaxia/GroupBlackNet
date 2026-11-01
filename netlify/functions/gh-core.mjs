@@ -3,7 +3,7 @@
 // 原理：Cookie github_token（Domain=.blacknet.cc.cd，HttpOnly）
 //       会随同域请求带到 Function，服务端拿它问 GitHub /user。
 // 替代直连 oauth.blacknet.cc.cd/me（CORS 白名单未含 book 时被拦，
-// 且 CF 链路慢），同源调用零 CORS、走 Netlify 边缘。
+// 且 CF 链路慢），同源调用零 CORS、走 Vercel 边缘。
 // ============================================================
 
 const CLEAR_COOKIE = 'github_token=; HttpOnly; Secure; Max-Age=0; Path=/; SameSite=Lax; Domain=.blacknet.cc.cd';
