@@ -375,6 +375,15 @@
   window.GB = GB;
 
   /* ---------------- 启动 ---------------- */
+  // Vercel Web Analytics：静态站直接加载官方注入脚本（无需 npm 包）。
+  // 该路径仅 Vercel 上存在，本地预览跳过以免 404。
+  if (!demoMode) {
+    const s = document.createElement('script');
+    s.src = '/_vercel/insights/script.js';
+    s.defer = true;
+    document.head.appendChild(s);
+  }
+
   // 分类：立刻开始加载（页面可用 GB.catReady 等待）
   loadCategories();
 
