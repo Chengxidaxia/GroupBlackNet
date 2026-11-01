@@ -231,6 +231,15 @@
     const items = titles.map(t => `<span>${esc(typeof t === 'string' ? t : (t && t.title) || '')}</span>`).join('');
     track.innerHTML = items + items;   // 复制一份以实现无缝滚动
   }
+  // 公告数据可能比公共头部（head.html 异步注入）先到：此时 #tickerTrack 还不存在，
+  // 直接渲染会被 renderTicker 的守卫丢掉，公告条就一直是空的。
+  // 统一等 commonsLoaded 之后再画，事件已发生过则立即画。
+  function drawTickerWhenReady(titles) {
+    const draw = () => renderTicker(titles);
+    if (document.getElementById('tickerTrack') || window.commonsLoaded) return draw();
+    document.addEventListener('commonsLoaded', draw, { once: true });
+    setTimeout(draw, 3000);   // 兜底：commonsLoaded 万一没触发也补画一次
+  }
   async function loadAnnouncements() {
     const url = CFG.ANNOUNCEMENTS_URL;
     if (!url) return null;           // 未配置 → 交给页面自行降级（如首页用「公告」分类）
@@ -240,7 +249,7 @@
       const data = await res.json();
       const list = Array.isArray(data) ? data : (data.list || data.announcements || []);
       const titles = list.map(x => (typeof x === 'string' ? x : (x && (x.title || x.text)) || '')).filter(Boolean);
-      renderTicker(titles);
+      drawTickerWhenReady(titles);
       return titles;
     } catch (e) {
       console.warn('[announcements] 远端不可用：', e);
