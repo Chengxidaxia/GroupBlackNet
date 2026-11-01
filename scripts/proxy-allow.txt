@@ -1,0 +1,9 @@
+# 本机代理白名单（一行一个域，# 注释）
+api.blacknet.cc.cd
+oauth.blacknet.cc.cd
+upload.blacknet.cc.cd
+img.blacknet.cc.cd
+api.github.com
+raw.githubusercontent.com
+cdn.jsdelivr.net
+registry.npmmirror.com
