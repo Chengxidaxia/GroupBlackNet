@@ -84,8 +84,8 @@ for must in index.html assets/site.css assets/site.js assets/net.js; do
   [ -e "$DIST/$must" ] || { echo "!! 产物缺少 $must" >&2; exit 1; }
 done
 
-# 带书籍时才检查索引（BOOKS_INCLUDE=0 是「故意不带」，不是缺文件）
-if [ "${BOOKS_INCLUDE:-1}" != "0" ]; then
+# 带书籍时才检查索引（本地工作副本存在才检查；仓库/CI 上不带 book/）
+if [ -d "$ROOT/book/docs" ] && [ "${BOOKS_INCLUDE:-1}" != "0" ]; then
   [ -e "$DIST/book/docs/books/index.json" ] || { echo "!! 产物缺少 book/docs/books/index.json" >&2; exit 1; }
 fi
 
