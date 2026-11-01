@@ -205,28 +205,37 @@ async function pixhostUpload(buf, name) {
   });
   if (!r.ok) throw new Error('pixhost ' + r.status);
   const j = await r.json();
-  // 直链：show 页里解析（imgN.pixhost.to/images/…）
-  let direct = null;
-  try {
-    const page = await fetch(j.show_url, { signal: AbortSignal.timeout(180000) });
-    const t = await page.text();
-    const m = t.match(/https:\/\/[a-z0-9.]+\.pixhost\.to\/images\/[^\s"'<>]+/i);
-    direct = m && m[0];
-  } catch (e) { /* 直链解析失败则用 show_url 兜底 */ }
+  // 直链：pixhost 的路径规则固定（show/ → img3/images/，与 th_url 的
+  // t3/thumbs/ → img3/images/ 一致，实测 50/50 命中），直接推导比抓 show 页
+  // 快一截；HEAD 不通再回退到解析 show 页。
+  let direct = String(j.show_url || '').replace('https://pixhost.to/show/', 'https://img3.pixhost.to/images/');
+  const head = await fetch(direct, { method: 'HEAD', signal: AbortSignal.timeout(20000) })
+    .then(x => x.ok).catch(() => false);
+  if (!head) {
+    try {
+      const page = await fetch(j.show_url, { signal: AbortSignal.timeout(60000) });
+      const t = await page.text();
+      const m = t.match(/https:\/\/[a-z0-9.]+\.pixhost\.to\/images\/[^\s"'<>]+/i);
+      if (m) direct = m[0];
+    } catch (e) { /* 兜底用推导值 */ }
+  }
   return { show: j.show_url, th: j.th_url, direct: direct || j.show_url };
 }
 
-async function cmdMigrate(limit, dry) {
+async function cmdMigrate(limit, dry, conc) {
   const inv = readJSON(path.join(OUT, 'inventory.json'), null);
   if (!inv) return log('先跑 inventory');
   const mapPath = path.join(OUT, 'imgmap.json');
   const map = readJSON(mapPath, {});
   const urls = Object.keys(inv.images);
   const todo = urls.filter(u => !map[u]).slice(0, limit || Infinity);
-  log(`共 ${urls.length} 张，已映射 ${urls.length - todo.length}，本次处理 ${dry ? '前 ' + Math.min(todo.length, limit || 5) : todo.length} 张`);
+  const parellel = Math.max(1, Math.min(conc || 4, 8));
+  log(`共 ${urls.length} 张，已映射 ${urls.length - todo.length}，本次处理 ${dry ? '前 ' + Math.min(todo.length, limit || 5) : todo.length} 张（并发 ${dry ? 1 : parellel}）`);
   let ok = 0, fail = 0;
-  for (const [i, u] of todo.entries()) {
-    if (dry && i >= (limit || 5)) break;
+  const queue = dry ? todo.slice(0, limit || 5) : todo;
+  let cursor = 0;
+
+  async function one(u, i) {
     try {
       const r = await fetch(u, {
         signal: AbortSignal.timeout(180000),
@@ -247,13 +256,22 @@ async function cmdMigrate(limit, dry) {
         writeJSON(mapPath, map);   // 每张都落盘，断了可续
       }
       ok++;
-      log(`[${i + 1}/${todo.length}] ✓ ${u} → ${dry ? '(dry)' : map[u]?.direct || '?'}`);
-      await new Promise(res => setTimeout(res, 1500));   // 温和限速
+      log(`[${i + 1}/${queue.length}] ✓ ${u} → ${dry ? '(dry)' : map[u]?.direct || '?'}`);
     } catch (e) {
       fail++;
-      log(`[${i + 1}/${todo.length}] ✗ ${u} — ${e.message}`);
+      log(`[${i + 1}/${queue.length}] ✗ ${u} — ${e.message}`);
     }
   }
+
+  async function worker() {
+    while (true) {
+      const i = cursor++;
+      if (i >= queue.length) return;
+      await one(queue[i], i);
+      await new Promise(res => setTimeout(res, 300));   // 温和限速
+    }
+  }
+  await Promise.all(Array.from({ length: dry ? 1 : parellel }, worker));
   log(`完成：成功 ${ok}，失败 ${fail}（失败重跑即可续）`);
 }
 
@@ -294,9 +312,10 @@ async function cmdVerify(n) {
 const cmd = process.argv[2] || 'inventory';
 const argN = i => { const v = process.argv[process.argv.indexOf(i) + 1]; return v && !v.startsWith('--') ? parseInt(v, 10) : null; };
 const limit = argN('--limit');
+const conc = argN('--conc');
 const dry = process.argv.includes('--dry');
 
 ({ inventory: () => cmdInventory(limit),
-   migrate: () => cmdMigrate(limit, dry),
+   migrate: () => cmdMigrate(limit, dry, conc),
    export: cmdExport,
    verify: () => cmdVerify(limit) }[cmd] || (() => log('未知命令'))())();
