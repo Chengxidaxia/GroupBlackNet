@@ -28,8 +28,8 @@
   let isLoggedIn = false;
 
   /* ---------------- 分类 ---------------- */
-  // 「无分类」不是分类列表里的一项：它对应首行 JSON 的 category:0，
-  // 显示层（isGeneral / coverHTML / catIdOf）本来就按 0 = 未分类处理。
+  // 「无分类」不是分类列表里的一项：发稿时不写 category 键，
+  // 显示层（catIdOf / coverHTML / isGeneral）对字段缺失按未分类处理。
   const NOCAT = { id: 0, name: '无分类', hue: 220 };
   function renderCats() {
     const box = $('cats');
@@ -37,7 +37,7 @@
     const list = (window.GB && GB.cats) || [];
     box.innerHTML = [NOCAT].concat(list).map(c => `
       <button type="button" class="cat-pill ${c.id === category ? 'on' : ''}" data-id="${c.id}">
-        <span class="d" style="background:hsl(${c.hue} 62% 50%)"></span>${esc(c.name)}<span class="id">#${c.id}</span>
+        <span class="d" style="background:hsl(${c.hue} 62% 50%)"></span>${esc(c.name)}${c.id === 0 ? '' : `<span class="id">#${c.id}</span>`}
       </button>`).join('');
   }
   function bindCats() {
@@ -293,11 +293,13 @@
     if (coverMode === 'image') iconUrl = coverUrl || extractFirstImage(md) || '';
     // text / none：icon 留空，显示层按 tpl 规则呈现（none → 模板封面）
 
+    // 无分类 = 不写 category 键（而不是写 0）：显示层对「字段缺失」与
+    // 「category:0」都按未分类处理（catIdOf / coverHTML），旧文兼容
     const firstLine = JSON.stringify({
       info: GB.b64e(info),
       icon: iconUrl ? GB.b64e(iconUrl) : '',
       coverText: coverMode === 'text' ? coverText : '',
-      category: category,
+      ...(category === 0 ? {} : { category: category }),
       tpl: coverMode === 'none',
       allowComments: allow,
       tags: tags
@@ -395,6 +397,7 @@
     const infoPh = info ? `&lt;base64 简介 ${info.length} 字&gt;` : '';
     const iconPh = useImg ? `&lt;base64 图片 ${Math.round((coverDataURL || '').length / 1024)} KB&gt;` : '';
     const tagsHtml = tags.map(t => `<span class="s">"${jq(t)}"</span>`).join(', ');
+    const catLine = category === 0 ? '' : `  <span class="k">"category"</span>: <span class="n">${category}</span>,\n`;
     const out = $('jsonOut');
     if (out) {
       out.innerHTML =
@@ -402,8 +405,7 @@
   <span class="k">"info"</span>: <span class="s">"${infoPh}"</span>,
   <span class="k">"icon"</span>: <span class="s">"${iconPh}"</span>,
   <span class="k">"coverText"</span>: <span class="s">"${jq(useText ? ctext : '')}"</span>,
-  <span class="k">"category"</span>: <span class="n">${category}</span>,
-  <span class="k">"tpl"</span>: <span class="b">${coverMode === 'none'}</span>,
+${catLine}  <span class="k">"tpl"</span>: <span class="b">${coverMode === 'none'}</span>,
   <span class="k">"allowComments"</span>: <span class="b">${allow}</span>,
   <span class="k">"tags"</span>: [${tagsHtml}]
 }`;
