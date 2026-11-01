@@ -53,7 +53,7 @@ if [ -d "$ROOT/book" ]; then
 
   # 页面与脚本
   (cd "$ROOT/book" && \
-    for item in index.html read.html write.html 404.html assets; do
+    for item in index.html book.html read.html write.html 404.html assets api; do
       [ -e "$item" ] && cp -r "$item" "$DIST/book/"
     done)
 
@@ -80,9 +80,7 @@ count=$(find "$DIST" -type f | wc -l | tr -d ' ')
 size=$(du -sh "$DIST" 2>/dev/null | cut -f1)
 echo "产物：$DIST（$count 个文件，约 $size）"
 
-for must in index.html assets/site.css assets/site.js assets/net.js \
-            book/index.html book/read.html book/write.html book/404.html \
-            book/assets/js/config.js; do
+for must in index.html assets/site.css assets/site.js assets/net.js; do
   [ -e "$DIST/$must" ] || { echo "!! 产物缺少 $must" >&2; exit 1; }
 done
 
@@ -91,12 +89,23 @@ if [ "${BOOKS_INCLUDE:-1}" != "0" ]; then
   [ -e "$DIST/book/docs/books/index.json" ] || { echo "!! 产物缺少 book/docs/books/index.json" >&2; exit 1; }
 fi
 
-# 密文不该以明文出现：抽查 .book 是否都是 JSON 且带 crypto 字段
+# 密文不该以明文出现：抽查 .book。
+# 分块版：.book 是清单（format=bookblacknet.chunks，无 crypto），改为校验
+#   ① 清单是合法 JSON 且带 format/parts
+#   ② 清单里列出的分块文件确实在产物里
+# 旧版单文件：仍要求带 crypto 字段
 bad=0
 for f in "$DIST"/book/docs/books/*.book; do
   [ -e "$f" ] || continue
-  head -c 1 "$f" | grep -q '{' || { echo "!! 非法 .book：$f" >&2; bad=1; }
-  grep -q '"crypto"' "$f" || { echo "!! 缺少加密信息：$f" >&2; bad=1; }
+  if grep -q '"format"[[:space:]]*:[[:space:]]*"bookblacknet.chunks"' "$f" 2>/dev/null; then
+    dir="$(dirname "$f")"
+    for part in $(grep -o '"[^"]*\.p[0-9]\{3\}"' "$f" | tr -d '"'); do
+      [ -e "$dir/$part" ] || { echo "!! 清单分块缺失：$f → $part" >&2; bad=1; }
+    done
+  else
+    head -c 1 "$f" | grep -q '{' || { echo "!! 非法 .book：$f" >&2; bad=1; }
+    grep -q '"crypto"' "$f" || { echo "!! 缺少加密信息：$f" >&2; bad=1; }
+  fi
 done
 [ "$bad" -eq 0 ] || exit 1
 

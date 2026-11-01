@@ -16,12 +16,7 @@
     { "source": "/proxy/oauth.blacknet.cc.cd/:path*", "destination": "https://oauth.blacknet.cc.cd/:path*" },
     { "source": "/proxy/upload.blacknet.cc.cd/:path*", "destination": "https://upload.blacknet.cc.cd/:path*" },
     { "source": "/proxy/img.blacknet.cc.cd/:path*", "destination": "https://img.blacknet.cc.cd/:path*" },
-    { "source": "/proxy/api.blacknet.cc.cd/:path*", "destination": "https://api.blacknet.cc.cd/:path*" },
-
-    { "source": "/book", "destination": "/book/", "statusCode": 301 },
-    { "source": "/book/read", "destination": "/book/read.html" },
-    { "source": "/book/write", "destination": "/book/write.html" },
-    { "source": "/book/:path*", "destination": "/book/404.html" }
+    { "source": "/proxy/api.blacknet.cc.cd/:path*", "destination": "https://api.blacknet.cc.cd/:path*" }
   ],
   "headers": [
     {
@@ -35,15 +30,6 @@
     },
     { "source": "/assets/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }] },
     { "source": "/img/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=2592000" }] },
-    { "source": "/vditor/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }] },
-    { "source": "/book/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }] },
-    {
-      "source": "/book/docs/books/(.*)",
-      "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=60" },
-        { "key": "Content-Type", "value": "application/octet-stream" },
-        { "key": "Content-Disposition", "value": "inline" }
-      ]
-    }
+    { "source": "/vditor/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }] }
   ]
 }
