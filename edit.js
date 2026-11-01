@@ -28,11 +28,14 @@
   let isLoggedIn = false;
 
   /* ---------------- 分类 ---------------- */
+  // 「无分类」不是分类列表里的一项：它对应首行 JSON 的 category:0，
+  // 显示层（isGeneral / coverHTML / catIdOf）本来就按 0 = 未分类处理。
+  const NOCAT = { id: 0, name: '无分类', hue: 220 };
   function renderCats() {
     const box = $('cats');
     if (!box) return;
     const list = (window.GB && GB.cats) || [];
-    box.innerHTML = list.map(c => `
+    box.innerHTML = [NOCAT].concat(list).map(c => `
       <button type="button" class="cat-pill ${c.id === category ? 'on' : ''}" data-id="${c.id}">
         <span class="d" style="background:hsl(${c.hue} 62% 50%)"></span>${esc(c.name)}<span class="id">#${c.id}</span>
       </button>`).join('');
@@ -53,15 +56,15 @@
     const hint = $('catSrc');
     const list = (window.GB && GB.cats) || [];
     if (!list.length) {
-      // 分类未加载成功：无分类可选，发稿自然也不可行
-      if (hint) hint.textContent = '分类加载失败，无法选择分类，暂时无法发稿。';
+      // 分类未加载成功：仍可选「无分类」（category:0）发稿
+      if (hint) hint.textContent = '分类加载失败，可选择「无分类」发稿。';
       renderCats();
       updateAll();
       return;
     }
     const src = (window.GB && GB.catSource) === 'remote' ? '站点数据' : '未加载';
     if (hint) hint.textContent = `JSON 的 category（数字 ID）· 来源：${src}`;
-    if (!list.some(c => c.id === category)) category = list[0].id;
+    if (category !== 0 && !list.some(c => c.id === category)) category = list[0].id;
     renderCats();
     updateAll();
   }
@@ -271,7 +274,8 @@
   async function submitDiscussion() {
     if (isSubmitting) return;
     const list = (window.GB && GB.cats) || [];
-    if (!list.length) { toast('分类加载失败，暂时无法发稿'); return; }
+    // category=0（无分类）合法；分类列表加载失败也不再阻止发稿
+    if (!category && !list.length) { toast('分类未加载，将以「无分类」发布'); }
     const title = ($('title') && $('title').value.trim()) || '';
     if (!title) { toast('请输入标题'); $('title').focus(); return; }
 
@@ -368,7 +372,7 @@
     document.title = title ? title + ' · 写稿 · 群档案' : '写稿 · 群档案';
 
     // 卡片预览
-    const cat = (window.GB && GB.catInfo(category)) || { name: '随笔', hue: 214 };
+    const cat = category === 0 ? NOCAT : ((window.GB && GB.catInfo(category)) || { name: '随笔', hue: 214 });
     const hue = cat.hue;
     const thumb = $('prevThumb');
     if (thumb) {

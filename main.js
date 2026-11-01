@@ -20,7 +20,7 @@
   let currentSort = 'Default';
   let isAscending = false;
   let searchQuery = '';
-  let categoryFilter = 0;      // 0 = 全部；数字 = 分类 id；'none' = 无分类
+  let categoryFilter = 0;      // 0 = 全部
   let rendered = false;
 
   /* ---------------- 数据辅助 ---------------- */
@@ -110,8 +110,7 @@
 
   function filteredPosts() {
     let arr = allPosts;
-    if (categoryFilter === 'none') arr = arr.filter(p => catOf(p).id === 0);
-    else if (categoryFilter) arr = arr.filter(p => catOf(p).id === categoryFilter);
+    if (categoryFilter) arr = arr.filter(p => catOf(p).id === categoryFilter);
     const q = searchQuery.trim().toLowerCase();
     if (q) {
       arr = arr.filter(p => {
@@ -184,8 +183,7 @@
     const tabs = $('tabs');
     if (tabs) {
       tabs.innerHTML = `<button class="tab ${categoryFilter === 0 ? 'active' : ''}" data-cat="0">全部</button>`
-        + used.map(c => `<button class="tab ${categoryFilter === c.id ? 'active' : ''}" data-cat="${c.id}">${GB.esc(c.name)}</button>`).join('')
-        + `<button class="tab ${categoryFilter === 'none' ? 'active' : ''}" data-cat="none">无分类</button>`;
+        + used.map(c => `<button class="tab ${categoryFilter === c.id ? 'active' : ''}" data-cat="${c.id}">${GB.esc(c.name)}</button>`).join('');
     }
     const tagList = $('tagList');
     if (tagList) {
@@ -197,8 +195,7 @@
     const onCat = e => {
       const b = e.target.closest('[data-cat]');
       if (!b) return;
-      const raw = b.dataset.cat;
-      categoryFilter = raw === 'none' ? 'none' : (parseInt(raw, 10) || 0);
+      categoryFilter = parseInt(b.dataset.cat, 10) || 0;
       currentPage = 1;
       renderTabs();
       renderList();
