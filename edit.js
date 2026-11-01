@@ -59,7 +59,7 @@
       updateAll();
       return;
     }
-    const src = (window.GB && GB.catSource) === 'remote' ? 'CF 存储' : '未加载';
+    const src = (window.GB && GB.catSource) === 'remote' ? '站点数据' : '未加载';
     if (hint) hint.textContent = `JSON 的 category（数字 ID）· 来源：${src}`;
     if (!list.some(c => c.id === category)) category = list[0].id;
     renderCats();

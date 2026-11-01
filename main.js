@@ -20,7 +20,7 @@
   let currentSort = 'Default';
   let isAscending = false;
   let searchQuery = '';
-  let categoryFilter = 0;      // 0 = 全部
+  let categoryFilter = 0;      // 0 = 全部；数字 = 分类 id；'none' = 无分类
   let rendered = false;
 
   /* ---------------- 数据辅助 ---------------- */
@@ -110,7 +110,8 @@
 
   function filteredPosts() {
     let arr = allPosts;
-    if (categoryFilter) arr = arr.filter(p => catOf(p).id === categoryFilter);
+    if (categoryFilter === 'none') arr = arr.filter(p => catOf(p).id === 0);
+    else if (categoryFilter) arr = arr.filter(p => catOf(p).id === categoryFilter);
     const q = searchQuery.trim().toLowerCase();
     if (q) {
       arr = arr.filter(p => {
@@ -175,15 +176,16 @@
 
   /* ---------------- 渲染：分类 tabs / 侧栏 ---------------- */
   function renderTabs() {
-    // 分类栏直接读 GB.cats：正式环境来自 CF 存储（KV categories），
-    // KV 里新增的分类（如「新闻」）即使还没有文章也会出现在栏里
+    // 分类栏直接读 GB.cats：来自站点静态 JSON（assets/data/categories.json），
+    // JSON 里新增的分类（如「新闻」）即使还没有文章也会出现在栏里
     const used = (window.GB && GB.cats ? GB.cats.slice() : [])
       .filter(c => c && c.id && !GB.isGeneral(c))
       .sort((a, b) => a.id - b.id);
     const tabs = $('tabs');
     if (tabs) {
       tabs.innerHTML = `<button class="tab ${categoryFilter === 0 ? 'active' : ''}" data-cat="0">全部</button>`
-        + used.map(c => `<button class="tab ${categoryFilter === c.id ? 'active' : ''}" data-cat="${c.id}">${GB.esc(c.name)}</button>`).join('');
+        + used.map(c => `<button class="tab ${categoryFilter === c.id ? 'active' : ''}" data-cat="${c.id}">${GB.esc(c.name)}</button>`).join('')
+        + `<button class="tab ${categoryFilter === 'none' ? 'active' : ''}" data-cat="none">无分类</button>`;
     }
     const tagList = $('tagList');
     if (tagList) {
@@ -195,7 +197,8 @@
     const onCat = e => {
       const b = e.target.closest('[data-cat]');
       if (!b) return;
-      categoryFilter = parseInt(b.dataset.cat, 10) || 0;
+      const raw = b.dataset.cat;
+      categoryFilter = raw === 'none' ? 'none' : (parseInt(raw, 10) || 0);
       currentPage = 1;
       renderTabs();
       renderList();
@@ -400,7 +403,7 @@
     rendered = true;
     GB.initReveal();
 
-    // 公告条：未配置 CF 存储时，用「公告」分类的文章标题兜底
+    // 公告条：未配置静态公告数据时，用「公告」分类的文章标题兜底
     if (!(window.BLACKNET && window.BLACKNET.ANNOUNCEMENTS_URL)) {
       const titles = defaultOrder(allPosts).filter(isAnn).slice(0, 8).map(p => p.title).filter(Boolean);
       if (titles.length) GB.renderTicker(titles);
