@@ -9,8 +9,10 @@
 #   bash scripts/sync-book-repo.sh            同步 + 提交 + 推送
 #   DRY=1 bash scripts/sync-book-repo.sh      只看会改什么，不提交
 #
-# 注意：在线写作台发布的书籍是直接写这个仓库的，本地 book/docs 只是
-#       开发副本。同步前先确认本地的书不比线上新，否则会被覆盖。
+# 注意：书籍数据（docs/）以远端为准 —— 线上写作台发布的书直接写这个
+#       仓库，本地 book/docs 只是开发快照。本站脚本对 docs/ 只做「补入
+#       远端没有的文件」+「索引合并」，绝不会覆盖线上已有的书与条目。
+#       确实要用本地文件覆盖同名书时：FORCE_BOOKS=1 bash scripts/sync-book-repo.sh
 # ============================================================
 set -euo pipefail
 
@@ -32,10 +34,46 @@ if [ ! -d "$WORK/.git" ]; then
 fi
 
 # ---- 复制站点文件（覆盖同名；源里删掉的文件不会跟着删） ----
+# 注意：docs/ 不在这里复制 —— 书籍数据的真源是远端仓库，
+#       线上写作台发布的书直接写进去，用本地快照覆盖会丢条目。
 cd "$ROOT/book"
-for item in index.html book.html read.html write.html editor.html 404.html CNAME assets docs vercel.json api lib README.md; do
+for item in index.html book.html convert.html read.html write.html editor.html 404.html CNAME assets vercel.json api lib README.md; do
   [ -e "$item" ] && cp -r "$item" "$WORK/"
 done
+
+# ---- 书籍数据 docs/：远端为准，本地只补「远端没有的」 ----
+# FORCE_BOOKS=1 时才允许用本地文件覆盖同名书（改示例书时用）
+if [ -d "$ROOT/book/docs" ]; then
+  mkdir -p "$WORK/docs"
+  ( cd "$ROOT/book/docs" && find . -type f ! -path './books/index.json' -print ) | while IFS= read -r rel; do
+    rel="${rel#./}"
+    [ -n "$rel" ] || continue
+    tgt="$WORK/docs/$rel"
+    if [ ! -e "$tgt" ]; then
+      mkdir -p "$(dirname "$tgt")"
+      cp "$ROOT/book/docs/$rel" "$tgt"
+      echo "  + 补入书籍文件 $rel"
+    elif [ "${FORCE_BOOKS:-0}" = "1" ]; then
+      cp "$ROOT/book/docs/$rel" "$tgt"
+      echo "  * 覆盖书籍文件 $rel（FORCE_BOOKS=1）"
+    fi
+  done
+
+  # 索引：远端条目为主体，只补本地独有条目（远端有的一律保留）
+  if [ -f "$ROOT/book/docs/books/index.json" ]; then
+    mrc=0
+    node "$ROOT/scripts/book-index-merge.mjs" \
+      "$ROOT/book/docs/books/index.json" "$WORK/docs/books/index.json" || mrc=$?
+    if [ "$mrc" = "0" ]; then
+      :
+    elif [ "$mrc" = "2" ]; then
+      echo "· 索引无新增条目"
+    else
+      echo "!! 索引合并失败（exit $mrc）" >&2
+      exit 1
+    fi
+  fi
+fi
 touch "$WORK/.nojekyll"
 
 # ---- 提交 ----

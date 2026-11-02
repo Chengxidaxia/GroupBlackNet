@@ -53,7 +53,7 @@ if [ -d "$ROOT/book" ]; then
 
   # 页面与脚本
   (cd "$ROOT/book" && \
-    for item in index.html book.html read.html write.html 404.html assets api; do
+    for item in index.html book.html convert.html read.html write.html 404.html assets api; do
       [ -e "$item" ] && cp -r "$item" "$DIST/book/"
     done)
 
