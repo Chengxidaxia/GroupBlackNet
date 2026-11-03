@@ -1,6 +1,7 @@
 # ============================================================
 # netlify.toml — 群档案（主站）+ 群书阁（book/）同域部署
-# 部署：Netlify 连接 Chengxidaxia/GroupBlackNet，构建命令见下。
+# 线上当前跑 Vercel（读 vercel.json，构建命令同为 scripts/netlify-build.sh）；
+# 本文件是 Netlify 备用通道的等价配置：Netlify 连接 Chengxidaxia/GroupBlackNet 即可。
 # 产物由 scripts/netlify-build.sh 组装到 dist/，源码与本地工具不发布。
 # 书籍数据源：同源 docs/books → jsDelivr → raw.githubusercontent
 #             （见 book/assets/js/config.js 的 CDN 段）
