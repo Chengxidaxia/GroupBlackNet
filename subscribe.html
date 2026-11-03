@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>订阅更新 · 群档案</title>
+<meta name="description" content="订阅群档案更新的三种可用方式：RSS / Atom、GitHub Discussions 关注、以及页面底部的邮件联系。">
+<link rel="icon" href="/favicon.ico" type="image/x-icon">
+<link rel="alternate" type="application/rss+xml" title="群档案 · 全文更新" href="/feed.xml">
+<link rel="stylesheet" href="assets/site.css">
+<script>/* 主题预设 */try{var t=localStorage.getItem('gb-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
+</head>
+<body>
+
+<div id="header-placeholder"></div>
+
+<div class="page-wrap">
+  <h1>订阅更新</h1>
+  <p class="sub-lede">新文章发布后怎么收到通知 —— 三种方式，都不需要注册本站账号。</p>
+
+  <div class="prose">
+    <h2>① RSS / Atom（推荐）</h2>
+    <p>把下面的地址加到任意 RSS 阅读器里，有新文章就会自动出现在订阅列表。RSS 是开放标准，不绑定平台，也不用留邮箱。</p>
+
+    <div class="feed-box">
+      <div class="feed-url">
+        <code id="feedUrl">https://grp.blacknet.cc.cd/feed.xml</code>
+        <button class="btn btn-primary btn-sm" id="btnCopy" type="button">复制地址</button>
+        <a class="btn btn-ghost btn-sm" href="/feed.xml" target="_blank" rel="noopener">查看源</a>
+      </div>
+      <ol class="feed-steps">
+        <li>复制上面的地址。</li>
+        <li>打开你常用的阅读器（Feedly、Inoreader、NetNewsWire、Reeder、FreshRSS…），选「添加订阅源 / Add feed」。</li>
+        <li>粘贴地址，确认。之后每次更新都会自动推送，无需再来本站。</li>
+      </ol>
+      <p class="feed-note">源里带全文摘要与原文链接，正文始终以站内为准。当前更新频率取决于投稿量，不做固定节奏承诺。</p>
+    </div>
+
+    <h2>② 关注 GitHub 讨论区</h2>
+    <p>内容本身存放在开源仓库的 Discussions 里。在仓库页面点 <b>Watch → Custom → Discussions</b>，新讨论会直接进你的 GitHub 通知。</p>
+    <div class="info-card">
+      <ul class="kv">
+        <li><b>仓库</b><span><a href="https://github.com/Chengxidaxia/GroupBlackNet" target="_blank" rel="noopener">Chengxidaxia/GroupBlackNet</a></span></li>
+        <li><b>讨论区</b><span><a href="https://github.com/Chengxidaxia/GroupBlackNet/discussions" target="_blank" rel="noopener">Discussions</a></span></li>
+        <li><b>适合</b><span>已经在用 GitHub 的人；能收到评论回复与被 @ 的提醒</span></li>
+      </ul>
+    </div>
+
+    <h2>③ 邮件</h2>
+    <p>本站<b>不收集邮箱、也不发营销邮件</b>。之前首页那个「每周一封精选信」的订阅框是个没有接通的占位，已经撤掉 —— 与其收下你的邮箱却发不出信，不如直接说清楚：目前没有邮件订阅。</p>
+    <p>如果你确实希望有邮件通知，或者想单独沟通，请直接发信到 <a href="mailto:chengxidaxia@outlook.com">chengxidaxia@outlook.com</a>。收到足够多的需求后，可能会接入第三方邮件服务（如 Buttondown）；在那之前，RSS 是唯一稳定的推送渠道。</p>
+
+    <h2>最近更新</h2>
+    <ul class="feed-recent" id="feedRecent">
+      <li><time>—</time><span>正在读取…</span></li>
+    </ul>
+  </div>
+</div>
+
+<div id="footer-placeholder"></div>
+
+<script src="config.js"></script>
+<script src="assets/imgmap.js" defer></script>
+<script src="assets/net.js" defer></script>
+<script src="assets/site.js" defer></script>
+<script src="assets/demo.js" defer></script>
+<script src="load-commons.js" defer></script>
+<script src="oauth.js" defer></script>
+<script>
+(function () {
+  'use strict';
+  var API = (window.BLACKNET && window.BLACKNET.API_URL) || '/api/discussions';
+  var netFetch = (window.GB && GB.net && GB.net.fetch) ? GB.net.fetch : fetch;
+
+  function copyText(text, done) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { fallback(); });
+      return;
+    }
+    fallback();
+    function fallback() {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); done(); } catch (e) {}
+      ta.remove();
+    }
+  }
+
+  document.getElementById('btnCopy').addEventListener('click', function () {
+    var btn = this;
+    copyText(document.getElementById('feedUrl').textContent.trim(), function () {
+      var old = btn.textContent;
+      btn.textContent = '已复制';
+      if (window.GB && GB.toast) GB.toast('订阅地址已复制');
+      setTimeout(function () { btn.textContent = old; }, 1600);
+    });
+  });
+
+  async function loadRecent() {
+    var box = document.getElementById('feedRecent');
+    var nodes = [];
+    try {
+      var res = await netFetch(API + '/?first=8');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      var data = await res.json();
+      nodes = (data.nodes || []).slice(0, 8);
+    } catch (e) {
+      // 本地预览 / 接口不可达：有演示数据就用演示数据，否则给出明确说明
+      if (window.GB && GB.demoMode && window.GB_DEMO) nodes = window.GB_DEMO.posts.slice(0, 8);
+      else { box.innerHTML = '<li><span>读取失败：' + GB.esc(e.message || String(e)) + '</span></li>'; return; }
+    }
+    if (!nodes.length) { box.innerHTML = '<li><span>还没有文章。</span></li>'; return; }
+    box.innerHTML = nodes.map(function (p) {
+      return '<li><time>' + GB.fmtShort(p.createdAt) + '</time>'
+        + '<a href="/blog.html?d=' + p.number + '">' + GB.esc(p.title || '无标题') + '</a></li>';
+    }).join('');
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', loadRecent);
+  else loadRecent();
+})();
+</script>
+</body>
+</html>

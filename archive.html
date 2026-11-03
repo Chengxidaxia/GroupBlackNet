@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>归档 · 群档案</title>
+<meta name="description" content="群档案全部文章的时间归档：按年月排列，可搜索、可按分类与年份筛选。">
+<link rel="icon" href="/favicon.ico" type="image/x-icon">
+<link rel="stylesheet" href="assets/site.css">
+<link rel="alternate" type="application/rss+xml" title="群档案 · 全文更新" href="/feed.xml">
+<script>/* 主题预设：在首次绘制前应用，避免闪烁 */try{var t=localStorage.getItem('gb-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
+</head>
+<body>
+
+<div id="header-placeholder"></div>
+
+<main class="arc">
+  <section class="arc-hero wrap">
+    <p class="arc-eyebrow"><span class="dot"></span>Archive</p>
+    <h1 class="arc-title">归档</h1>
+    <p class="arc-lede">截至目前记下的每一篇。按发布时间倒序排列，可以搜索标题与正文，也可以只看某一年的记录。</p>
+
+    <div class="arc-tools">
+      <div class="arc-search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4.3-4.3"></path></svg>
+        <input id="arcSearch" type="search" placeholder="搜索标题或正文…" aria-label="搜索归档" autocomplete="off">
+      </div>
+      <div class="arc-years" id="arcYears" role="group" aria-label="按年份筛选"></div>
+    </div>
+    <div class="arc-cats" id="arcCats" role="group" aria-label="按分类筛选"></div>
+  </section>
+
+  <section class="wrap arc-body">
+    <div class="arc-count" id="arcCount"></div>
+    <div class="arc-list" id="arcList"></div>
+    <div class="arc-empty" id="arcEmpty" hidden>
+      <div class="arc-empty-title">这里还没有记录</div>
+      <div class="arc-empty-desc">换个关键词或年份试试；也可以直接看<a href="/">首页</a>。</div>
+    </div>
+  </section>
+</main>
+
+<div id="footer-placeholder"></div>
+
+<script src="config.js"></script>
+<script src="assets/imgmap.js" defer></script>
+<script src="assets/net.js" defer></script>
+<script src="assets/site.js" defer></script>
+<script src="assets/demo.js" defer></script>
+<script src="load-commons.js" defer></script>
+<script src="oauth.js" defer></script>
+<script src="archive.js" defer></script>
+</body>
+</html>

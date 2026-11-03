@@ -338,11 +338,7 @@
     if (search) search.addEventListener('input', function () {
       searchQuery = this.value; currentPage = 1; renderList();
     });
-    const sub = $('subForm');
-    if (sub) sub.addEventListener('submit', () => {
-      const mail = $('subMail');
-      GB.toast(mail && mail.value ? '已记录订阅意向（演示）：' + mail.value : '请先填写邮箱');
-    });
+    // 订阅入口已改为独立页面（subscribe.html），首页不再有邮箱假表单。
   }
 
   /* ---------------- 加载 ---------------- */

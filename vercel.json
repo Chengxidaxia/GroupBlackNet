@@ -5,6 +5,7 @@
   "cleanUrls": true,
   "trailingSlash": false,
   "rewrites": [
+    { "source": "/feed.xml", "destination": "/api/feed" },
     { "source": "/api/discussions", "destination": "/api/discussions" },
     { "source": "/api/gh", "destination": "/api/gh" },
     { "source": "/api/gh/:path*", "destination": "/api/gh" },
