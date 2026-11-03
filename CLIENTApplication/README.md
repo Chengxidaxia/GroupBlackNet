@@ -3,8 +3,10 @@
 JDK 21 + Swing 实现的「群档案」桌面客户端，**功能对齐网页端**，零第三方依赖
 （只用 JDK 自带模块，`javac` 直接可编译，不需要 Maven / Gradle）。
 
-- 后端与网页端共用：`api.blacknet.cc.cd`（只读数据）、`oauth.blacknet.cc.cd`（登录/写入）、`upload.blacknet.cc.cd`（图片上传）
+- 后端与网页端共用同一套接口：`api.blacknet.cc.cd`（只读数据）、`oauth.blacknet.cc.cd`（登录/写入）、`upload.blacknet.cc.cd`（图片上传）
 - 数据源：GitHub Discussions
+- **与网页端的差异**：网页端已迁到同源 Vercel Functions（`/api/*`，零 CORS），
+  客户端不受浏览器 CORS 限制，所以仍直连 CF Worker，两端接口形状一致、数据同源
 - 默认**亮色主题**，可切暗色并持久化
 
 ---
@@ -66,7 +68,10 @@ Linux / macOS：
 
 ---
 
-## 功能对照（与网页端一致）
+## 功能对照（与网页端核心页面一致）
+
+> 网页端后来新增的**归档**（`/archive`）、**订阅**（`/subscribe`）、**赞助**（`/sponsor`）
+> 属于站点侧页面，客户端不提供；客户端只对齐「首页 / 详情 / 写稿 / 登录 / 关于」这几条主链路。
 
 | 页面 | 功能 |
 |---|---|
@@ -182,8 +187,12 @@ CLIENTApplication/
 
 ## 已知限制
 
-- **封面图源**：部分文章封面指向 `img.blacknet.cc.cd`，该 Worker 目前返回 500（B2 变量问题，与客户端无关）。
+- **封面图源**：部分文章封面指向 `img.blacknet.cc.cd`，该域目前对图片返回 404（B2 变量问题，与客户端无关）。
   此时客户端会按站点的兜底行为画**分类渐变 + 分类名**，不会出现空白块。
+- **分类 / 公告端点**：网页端已改为读站点静态 JSON（`/assets/data/categories.json`、
+  `announcements.json`），CF Worker 源码里对应的 KV 分支已移除；客户端仍请求
+  `api.blacknet.cc.cd/categories` 与 `/announcements`，目前由线上那版 Worker 继续返回。
+  如果哪天重新部署 Worker 导致这两个端点消失，客户端要改成读静态 JSON（或退回内置默认分类）。
 - **暗色下的系统控件**：已把排序等控件改为自绘分段按钮；`JFileChooser` 等系统对话框仍使用系统配色。
 - **表情字体**：使用 `Segoe UI Emoji`，含 emoji 的文本会自动切换字体（Windows 自带）。
 - 客户端不受浏览器 CORS 限制，可直接访问 api/oauth（网页端需要域名白名单）。

@@ -47,15 +47,19 @@ const HOSTS = hosts.length ? [...new Set(hosts)] : ['cdn.jsdelivr.net'];
 
 const TIMEOUT = 8000;
 
-/* ---------------- 文件清单 ---------------- */
+/* ---------------- 文件清单 ----------------
+   分块书的 .book 只是清单（format=bookblacknet.chunks），正文在同目录的
+   .book.pXXX 里。清单本身很小，真正要验收的是分块，所以一并列出来。 */
 function listBooks() {
   if (!fs.existsSync(LOCAL_BOOKS)) return [];
   return fs.readdirSync(LOCAL_BOOKS)
-    .filter(f => f.endsWith('.book'))
+    .filter(f => /\.book(\.p\d+)?$/.test(f))
     .sort();
 }
 
 const books = listBooks();
+const bookCount = books.filter(f => f.endsWith('.book')).length;
+const partCount = books.length - bookCount;
 const files = [INDEX_FILE, ...books.map(f => BOOKS_DIR + '/' + f)];
 
 /* ---------------- URL 生成 ---------------- */
@@ -79,7 +83,8 @@ if (has('--purge')) {
 } else {
   console.log('');
   console.log('仓库  ' + OWNER + '/' + REPO + '@' + BRANCH);
-  console.log('文件  index.json + ' + books.length + ' 本 .book');
+  console.log('文件  index.json + ' + bookCount + ' 本 .book' +
+    (partCount ? '（另有 ' + partCount + ' 个分块 .pXXX）' : ''));
   console.log('');
   if (SITE_URL) {
     console.log('— 同源「正式站」（最快，站点自带的书籍）—');
