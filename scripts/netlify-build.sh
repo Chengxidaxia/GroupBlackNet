@@ -30,7 +30,7 @@ fi
 mkdir -p "$DIST"
 
 # ---- 页面 ----
-for f in index.html blog.html edit.html about.html contact.html 404.html \
+for f in index.html blog.html edit.html about.html contact.html sponsor.html 404.html \
          head.html foot.html load-commons.js config.js oauth.js \
          main.js blog.js edit.js favicon.ico .nojekyll; do
   if [ -f "$ROOT/$f" ]; then
@@ -53,7 +53,7 @@ if [ -d "$ROOT/book" ]; then
 
   # 页面与脚本
   (cd "$ROOT/book" && \
-    for item in index.html book.html convert.html read.html write.html 404.html assets api; do
+    for item in index.html book.html convert.html sponsor.html read.html write.html 404.html assets api; do
       [ -e "$item" ] && cp -r "$item" "$DIST/book/"
     done)
 

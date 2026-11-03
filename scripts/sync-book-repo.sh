@@ -37,7 +37,7 @@ fi
 # 注意：docs/ 不在这里复制 —— 书籍数据的真源是远端仓库，
 #       线上写作台发布的书直接写进去，用本地快照覆盖会丢条目。
 cd "$ROOT/book"
-for item in index.html book.html convert.html read.html write.html editor.html 404.html CNAME assets vercel.json api lib README.md; do
+for item in index.html book.html convert.html sponsor.html read.html write.html editor.html 404.html CNAME assets vercel.json api lib README.md; do
   [ -e "$item" ] && cp -r "$item" "$WORK/"
 done
 

@@ -289,7 +289,8 @@
       const k = a.dataset.nav;
       const on = (k === 'home' && (page === '' || page === 'index.html'))
               || (k === 'about' && page === 'about.html')
-              || (k === 'contact' && page === 'contact.html');
+              || (k === 'contact' && page === 'contact.html')
+              || (k === 'sponsor' && page === 'sponsor.html');
       a.classList.toggle('active', on);
     });
 
