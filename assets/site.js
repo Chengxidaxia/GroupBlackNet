@@ -284,13 +284,13 @@
     applyBrandLinks();
 
     // 导航高亮
-    const page = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
+    // 注意：线上 Vercel 开了 cleanUrls，/about.html 会被重定向成 /about，
+    // pathname 不带扩展名；本地预览又是带 .html 的。这里统一去掉扩展名再比对。
+    const raw = (location.pathname.split('/').pop() || 'index.html').toLowerCase();
+    const page = raw.replace(/\.html$/, '') || 'index';
     document.querySelectorAll('#siteNav [data-nav]').forEach(a => {
       const k = a.dataset.nav;
-      const on = (k === 'home' && (page === '' || page === 'index.html'))
-              || (k === 'about' && page === 'about.html')
-              || (k === 'contact' && page === 'contact.html')
-              || (k === 'sponsor' && page === 'sponsor.html');
+      const on = (k === page) || (k === 'home' && page === 'index');
       a.classList.toggle('active', on);
     });
 
