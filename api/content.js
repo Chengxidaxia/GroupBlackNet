@@ -87,11 +87,28 @@ export default async function handler(req, res) {
   }
   if (req.method !== 'GET') return send(res, 405, { error: 'Method Not Allowed' });
 
+  const conn = parseConn(process.env.GLOBAL_CONFIG || process.env.EDGE_CONFIG || '');
+  const diag = {
+    hasConn: !!conn,
+    store: conn ? conn.id : '',
+    hasToken: !!(conn && conn.token),
+    envOverride: !!parseEnv(process.env),
+  };
   try {
     const envData = parseEnv(process.env);
-    const data = envData || await gcRead(process.env, KEY);
+    let data = envData;
+    let reason = '';
+    if (!data) {
+      if (!conn) reason = 'no-connection-string';
+      else {
+        try {
+          data = await gcRead(process.env, KEY);
+          if (!data) reason = 'key-content-missing';
+        } catch (e) { reason = String((e && e.message) || e); }
+      }
+    }
     if (!data || typeof data !== 'object') {
-      return send(res, 200, Object.assign({ source: 'default' }, DEFAULT));
+      return send(res, 200, Object.assign({ source: 'default', reason, diag }, DEFAULT));
     }
 
     const grpCats = (data.categories && Array.isArray(data.categories.grp) && data.categories.grp.length)
@@ -108,6 +125,6 @@ export default async function handler(req, res) {
       source: envData ? 'env' : 'global-config',
     });
   } catch (e) {
-    return send(res, 200, Object.assign({ source: 'default', error: String((e && e.message) || e) }, DEFAULT));
+    return send(res, 200, Object.assign({ source: 'default', reason: String((e && e.message) || e), diag }, DEFAULT));
   }
 }
