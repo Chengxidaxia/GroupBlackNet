@@ -107,10 +107,46 @@
     return nm === 'Announcements';
   }
 
-  // 分类列表：读站点静态 JSON（assets/data/categories.json，随 git 发布，同源零 CORS）
+  // 统一内容源：Vercel Global Config（与 vercel-proxy 同一个服务），
+  // 由同源 /api/content 中转；读不到则回退站点静态 JSON（assets/data/*.json），
+  // 本地预览、GC 未配、后端故障时都能照常工作。
+  let _contentPromise = null;
+  function loadContent() {
+    if (_contentPromise) return _contentPromise;
+    _contentPromise = (async () => {
+      try {
+        const res = await net.fetch('/api/content', { cache: 'no-store' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const d = await res.json();
+        if (!d || !d.categories) throw new Error('内容格式不对');
+        return d;
+      } catch (e) {
+        return null;
+      }
+    })();
+    return _contentPromise;
+  }
+
+  const normCats = list => list.map((c, i) => ({
+    id: Number(c && c.id != null ? c.id : i + 1),
+    name: (c && (c.name || c.label)) || String(c),
+    hue: Number(c && c.hue != null ? c.hue : (214 + i * 29) % 360)
+  })).filter(c => c.name);
+
+  // 分类列表：Global Config 优先，回退站点静态 JSON（随 git 发布，同源零 CORS）
   let catReadyResolve;
   const catReady = new Promise(res => { catReadyResolve = res; });
   async function loadCategories() {
+    const gc = await loadContent();
+    if (gc && gc.categories && Array.isArray(gc.categories.grp) && gc.categories.grp.length) {
+      const norm = normCats(gc.categories.grp);
+      if (norm.length) {
+        CATS = norm;
+        GB.catSource = 'global-config';
+        catReadyResolve(CATS);
+        return CATS;
+      }
+    }
     const url = CFG.CATEGORY_URL;
     if (!url) { GB.catSource = 'none'; catReadyResolve(CATS); return CATS; }
     try {
@@ -241,6 +277,14 @@
     setTimeout(draw, 3000);   // 兜底：commonsLoaded 万一没触发也补画一次
   }
   async function loadAnnouncements() {
+    const gc = await loadContent();
+    if (gc && Array.isArray(gc.announcements) && gc.announcements.length) {
+      const titles = gc.announcements
+        .map(x => (typeof x === 'string' ? x : (x && (x.title || x.text)) || ''))
+        .filter(Boolean);
+      drawTickerWhenReady(titles);
+      return titles;
+    }
     const url = CFG.ANNOUNCEMENTS_URL;
     if (!url) return null;           // 未配置 → 交给页面自行降级（如首页用「公告」分类）
     try {
@@ -388,8 +432,8 @@
   // 分类：立刻开始加载（页面可用 GB.catReady 等待）
   loadCategories();
 
-  // 公告条：有配置就拉取；无配置则等页面（首页）用文章数据兜底
-  if (CFG.ANNOUNCEMENTS_URL) loadAnnouncements();
+  // 公告条：Global Config 优先（内含 announcements），否则拉站点静态 JSON
+  loadAnnouncements();
 
   // 头部与动效：公共部分（head.html）注入完成后再执行
   function onCommons() {

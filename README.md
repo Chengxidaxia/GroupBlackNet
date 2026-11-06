@@ -24,6 +24,7 @@
  │                    ├─ /api/discussions   Discussions 只读代理（GraphQL）
  │                    ├─ /api/oauth/*       登录 / 评论 / 反应 / 顶 / 发帖（GitHub OAuth）
  │                    ├─ /api/gh/*          同源登录态（/me、/logout）
+ │                    ├─ /api/content       分类与公告（Vercel Global Config）
  │                    └─ /feed.xml          RSS 2.0，每次请求实时生成
  ├─ 跨域兜底 ──▶ Cloudflare Workers（api / auth / oauth / upload / img 五个子域）
  └─ 书籍数据 ──▶ 同源 docs/books → jsDelivr 三节点并发 → raw.githubusercontent
@@ -36,6 +37,25 @@
 - **后端不在本仓库**：`backend/` 是 CF Worker 源码，含凭据，已 gitignore。仓库里的
   `netlify/functions/*-core.mjs` 是与平台无关的核心逻辑，Vercel Function 与 Netlify Function
   共用同一份。
+
+### 分类与公告从哪来
+
+主站的分类、公告，与书阁的作品分类，共用 **Vercel Global Config**（旧名 Edge Config）里的
+`content` 键 —— 和 `vercel-proxy` 的 `tokens / deny / allow` 是同一个服务。在 Vercel 面板
+**Storage → Global Config → 编辑 JSON** 保存后秒级生效，不需要重新部署：
+
+```jsonc
+{
+  "categories": {
+    "grp": [{ "id": 1, "name": "公告", "hue": 30 }, /* … 1–6 */],
+    "bn":  ["玄幻", "仙侠", "都市", "历史", "科幻", "悬疑", "言情", "游戏", "其他"]
+  },
+  "announcements": [{ "title": "…", "url": "" }]
+}
+```
+
+前端经同源 `/api/content` 读取（`assets/site.js`、书阁 `core/cloud.js`），读不到时回退
+`assets/data/*.json` 静态文件，所以本地预览与 GC 未配置时都照常工作。
 
 ### 为什么「后端不变」
 

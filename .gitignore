@@ -21,8 +21,10 @@ _push_test.log
 .wrangler
 
 # Netlify 构建产物（本地跑 scripts/netlify-build.sh 生成）
-dist/
-dist*/
+/dist/
+/dist-*/
+# 例外：内置的 Vditor 发行版（dist/ 是它的正式发布目录，必须随站上线）
+!/vditor/**/dist/
 
 # 无头浏览器临时 profile
 _edge*/

@@ -11,6 +11,7 @@
     { "source": "/api/gh/:path*", "destination": "/api/gh" },
     { "source": "/api/oauth/:path*", "destination": "/api/oauth" },
     { "source": "/api/oauth", "destination": "/api/oauth" },
+    { "source": "/api/content", "destination": "/api/content" },
 
     { "source": "/proxy/api.github.com/:path*", "destination": "https://api.github.com/:path*" },
     { "source": "/proxy/raw.githubusercontent.com/:path*", "destination": "https://raw.githubusercontent.com/:path*" },

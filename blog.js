@@ -541,7 +541,7 @@
     if (vditorInstance) { try { vditorInstance.destroy(); } catch (e) {} vditorInstance = null; }
 
     vditorInstance = new Vditor(host, {
-      cdn: (window.BLACKNET && window.BLACKNET.VDITOR_BASE) || 'vditor/4.0.0',
+      cdn: (window.BLACKNET && window.BLACKNET.VDITOR_BASE) || 'vditor/4.0.1',
       height: 220,
       minHeight: 150,
       mode: 'wysiwyg',

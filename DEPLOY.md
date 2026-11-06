@@ -49,9 +49,14 @@
 | `GITHUB_CLIENT_SECRET` | 是 | OAuth App 的 Secret |
 | `OAUTH_REDIRECT_URI` | 否 | 默认 `https://grp.blacknet.cc.cd/api/oauth/callback` |
 | `FRONTEND_URL` | 否 | 登录完成后回跳地址，默认主站 |
+| `GLOBAL_CONFIG` | 建议 | Global Config 连接串（`https://global-config.vercel.com/<id>?token=…`），分类与公告从它读；缺失时 `/api/content` 回退内置默认值 |
 
 改动环境变量后必须 **Redeploy** 才会带进新的 Function 实例。
 `GH_TOKEN` 缺失时列表页直接空 —— 这是最常见的「线上打不开」原因。
+
+> 分类与公告已改为读 **Vercel Global Config**（与 `vercel-proxy` 同一个服务），在面板里改 JSON
+> 即可秒级生效、不用 Redeploy。仓库里的 `assets/data/categories.json`、`announcements.json`
+> 保留为兜底：线上优先走 `/api/content`，读不到才回落静态文件。
 
 ### 1.3 缓存与安全头
 

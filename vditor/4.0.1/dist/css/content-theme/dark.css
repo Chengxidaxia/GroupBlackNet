@@ -26,16 +26,13 @@
  */
 .vditor-reset {
     color: #d1d5da;
-    --callout-note-color: #58a6ff;
-    --callout-note-background-color: rgba(56, 139, 253, 0.15);
-    --callout-tip-color: #3fb950;
-    --callout-tip-background-color: rgba(46, 160, 67, 0.15);
-    --callout-important-color: #a371f7;
-    --callout-important-background-color: rgba(163, 113, 247, 0.15);
-    --callout-warning-color: #d29922;
-    --callout-warning-background-color: rgba(187, 128, 9, 0.15);
-    --callout-caution-color: #f85149;
-    --callout-caution-background-color: rgba(248, 81, 73, 0.15);
+    --blockquote-border-color: rgba(230, 230, 230, 0.1);
+    --blockquote-text-color: #9aa0a6;
+    --callout-note-color: #3575f0;
+    --callout-tip-color: #65b84d;
+    --callout-important-color: #b388ff;
+    --callout-warning-color: #ff9632;
+    --callout-caution-color: #d23f31;
 }
 
 .vditor-reset a, .vditor-ir__link {
@@ -49,12 +46,6 @@
 
 .vditor-reset hr {
     background-color: #d1d5da
-}
-
-.vditor-reset blockquote {
-    padding: 0 1em;
-    color: #b9b9b9;
-    border-left: .25em solid #d1d5da
 }
 
 .vditor-reset iframe {

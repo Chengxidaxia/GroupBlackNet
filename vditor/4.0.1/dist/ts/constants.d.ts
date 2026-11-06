@@ -13,6 +13,7 @@ export declare abstract class Constants {
     static readonly MARKDOWN_OPTIONS: {
         autoSpace: boolean;
         callout: boolean;
+        inlineMath: boolean;
         gfmAutoLink: boolean;
         codeBlockPreview: boolean;
         fixTermTypo: boolean;

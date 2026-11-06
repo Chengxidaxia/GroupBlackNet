@@ -12,7 +12,7 @@
   // 跨域只读接口统一走网络层：站点配了同源反代就走反代，没有就直连
   const netFetch = (window.GB && GB.net && GB.net.fetch) ? GB.net.fetch : fetch;
   const DEFAULT_ICON = (window.BLACKNET && window.BLACKNET.DEFAULT_ICON) || 'https://grp.blacknet.cc.cd/img/pole.jpg';
-  const VDITOR_BASE = (window.BLACKNET && window.BLACKNET.VDITOR_BASE) || 'vditor/4.0.0';
+  const VDITOR_BASE = (window.BLACKNET && window.BLACKNET.VDITOR_BASE) || 'vditor/4.0.1';
 
   const $ = id => document.getElementById(id);
   const esc = s => (window.GB ? GB.esc(s) : String(s == null ? '' : s));
@@ -198,7 +198,7 @@
     if (typeof Vditor === 'undefined') { degradeToTextarea('编辑器脚本加载失败，已降级为普通文本框。'); return; }
     const from = window.__vditorFrom === 'cdn' ? 'CDN' : '本地';
     setVdStatus('编辑器已加载（' + from + ' Vditor 4.0）', 'ok');
-    const cdnBase = window.__vditorFrom === 'cdn' ? 'https://cdn.jsdelivr.net/npm/vditor@4.0.0' : VDITOR_BASE;
+    const cdnBase = window.__vditorFrom === 'cdn' ? 'https://cdn.jsdelivr.net/npm/vditor@4.0.1' : VDITOR_BASE;
 
     try {
       vditor = new Vditor('vditor', {
@@ -461,7 +461,7 @@ ${catLine}  <span class="k">"tpl"</span>: <span class="b">${coverMode === 'none'
       const dark = e.detail === 'dark';
       try { vditor.setTheme(dark ? 'dark' : 'classic'); } catch (err) {}
       try {
-        const base = window.__vditorFrom === 'cdn' ? 'https://cdn.jsdelivr.net/npm/vditor@4.0.0' : VDITOR_BASE;
+        const base = window.__vditorFrom === 'cdn' ? 'https://cdn.jsdelivr.net/npm/vditor@4.0.1' : VDITOR_BASE;
         vditor.setContentTheme(dark ? 'dark' : 'light', base + '/dist/css/content-theme');
       } catch (err) {}
     });

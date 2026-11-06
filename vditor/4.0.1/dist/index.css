@@ -1,5 +1,5 @@
 /*!
- * Vditor v4.0.0 - A markdown editor written in TypeScript.
+ * Vditor v4.0.1 - A markdown editor written in TypeScript.
  *
  * MIT License
  *
@@ -25,7 +25,7 @@
  *
  */
 /*!
- * Vditor v4.0.0 - A markdown editor written in TypeScript.
+ * Vditor v4.0.1 - A markdown editor written in TypeScript.
  *
  * MIT License
  *
@@ -69,16 +69,13 @@
   --count-background-color: rgba(27, 31, 35, 0.05);
   --heading-border-color: #eaecef;
   --blockquote-color: #6a737d;
-  --callout-note-color: #0969da;
-  --callout-note-background-color: rgba(9, 105, 218, 0.08);
-  --callout-tip-color: #1a7f37;
-  --callout-tip-background-color: rgba(26, 127, 55, 0.08);
-  --callout-important-color: #8250df;
-  --callout-important-background-color: rgba(130, 80, 223, 0.08);
-  --callout-warning-color: #9a6700;
-  --callout-warning-background-color: rgba(154, 103, 0, 0.08);
-  --callout-caution-color: #cf222e;
-  --callout-caution-background-color: rgba(207, 34, 46, 0.08);
+  --blockquote-border-color: #e0e0e0;
+  --blockquote-text-color: #5f6368;
+  --callout-note-color: #3575f0;
+  --callout-tip-color: #65b84d;
+  --callout-important-color: #8957e5;
+  --callout-warning-color: #ff9632;
+  --callout-caution-color: #d23f31;
   --ir-heading-color: #660e7a;
   --ir-title-color: #808080;
   --ir-bi-color: #0033b3;
@@ -103,16 +100,13 @@
   --count-background-color: rgba(66, 133, 244, 0.36);
   --heading-border-color: var(--textarea-text-color);
   --blockquote-color: var(--toolbar-icon-color);
-  --callout-note-color: #58a6ff;
-  --callout-note-background-color: rgba(56, 139, 253, 0.15);
-  --callout-tip-color: #3fb950;
-  --callout-tip-background-color: rgba(46, 160, 67, 0.15);
-  --callout-important-color: #a371f7;
-  --callout-important-background-color: rgba(163, 113, 247, 0.15);
-  --callout-warning-color: #d29922;
-  --callout-warning-background-color: rgba(187, 128, 9, 0.15);
-  --callout-caution-color: #f85149;
-  --callout-caution-background-color: rgba(248, 81, 73, 0.15);
+  --blockquote-border-color: rgba(230, 230, 230, 0.1);
+  --blockquote-text-color: #9aa0a6;
+  --callout-note-color: #3575f0;
+  --callout-tip-color: #65b84d;
+  --callout-important-color: #b388ff;
+  --callout-warning-color: #ff9632;
+  --callout-caution-color: #d23f31;
   --ir-heading-color: #9876aa;
   --ir-title-color: #808080;
   --ir-bi-color: #cc7832;
@@ -959,17 +953,37 @@
   margin-top: 0;
   margin-bottom: 16px;
 }
-.vditor-reset blockquote {
-  padding: 0 1em;
-  color: #6a737d;
-  border-left: 0.25em solid #eaecef;
+.vditor-reset blockquote:not(.callout) {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 0 0 0 calc(0.25em + 6px);
+  color: var(--blockquote-text-color, #5f6368);
+  background-color: transparent;
+  border: 0;
   margin: 0 0 16px 0;
 }
-.vditor-reset blockquote > :first-child {
+.vditor-reset blockquote:not(.callout)::before {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 2px;
+  width: 0.25em;
+  content: "";
+  background-color: var(--blockquote-border-color, #e0e0e0);
+  border-radius: 6px;
+}
+.vditor-reset blockquote:not(.callout) > :first-child {
   margin-top: 0;
 }
-.vditor-reset blockquote > :last-child {
+.vditor-reset blockquote:not(.callout) > :last-child {
   margin-bottom: 0;
+}
+.vditor-reset blockquote:not(.callout) > p {
+  padding: 4px;
+  margin: 2px 0;
+  line-height: 1.625;
+  border-radius: 6px;
 }
 .vditor-reset ins > iframe {
   border: 0;
@@ -1383,39 +1397,46 @@
 .vditor-reset .callout,
 .vditor-wysiwyg blockquote.callout,
 .vditor-ir blockquote.callout {
-  --callout-color: var(--callout-note-color, #0969da);
-  --callout-background-color: var(--callout-note-background-color, rgba(9, 105, 218, 0.08));
+  --callout-color: var(--callout-note-color, #3575f0);
   position: relative;
+  display: flex;
+  flex-direction: column;
   margin: 0 0 16px;
-  padding: 0.75em 1em;
-  color: inherit;
-  background-color: var(--callout-background-color);
+  padding: 0 0 0 calc(0.25em + 6px);
+  color: var(--blockquote-text-color, #5f6368);
   border: 0;
-  border-left: 0.25em solid var(--callout-color);
+}
+.vditor-reset .callout::before,
+.vditor-wysiwyg blockquote.callout::before,
+.vditor-ir blockquote.callout::before {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 2px;
+  width: 0.25em;
+  content: "";
+  background-color: var(--callout-color);
+  border-radius: 6px;
 }
 .vditor-reset .callout[data-subtype="TIP"],
 .vditor-wysiwyg blockquote.callout[data-subtype="TIP"],
 .vditor-ir blockquote.callout[data-subtype="TIP"] {
-  --callout-color: var(--callout-tip-color, #1a7f37);
-  --callout-background-color: var(--callout-tip-background-color, rgba(26, 127, 55, 0.08));
+  --callout-color: var(--callout-tip-color, #65b84d);
 }
 .vditor-reset .callout[data-subtype="IMPORTANT"],
 .vditor-wysiwyg blockquote.callout[data-subtype="IMPORTANT"],
 .vditor-ir blockquote.callout[data-subtype="IMPORTANT"] {
-  --callout-color: var(--callout-important-color, #8250df);
-  --callout-background-color: var(--callout-important-background-color, rgba(130, 80, 223, 0.08));
+  --callout-color: var(--callout-important-color, #8957e5);
 }
 .vditor-reset .callout[data-subtype="WARNING"],
 .vditor-wysiwyg blockquote.callout[data-subtype="WARNING"],
 .vditor-ir blockquote.callout[data-subtype="WARNING"] {
-  --callout-color: var(--callout-warning-color, #9a6700);
-  --callout-background-color: var(--callout-warning-background-color, rgba(154, 103, 0, 0.08));
+  --callout-color: var(--callout-warning-color, #ff9632);
 }
 .vditor-reset .callout[data-subtype="CAUTION"],
 .vditor-wysiwyg blockquote.callout[data-subtype="CAUTION"],
 .vditor-ir blockquote.callout[data-subtype="CAUTION"] {
-  --callout-color: var(--callout-caution-color, #cf222e);
-  --callout-background-color: var(--callout-caution-background-color, rgba(207, 34, 46, 0.08));
+  --callout-color: var(--callout-caution-color, #d23f31);
 }
 .vditor-reset .callout > .callout-info,
 .vditor-wysiwyg blockquote.callout > .callout-info,
@@ -1423,21 +1444,38 @@
   display: flex;
   align-items: center;
   min-height: 1.5em;
-  margin: 0 0 0.5em;
+  margin: 2px 0;
+  padding: 4px;
   color: var(--callout-color);
-  font-weight: 600;
 }
 .vditor-reset .callout > .callout-info .callout-icon,
 .vditor-wysiwyg blockquote.callout > .callout-info .callout-icon,
 .vditor-ir blockquote.callout > .callout-info .callout-icon {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  margin-right: 0.35em;
+  justify-content: center;
+  width: 1.2em;
+  height: 1.2em;
+  padding: 4px;
+  line-height: 1.2em;
+  text-align: center;
+  font-variant-emoji: emoji;
+  border-radius: 6px;
+}
+.vditor-reset .callout > .callout-info .callout-icon:empty,
+.vditor-wysiwyg blockquote.callout > .callout-info .callout-icon:empty,
+.vditor-ir blockquote.callout > .callout-info .callout-icon:empty {
+  display: none;
 }
 .vditor-reset .callout > .callout-info .callout-title,
 .vditor-wysiwyg blockquote.callout > .callout-info .callout-title,
 .vditor-ir blockquote.callout > .callout-info .callout-title {
+  flex: 1;
   min-width: 1px;
+  margin-left: 4px;
+  font-size: 114%;
+  font-weight: 500;
+  opacity: 0.86;
 }
 .vditor-reset .callout > .callout-info .callout-img,
 .vditor-wysiwyg blockquote.callout > .callout-info .callout-img,
@@ -1445,19 +1483,25 @@
 .vditor-reset .callout > .callout-info > .callout-img,
 .vditor-wysiwyg blockquote.callout > .callout-info > .callout-img,
 .vditor-ir blockquote.callout > .callout-info > .callout-img {
-  width: 1.2em;
   height: 1.2em;
-  margin-right: 0.35em;
-  -o-object-fit: contain;
-     object-fit: contain;
+  width: 100%;
 }
-.vditor-reset .callout > .callout-content > :last-child,
-.vditor-wysiwyg blockquote.callout > .callout-content > :last-child,
-.vditor-ir blockquote.callout > .callout-content > :last-child,
-.vditor-reset .callout > :last-child,
-.vditor-wysiwyg blockquote.callout > :last-child,
-.vditor-ir blockquote.callout > :last-child {
-  margin-bottom: 0;
+.vditor-reset .callout > p:not(.callout-info),
+.vditor-wysiwyg blockquote.callout > p:not(.callout-info),
+.vditor-ir blockquote.callout > p:not(.callout-info),
+.vditor-reset .callout > .callout-content > p,
+.vditor-wysiwyg blockquote.callout > .callout-content > p,
+.vditor-ir blockquote.callout > .callout-content > p {
+  padding: 4px;
+  margin: 2px 0;
+  line-height: 1.625;
+  border-radius: 6px;
+}
+.vditor-wysiwyg blockquote.callout > .callout-info,
+.vditor-ir blockquote.callout > .callout-info {
+  font-size: 114%;
+  font-weight: 500;
+  opacity: 0.86;
 }
 .vditor-wysiwyg__callout-marker {
   display: none;

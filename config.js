@@ -23,8 +23,8 @@ window.BLACKNET = {
   ANNOUNCEMENTS_URL: '/assets/data/announcements.json',
 
   // ---- Vditor（自托管，带版本号便于升级与缓存隔离）----
-  // 目录结构：vditor/4.0.0/dist/…（Vditor 的 cdn 选项会自动在其后拼 dist/）
-  VDITOR_BASE: 'vditor/4.0.0',
+  // 目录结构：vditor/4.0.1/dist/…（Vditor 的 cdn 选项会自动在其后拼 dist/）
+  VDITOR_BASE: 'vditor/4.0.1',
 
   // ---- 前端同源反代（仅前端使用，后端不需要任何改动）----
   // 后端 CORS 只放行固定域名，站点换域名部署（Vercel / 自定义域 / 预览域）

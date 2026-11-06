@@ -1,5 +1,5 @@
 /*!
- * Vditor v4.0.0 - A markdown editor written in TypeScript.
+ * Vditor v4.0.1 - A markdown editor written in TypeScript.
  *
  * MIT License
  *
@@ -45,7 +45,7 @@ return /******/ (() => { // webpackBootstrap
 /* harmony export */   "g": () => (/* binding */ Constants)
 /* harmony export */ });
 /* unused harmony export VDITOR_VERSION */
-var _VDITOR_VERSION = (/* unused pure expression or super */ null && ("4.0.0"));
+var _VDITOR_VERSION = (/* unused pure expression or super */ null && ("4.0.1"));
 
 var Constants = /** @class */ (function () {
     function Constants() {
@@ -93,10 +93,11 @@ var Constants = /** @class */ (function () {
         // 别名
         "js", "ts", "html", "toml", "c#", "bat"
     ];
-    Constants.CDN = "https://unpkg.com/vditor@".concat("4.0.0");
+    Constants.CDN = "https://unpkg.com/vditor@".concat("4.0.1");
     Constants.MARKDOWN_OPTIONS = {
         autoSpace: false,
         callout: true,
+        inlineMath: true,
         gfmAutoLink: true,
         codeBlockPreview: true,
         fixTermTypo: false,
@@ -1023,13 +1024,17 @@ var mathRender = function (element, options) {
 /* harmony export */ });
 /* harmony import */ var _util_function__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(494);
 
-var videoRender = function (element, url) {
-    element.insertAdjacentHTML("afterend", "<video controls=\"controls\" src=\"".concat(url, "\"></video>"));
-    element.remove();
-};
-var audioRender = function (element, url) {
-    element.insertAdjacentHTML("afterend", "<audio controls=\"controls\" src=\"".concat(url, "\"></audio>"));
-    element.remove();
+var replaceMedia = function (element, tag, url) {
+    var media = element.ownerDocument.createElement(tag);
+    if (tag === "iframe") {
+        media.className = "iframe__video";
+    }
+    else {
+        media.setAttribute("controls", "controls");
+    }
+    // 链接属性经 DOM 解码后可能包含引号，直接设置属性以保留 URL 的数据语义。
+    media.setAttribute("src", url);
+    element.replaceWith(media);
 };
 var iframeRender = function (element, url) {
     var youtubeMatch = url.match(/\/\/(?:www\.)?(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w|-]{11})(?:(?:[\?&]t=)(\S+))?/);
@@ -1041,29 +1046,23 @@ var iframeRender = function (element, url) {
     var bilibiliMatch = url.match(/(?:www\.|\/\/)bilibili\.com\/video\/(\w+)/);
     var tedMatch = url.match(/(?:www\.|\/\/)ted\.com\/talks\/(\w+)/);
     if (youtubeMatch && youtubeMatch[1].length === 11) {
-        element.insertAdjacentHTML("afterend", "<iframe class=\"iframe__video\" src=\"//www.youtube.com/embed/".concat(youtubeMatch[1] +
-            (youtubeMatch[2] ? "?start=" + youtubeMatch[2] : ""), "\"></iframe>"));
-        element.remove();
+        replaceMedia(element, "iframe", "//www.youtube.com/embed/".concat(youtubeMatch[1] +
+            (youtubeMatch[2] ? "?start=" + youtubeMatch[2] : "")));
     }
     else if (youkuMatch && youkuMatch[1]) {
-        element.insertAdjacentHTML("afterend", "<iframe class=\"iframe__video\" src=\"//player.youku.com/embed/".concat(youkuMatch[1], "\"></iframe>"));
-        element.remove();
+        replaceMedia(element, "iframe", "//player.youku.com/embed/".concat(youkuMatch[1]));
     }
     else if (qqMatch && qqMatch[1]) {
-        element.insertAdjacentHTML("afterend", "<iframe class=\"iframe__video\" src=\"https://v.qq.com/txp/iframe/player.html?vid=".concat(qqMatch[1], "\"></iframe>"));
-        element.remove();
+        replaceMedia(element, "iframe", "https://v.qq.com/txp/iframe/player.html?vid=".concat(qqMatch[1]));
     }
     else if (coubMatch && coubMatch[1]) {
-        element.insertAdjacentHTML("afterend", "<iframe class=\"iframe__video\"\n src=\"//coub.com/embed/".concat(coubMatch[1], "?muted=false&autostart=false&originalSize=true&startWithHD=true\"></iframe>"));
-        element.remove();
+        replaceMedia(element, "iframe", "//coub.com/embed/".concat(coubMatch[1], "?muted=false&autostart=false&originalSize=true&startWithHD=true"));
     }
     else if (facebookMatch && facebookMatch[0]) {
-        element.insertAdjacentHTML("afterend", "<iframe class=\"iframe__video\"\n src=\"https://www.facebook.com/plugins/video.php?href=".concat(encodeURIComponent(facebookMatch[0]), "\"></iframe>"));
-        element.remove();
+        replaceMedia(element, "iframe", "https://www.facebook.com/plugins/video.php?href=".concat(encodeURIComponent(facebookMatch[0])));
     }
     else if (dailymotionMatch && dailymotionMatch[2]) {
-        element.insertAdjacentHTML("afterend", "<iframe class=\"iframe__video\"\n src=\"https://www.dailymotion.com/embed/video/".concat(dailymotionMatch[2], "\"></iframe>"));
-        element.remove();
+        replaceMedia(element, "iframe", "https://www.dailymotion.com/embed/video/".concat(dailymotionMatch[2]));
     }
     else if (url.indexOf("bilibili.com") > -1 && (url.indexOf("bvid=") > -1 || (bilibiliMatch && bilibiliMatch[1]))) {
         var params_1 = {
@@ -1092,12 +1091,10 @@ var iframeRender = function (element, url) {
                 src_1 += "&";
             }
         });
-        element.insertAdjacentHTML("afterend", "<iframe class=\"iframe__video\" src=\"".concat(src_1, "\"></iframe>"));
-        element.remove();
+        replaceMedia(element, "iframe", src_1);
     }
     else if (tedMatch && tedMatch[1]) {
-        element.insertAdjacentHTML("afterend", "<iframe class=\"iframe__video\" src=\"//embed.ted.com/talks/".concat(tedMatch[1], "\"></iframe>"));
-        element.remove();
+        replaceMedia(element, "iframe", "//embed.ted.com/talks/".concat(tedMatch[1]));
     }
 };
 var mediaRender = function (element) {
@@ -1110,10 +1107,10 @@ var mediaRender = function (element) {
             return;
         }
         if (url.match(/^.+.(mp4|m4v|ogg|ogv|webm)$/)) {
-            videoRender(aElement, url);
+            replaceMedia(aElement, "video", url);
         }
         else if (url.match(/^.+.(mp3|wav|flac)$/)) {
-            audioRender(aElement, url);
+            replaceMedia(aElement, "audio", url);
         }
         else {
             iframeRender(aElement, url);
@@ -1181,7 +1178,7 @@ var mermaidRender = function (element, cdn, theme) {
     if (mermaidElements.length === 0) {
         return;
     }
-    (0,_util_addScript__WEBPACK_IMPORTED_MODULE_2__/* .addScript */ .G)("".concat(cdn, "/dist/js/mermaid/mermaid.min.js?v=11.16.1"), "vditorMermaidScript").then(function () {
+    (0,_util_addScript__WEBPACK_IMPORTED_MODULE_2__/* .addScript */ .G)("".concat(cdn, "/dist/js/mermaid/mermaid.min.js?v=11.17.2"), "vditorMermaidScript").then(function () {
         var config = {
             securityLevel: "loose",
             altFontFamily: "sans-serif",
@@ -1517,6 +1514,7 @@ var setLute = function (options) {
     lute.SetInlineMathAllowDigitAfterOpenMarker(options.inlineMathDigit);
     lute.SetAutoSpace(options.autoSpace);
     lute.SetCallout(options.callout);
+    lute.SetInlineMath(options.inlineMath);
     lute.SetToC(options.toc);
     lute.SetFootnotes(options.footnotes);
     lute.SetFixTermTypo(options.fixTermTypo);
@@ -2777,6 +2775,7 @@ var md2html = function (mdText, options) {
         var lute = (0,setLute/* setLute */.X)({
             autoSpace: mergedOptions.markdown.autoSpace,
             callout: mergedOptions.markdown.callout,
+            inlineMath: mergedOptions.markdown.inlineMath,
             gfmAutoLink: mergedOptions.markdown.gfmAutoLink,
             codeBlockPreview: mergedOptions.markdown.codeBlockPreview,
             emojiSite: mergedOptions.emojiPath,
