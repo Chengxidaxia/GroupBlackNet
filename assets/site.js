@@ -107,7 +107,7 @@
     return nm === 'Announcements';
   }
 
-  // 统一内容源：Vercel Global Config（与 vercel-proxy 同一个服务），
+  // 统一内容源：Upstash 的 bn:content（读 /api/content），
   // 由同源 /api/content 中转；读不到则回退站点静态 JSON（assets/data/*.json），
   // 本地预览、GC 未配、后端故障时都能照常工作。
   let _contentPromise = null;
@@ -133,7 +133,7 @@
     hue: Number(c && c.hue != null ? c.hue : (214 + i * 29) % 360)
   })).filter(c => c.name);
 
-  // 分类列表：Global Config 优先，回退站点静态 JSON（随 git 发布，同源零 CORS）
+  // 分类列表：服务端内容优先，回退站点静态 JSON（随 git 发布，同源零 CORS）
   let catReadyResolve;
   const catReady = new Promise(res => { catReadyResolve = res; });
   async function loadCategories() {
@@ -142,7 +142,7 @@
       const norm = normCats(gc.categories.grp);
       if (norm.length) {
         CATS = norm;
-        GB.catSource = 'global-config';
+        GB.catSource = 'server';
         catReadyResolve(CATS);
         return CATS;
       }

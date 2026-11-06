@@ -49,14 +49,18 @@
 | `GITHUB_CLIENT_SECRET` | 是 | OAuth App 的 Secret |
 | `OAUTH_REDIRECT_URI` | 否 | 默认 `https://grp.blacknet.cc.cd/api/oauth/callback` |
 | `FRONTEND_URL` | 否 | 登录完成后回跳地址，默认主站 |
-| `GLOBAL_CONFIG` | 建议 | Global Config 连接串（`https://global-config.vercel.com/<id>?token=…`），分类与公告从它读；缺失时 `/api/content` 回退内置默认值 |
+| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | 建议 | 与书阁同一个库；分类与公告存在键 `bn:content`。缺失时 `/api/content` 回退内置默认值 |
+| `CONTENT_ADMIN` | 否 | `/api/content` 的 PUT 白名单（逗号分隔 GitHub 登录名），默认 `Chengxidaxia` |
+| `CONTENT_JSON` | 否 | 应急覆盖：整段内容 JSON 直接放这里，优先级高于 Upstash |
 
 改动环境变量后必须 **Redeploy** 才会带进新的 Function 实例。
 `GH_TOKEN` 缺失时列表页直接空 —— 这是最常见的「线上打不开」原因。
 
-> 分类与公告已改为读 **Vercel Global Config**（与 `vercel-proxy` 同一个服务），在面板里改 JSON
-> 即可秒级生效、不用 Redeploy。仓库里的 `assets/data/categories.json`、`announcements.json`
-> 保留为兜底：线上优先走 `/api/content`，读不到才回落静态文件。
+> 分类与公告存在 **Upstash Redis 的 `bn:content`**（与书阁同一个库、同一个键）。
+> 改内容两种方式：Upstash 控制台 Data Browser 直接编辑，或 `PUT /api/content`
+>（需群档案 GitHub 登录且账号在 `CONTENT_ADMIN` 名单里）。首次访问若键为空会自动播种默认值。
+> 仓库里的 `assets/data/categories.json`、`announcements.json` 保留为兜底：
+> 线上优先走 `/api/content`，读不到才回落静态文件。
 
 ### 1.3 缓存与安全头
 
