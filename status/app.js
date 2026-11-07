@@ -127,10 +127,18 @@
     box.innerHTML = doc.services.map(function (s, i) {
       var m = metrics(doc, bk, i);
 
+      // 已填过数据的桶数：新增监控项时历史位串里没有这一位，桶全是 null
+      var filled = 0;
+      bk.buckets.forEach(function (row) { if (row[i] !== null) filled++; });
+      var isNew = filled < 6;
+
       var bars = bk.buckets.map(function (row) {
         var v = row[i];
-        var cls = v === null ? 'empty' : (v === 1 ? 'up' : 'down');
-        return '<span class="st-bar ' + cls + '"></span>';
+        if (v === null) {
+          // 新项：不画空槽（否则一整条浅灰看着像故障），只贴右显示已有的点
+          return isNew ? '' : '<span class="st-bar empty"></span>';
+        }
+        return '<span class="st-bar ' + (v === 1 ? 'up' : 'down') + '"></span>';
       }).join('');
 
       var st = s.ok ? 'up' : 'down';
@@ -140,8 +148,13 @@
         + (s.ok ? (s.ms + ' ms') : (s.err || detail))
         + ' · 24h ' + fmtPct(m.h24) + ' · 近 7 天 ' + fmtPct(m.d7);
 
-      var rateText = '24h ' + fmtPct(m.h24);
-      if (m.d7 != null) rateText += ' · 7 天 ' + fmtPct(m.d7);
+      var rateText;
+      if (isNew) {
+        rateText = filled ? '新增监控 · 数据累积中' : '新增监控 · 等待首次探测';
+      } else {
+        rateText = '24h ' + fmtPct(m.h24);
+        if (m.d7 != null) rateText += ' · 7 天 ' + fmtPct(m.d7);
+      }
 
       return '<li class="st-card" data-state="' + st + '">'
         +   '<div class="st-card-head">'
@@ -155,7 +168,7 @@
         +       '<span class="st-rate">' + esc(rateText) + '</span>'
         +     '</div>'
         +   '</div>'
-        +   '<div class="st-bars" title="最近 24 小时，每格 30 分钟">' + bars + '</div>'
+        +   '<div class="st-bars' + (isNew ? ' is-new' : '') + '" title="最近 24 小时，每格 30 分钟">' + bars + '</div>'
         + '</li>';
     }).join('');
   }
