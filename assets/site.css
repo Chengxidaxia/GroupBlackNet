@@ -641,9 +641,9 @@ a.st-url:hover{color:var(--accent)}
 /* 24 小时条形图 */
 .st-bars{display:grid;grid-template-columns:repeat(48,1fr);gap:2px;margin-top:12px;height:26px}
 .st-bar{height:100%;border-radius:2px;background:var(--line-2)}
-.st-bar.up{background:#16a34a;opacity:.68}
+.st-bar.up{background:#16a34a;opacity:.78}
 .st-bar.down{background:var(--accent);opacity:.95}
-.st-bar.empty{background:var(--line);opacity:.55}
+.st-bar.empty{background:var(--line);opacity:.4}
 
 /* 7 天表格 */
 .st-week{margin:34px 0 0;border-top:1px solid var(--line);padding-top:26px}
