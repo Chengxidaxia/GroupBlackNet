@@ -116,13 +116,14 @@ a.st-url:hover{color:var(--accent)}
 .st-card[data-state="down"] .st-ms{color:var(--accent)}
 .st-rate{font-size:12px;color:var(--muted)}
 
-/* 24 小时竖细条（宽屏 144 格 / 窄屏 72 格，格数由 app.js 的 barCount 经 --slices 给出） */
-.st-bars{--bar-gap:2px;--bar-h:24px;--slices:144;display:grid;grid-template-columns:repeat(var(--slices),1fr);gap:var(--bar-gap);margin-top:12px;height:var(--bar-h)}
+/* 24 小时竖细条（宽屏 144 格 / 窄屏 72 格）：条用固定宽度 + space-between，
+   间隔由浏览器精确均分，不会出现每格宽窄不一的亚像素问题 */
+.st-bars{--bar-w:3px;--bar-h:24px;--slices:144;display:grid;grid-template-columns:repeat(var(--slices),var(--bar-w));justify-content:space-between;margin-top:12px;height:var(--bar-h)}
 .st-bar{height:100%;border-radius:999px;background:var(--line-2)}
 .st-bar.up{background:#16a34a;opacity:.9}
 .st-bar.down{background:var(--accent)}
-/* 新增监控项：历史还没攒够，前面留透明占位，只画已有点，避免一整排浅灰看着像故障 */
-.st-bar.gap{background:transparent}
+/* 还没有数据的时段：用浅灰中性条补位，保持整行连续 */
+.st-bar.gap{background:var(--line);opacity:.45}
 
 /* 即时浮窗（替代原生 title 的延迟提示） */
 .st-tip{
@@ -187,7 +188,7 @@ a.st-url:hover{color:var(--accent)}
   .st-card-head{grid-template-columns:12px minmax(0,1fr)}
   .st-card-stat{grid-column:2;flex-direction:row;flex-wrap:wrap;align-items:baseline;gap:8px;min-width:0}
   .st-ms{max-width:100%;white-space:normal;overflow-wrap:anywhere}
-  .st-bars{--bar-gap:1px;--bar-h:18px}
+  .st-bars{--bar-w:2px;--bar-h:18px}
   .st-list > .st-group{margin-top:6px}
   .st-banner{padding:15px 16px;gap:12px}
   .page-wrap{padding-left:16px;padding-right:16px}
