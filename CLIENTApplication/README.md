@@ -139,7 +139,7 @@ build.bat
 | `headerType` | `gui` | 双击不弹黑色控制台窗口 |
 | `minVersion` | `21.0.0` | 目标机需 JDK/JRE 21+；缺 JRE 时弹窗给出 Adoptium 下载页 |
 | `singleInstance` | 开 | 重复双击不会开第二个窗口，会提示「已在运行」 |
-| `icon` / `versionInfo` | 已设 | 图标 + 文件属性（产品名「群档案」、版本 1.0.0.0） |
+| `icon` / `versionInfo` | 已设 | 图标 + 文件属性（产品名「群档案」、版本 1.0.1.0，与 `Config.VERSION` 保持同步） |
 
 几个实测过的坑：
 
@@ -189,10 +189,12 @@ CLIENTApplication/
 
 - **封面图源**：部分文章封面指向 `img.blacknet.cc.cd`，该域目前对图片返回 404（B2 变量问题，与客户端无关）。
   此时客户端会按站点的兜底行为画**分类渐变 + 分类名**，不会出现空白块。
-- **分类 / 公告端点**：网页端已改为读站点静态 JSON（`/assets/data/categories.json`、
-  `announcements.json`），CF Worker 源码里对应的 KV 分支已移除；客户端仍请求
-  `api.blacknet.cc.cd/categories` 与 `/announcements`，目前由线上那版 Worker 继续返回。
-  如果哪天重新部署 Worker 导致这两个端点消失，客户端要改成读静态 JSON（或退回内置默认分类）。
+- **分类 / 公告数据源**（1.0.1 起已改）：不再请求 `api.blacknet.cc.cd/categories` 与
+  `/announcements`（Worker 那版分支已下线，请求会失败）。现在的取数顺序是
+  **站点 `/api/content`（Upstash 权威源，与网页端同库）→ 站点静态 JSON
+  `/assets/data/categories.json`、`announcements.json` → 内置默认分类**。
+  内置兜底 `MetaParser.CATS_FALLBACK` 与 `assets/data/categories.json` 取值一致（1 公告 / 2 新闻 /
+  3 资讯 / 4 技术 / 5 活动 / 6 随笔），两级网络源全挂时界面仍可用，不会出现空白分类。
 - **暗色下的系统控件**：已把排序等控件改为自绘分段按钮；`JFileChooser` 等系统对话框仍使用系统配色。
 - **表情字体**：使用 `Segoe UI Emoji`，含 emoji 的文本会自动切换字体（Windows 自带）。
 - 客户端不受浏览器 CORS 限制，可直接访问 api/oauth（网页端需要域名白名单）。

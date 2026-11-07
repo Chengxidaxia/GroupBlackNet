@@ -152,11 +152,15 @@ public final class Api {
         return new Discussion(post, comments, Math.max(total, comments.size()), end, hasNext);
     }
 
+    /**
+     * 分类：优先站点 /api/content 的 categories.grp（Upstash 权威数据），
+     * 失败再取静态快照 /assets/data/categories.json；两者都失败才抛异常，
+     * 由上层继续用 MetaParser.CATS_FALLBACK 兜底。
+     *
+     * 说明：CF Worker 的 /categories 分支已随站点改版移除，不能再依赖。
+     */
     public static List<Category> categories() throws Exception {
-        Map<String, Object> probe = LinkedHashMapHolder.of(get(Config.API + "/categories"));
-        List<Object> arr = Json.list(probe, "list");
-        if (arr.isEmpty()) arr = Json.list(probe, "categories");
-        if (arr.isEmpty() && probe.containsKey("__raw_list")) arr = Json.list(probe, "__raw_list");
+        List<Object> arr = fetchArray("/api/content", "grp", "/assets/data/categories.json");
         List<Category> out = new ArrayList<>();
         int i = 0;
         for (Object o : arr) {
@@ -170,11 +174,9 @@ public final class Api {
         return out;
     }
 
+    /** 公告：同样两级回退（/api/content 的 announcements → assets/data/announcements.json）。 */
     public static List<Announcement> announcements() throws Exception {
-        Map<String, Object> probe = LinkedHashMapHolder.of(get(Config.API + "/announcements"));
-        List<Object> arr = Json.list(probe, "list");
-        if (arr.isEmpty()) arr = Json.list(probe, "announcements");
-        if (arr.isEmpty()) arr = Json.list(probe, "__raw_list");
+        List<Object> arr = fetchArray("/api/content", null, "/assets/data/announcements.json");
         List<Announcement> out = new ArrayList<>();
         for (Object o : arr) {
             if (o instanceof String s) { if (!s.isBlank()) out.add(new Announcement(s, "")); continue; }
@@ -183,6 +185,41 @@ public final class Api {
             if (title != null && !title.isBlank()) out.add(new Announcement(title, Json.str(a, "url", "")));
         }
         return out;
+    }
+
+    /**
+     * 取内容数组：先站点内容接口，再站点静态 JSON。
+     *
+     * @param contentKey null = /api/content 里的一级数组（announcements）；
+     *                   非 null = 取 categories.&lt;key&gt;（分类是分组结构）
+     */
+    private static List<Object> fetchArray(String contentPath, String contentKey, String staticPath) throws Exception {
+        Exception last = null;
+
+        try {
+            Object v = Json.parse(get(Config.MAIN_SITE + contentPath));
+            List<Object> arr = contentKey == null
+                    ? asArray(v)
+                    : Json.list(Json.map(asMap(v), "categories"), contentKey);
+            if (!arr.isEmpty()) return arr;
+        } catch (Exception e) {
+            last = e;
+        }
+
+        try {
+            List<Object> arr = asArray(Json.parse(get(Config.MAIN_SITE + staticPath)));
+            if (!arr.isEmpty()) return arr;
+        } catch (Exception e) {
+            last = e;
+        }
+
+        if (last != null) throw last;
+        return List.of();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Object> asArray(Object v) {
+        return v instanceof List ? (List<Object>) v : List.of();
     }
 
     /* ---------------- 写入 / 登录（oauth） ---------------- */
@@ -334,19 +371,5 @@ public final class Api {
                 Json.intVal(m, "upvoteCount", 0),
                 Json.bool(m, "viewerHasUpvoted", false),
                 replies);
-    }
-
-    /** 包一层，便于把「顶层是数组」的响应塞进 Map 访问器。 */
-    private static final class LinkedHashMapHolder {
-        static Map<String, Object> of(String raw) {
-            Map<String, Object> m = new java.util.LinkedHashMap<>();
-            Object v = Json.parse(raw);
-            if (v instanceof List<?> l) {
-                m.put("__raw_list", l);
-            } else if (v instanceof Map<?, ?> mm) {
-                for (Map.Entry<?, ?> e : mm.entrySet()) m.put(String.valueOf(e.getKey()), e.getValue());
-            }
-            return m;
-        }
     }
 }

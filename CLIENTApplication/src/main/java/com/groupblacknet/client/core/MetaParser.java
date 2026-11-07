@@ -47,16 +47,18 @@ public final class MetaParser {
 
     /* ---------------- 分类 ---------------- */
 
+    /** 兜底分类：仅在 /api/content 与静态 JSON 都取不到时使用，取值与 assets/data/categories.json 一致 */
     public static final List<Category> CATS_FALLBACK = List.of(
-            new Category(1, "公告", 352),
-            new Category(2, "资讯", 214),
-            new Category(3, "技术", 168),
-            new Category(4, "活动", 32),
-            new Category(5, "随笔", 276));
+            new Category(1, "公告", 30),
+            new Category(2, "新闻", 352),
+            new Category(3, "资讯", 214),
+            new Category(4, "技术", 168),
+            new Category(5, "活动", 32),
+            new Category(6, "随笔", 276));
 
-    /** 旧数据可能是 GitHub 分类名 / 中文名 */
+    /** 旧数据可能是 GitHub 分类名 / 中文名（与 site.js 的 LEGACY_CAT 保持一致） */
     private static final Map<String, Integer> LEGACY = Map.of(
-            "Announcements", 1, "公告", 1, "资讯", 2, "技术", 3, "活动", 4, "随笔", 5);
+            "Announcements", 1, "公告", 1, "新闻", 2, "资讯", 3, "技术", 4, "活动", 5, "随笔", 6);
 
     private static volatile List<Category> cats = CATS_FALLBACK;
     private static volatile boolean catsRemote = false;
