@@ -8,8 +8,38 @@
 
   var API = '/api/status';
   var BARS = 48;            // 24 小时切成 48 格（每格 30 分钟）
+  var SLOT_MS = 120000;     // 探测间隔，与 Worker 的 SLOT_MS 一致
+  var DAY_MS = 86400000;
+  var TZ_MS = 8 * 3600 * 1000;   // 日聚合按 UTC+8 分天
   var POLL_MS = 30000;
+  var NEW_WINDOW = 12 * 3600 * 1000;   // 上线不足 12 小时按「数据累积中」处理
   var state = { doc: null, timer: null, ticker: null };
+
+  // 分组顺序与标题
+  var GROUPS = [
+    { id: 'site', label: '主站页面' },
+    { id: 'book', label: '书阁页面' },
+    { id: 'api',  label: '接口与数据' },
+    { id: 'ext',  label: '外部依赖' }
+  ];
+  function groupOrder(g) {
+    for (var i = 0; i < GROUPS.length; i++) if (GROUPS[i].id === g) return i;
+    return GROUPS.length;
+  }
+  function groupLabel(g) {
+    for (var i = 0; i < GROUPS.length; i++) if (GROUPS[i].id === g) return GROUPS[i].label;
+    return '其他';
+  }
+  // 显示顺序（按分组、组内保持 TARGETS 原序）。返回的永远是原始索引 —— 位串靠它对齐
+  function orderedIndices(doc) {
+    var idx = doc.services.map(function (_, i) { return i; });
+    idx.sort(function (a, b) {
+      var ga = groupOrder(doc.services[a].group || 'site');
+      var gb = groupOrder(doc.services[b].group || 'site');
+      return ga !== gb ? ga - gb : a - b;
+    });
+    return idx;
+  }
 
   var $ = function (id) { return document.getElementById(id); };
   function esc(s) {
@@ -53,6 +83,7 @@
   // hist: [[slot, "101101"], ...]（新在前）
   function bucketize(doc) {
     var n = doc.services.length;
+    var since = doc.since || [];
     var hist = (doc.hist || []).filter(function (h) { return Array.isArray(h) && typeof h[1] === 'string'; });
     hist.sort(function (a, b) { return a[0] - b[0]; });
     var slots = hist.slice(-BARS * 15);              // 2 分钟一格 × 15 = 每桶 30 分钟
@@ -67,8 +98,12 @@
     for (var j = 0; j < L; j++) {
       var bi = BARS - 1 - Math.floor((L - 1 - j) / per);
       if (bi < 0) continue;
+      var slot = slots[j][0];
+      var at = slot * SLOT_MS;
       var bitstr = slots[j][1];
       for (var s = 0; s < n; s++) {
+        // 该项上线之前的时段不算（新增目标不该拖累历史）
+        if (since[s] && at < since[s]) continue;
         var ch = bitstr.charAt(s);
         // 新增探测项后，旧位串里没有这一位 → 跳过，桶保持 null
         if (ch !== '0' && ch !== '1') continue;
@@ -80,21 +115,44 @@
     return { buckets: buckets, hist: hist };
   }
 
+  /* ---------- 可用率分母 ----------
+     监控项是陆续加进来的，某天 12:00 才上线的项当天只有一半样本。
+     有 cnt（Worker 记的真实样本数）就用它；老数据没有 cnt，
+     按 since 与当天时间窗的重叠比例折算，绝不拿全天轮次当分母。
+  ------------------------------------ */
+  function dayStartOf(key) {
+    return Date.parse(key + 'T00:00:00Z') - TZ_MS;   // 该日 UTC+8 0 点
+  }
+  function sampleCount(day, i, sinceTs, key) {
+    if (Array.isArray(day.cnt) && typeof day.cnt[i] === 'number') return day.cnt[i] || 0;
+    var n = day.n || 0;
+    if (!n) return 0;
+    if (!sinceTs || !key) return n;
+    var start = dayStartOf(key);
+    var end = start + DAY_MS;
+    if (sinceTs >= end) return 0;
+    if (sinceTs <= start) return n;
+    return Math.round(n * (end - sinceTs) / DAY_MS);
+  }
+
   /* ---------- 单项的 24 小时 / 近 7 天可用率 ---------- */
   function metrics(doc, bk, i) {
+    var sinceTs = (doc.since && doc.since[i]) || 0;
     var up = 0, total = 0;
     bk.hist.forEach(function (h) {
+      if (sinceTs && h[0] * SLOT_MS < sinceTs) return;
       var ch = h[1].charAt(i);
       if (ch === '1') { up++; total++; } else if (ch === '0') { total++; }
     });
-    var keys = Object.keys(doc.days || {}).sort().slice(-7);
+    var days = doc.days || {};
+    var keys = Object.keys(days).sort().slice(-7);
     var up7 = 0, n7 = 0;
     keys.forEach(function (k) {
-      var d = doc.days[k] || {};
+      var d = days[k] || {};
       up7 += (d.ok && d.ok[i]) || 0;
-      n7 += d.n || 0;
+      n7 += sampleCount(d, i, sinceTs, k);
     });
-    return { h24: pct(up, total), d7: pct(up7, n7) };
+    return { h24: pct(up, total), d7: pct(up7, n7), n7: n7, h24n: total };
   }
 
   /* ---------- 顶部横幅 ---------- */
@@ -121,56 +179,80 @@
   }
 
   /* ---------- 服务卡片 ---------- */
+  function cardOf(doc, bk, s, i) {
+    var m = metrics(doc, bk, i);
+    var sinceTs = (doc.since && doc.since[i]) || 0;
+    var isNew = sinceTs ? (Date.now() - sinceTs < NEW_WINDOW) : false;
+
+    // 已填过数据的桶数：再兜一层，位串里没这一位时也不把它当正常
+    var filled = 0;
+    bk.buckets.forEach(function (row) { if (row[i] !== null) filled++; });
+    if (!isNew && filled > 0 && filled < 6) isNew = true;
+
+    var bars = bk.buckets.map(function (row) {
+      var v = row[i];
+      if (v === null) {
+        // 新项：不画空槽（否则一整条浅灰看着像故障），只贴右显示已有的点
+        return isNew ? '' : '<span class="st-bar empty"></span>';
+      }
+      return '<span class="st-bar ' + (v === 1 ? 'up' : 'down') + '"></span>';
+    }).join('');
+
+    var st = s.ok ? 'up' : 'down';
+    var detail = errText(s);
+
+    var sinceText = '';
+    if (sinceTs) {
+      var d0 = new Date(sinceTs);
+      sinceText = ' · 自 ' + (d0.getMonth() + 1) + '-' + d0.getDate() + ' 起监控';
+    }
+    // 悬停能看到：HTTP 状态码、原始错误、24h 与近 7 天（含真实样本数）
+    var detailTitle = (s.code ? 'HTTP ' + s.code + ' · ' : '')
+      + (s.ok ? (s.ms + ' ms') : (s.err || detail))
+      + ' · 24h ' + fmtPct(m.h24) + '（' + m.h24n + ' 次样本）'
+      + ' · 近 7 天 ' + fmtPct(m.d7) + '（' + m.n7 + ' 次样本）'
+      + sinceText;
+
+    var rateText;
+    if (isNew) {
+      rateText = filled ? '新增监控 · 数据累积中' : '新增监控 · 等待首次探测';
+    } else {
+      rateText = '24h ' + fmtPct(m.h24);
+      if (m.d7 != null) rateText += ' · 7 天 ' + fmtPct(m.d7);
+    }
+
+    return '<li class="st-card" data-state="' + st + '">'
+      +   '<div class="st-card-head">'
+      +     '<span class="st-dot"></span>'
+      +     '<div class="st-card-title">'
+      +       '<b class="st-name">' + esc(s.name) + '</b>'
+      +       '<a class="st-url" href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(hostOf(s.url)) + ' ↗</a>'
+      +     '</div>'
+      +     '<div class="st-card-stat">'
+      +       '<span class="st-ms" title="' + esc(detailTitle) + '">' + esc(detail) + '</span>'
+      +       '<span class="st-rate">' + esc(rateText) + '</span>'
+      +     '</div>'
+      +   '</div>'
+      +   '<div class="st-bars' + (isNew ? ' is-new' : '') + '" title="最近 24 小时，每格 30 分钟">' + bars + '</div>'
+      + '</li>';
+  }
+
   function renderList(doc) {
     var box = $('stList');
     var bk = bucketize(doc);
-    box.innerHTML = doc.services.map(function (s, i) {
-      var m = metrics(doc, bk, i);
-
-      // 已填过数据的桶数：新增监控项时历史位串里没有这一位，桶全是 null
-      var filled = 0;
-      bk.buckets.forEach(function (row) { if (row[i] !== null) filled++; });
-      var isNew = filled < 6;
-
-      var bars = bk.buckets.map(function (row) {
-        var v = row[i];
-        if (v === null) {
-          // 新项：不画空槽（否则一整条浅灰看着像故障），只贴右显示已有的点
-          return isNew ? '' : '<span class="st-bar empty"></span>';
-        }
-        return '<span class="st-bar ' + (v === 1 ? 'up' : 'down') + '"></span>';
-      }).join('');
-
-      var st = s.ok ? 'up' : 'down';
-      var detail = errText(s);
-      // 悬停能看到：HTTP 状态码、原始错误、24h 与近 7 天
-      var detailTitle = (s.code ? 'HTTP ' + s.code + ' · ' : '')
-        + (s.ok ? (s.ms + ' ms') : (s.err || detail))
-        + ' · 24h ' + fmtPct(m.h24) + ' · 近 7 天 ' + fmtPct(m.d7);
-
-      var rateText;
-      if (isNew) {
-        rateText = filled ? '新增监控 · 数据累积中' : '新增监控 · 等待首次探测';
-      } else {
-        rateText = '24h ' + fmtPct(m.h24);
-        if (m.d7 != null) rateText += ' · 7 天 ' + fmtPct(m.d7);
+    // 按分组排，组内保持 TARGETS 原始顺序（索引 i 必须一直是原索引，位串靠它对齐）
+    var html = '';
+    var last = '';
+    orderedIndices(doc).forEach(function (i) {
+      var s = doc.services[i];
+      var g = s.group || 'site';
+      if (g !== last) {
+        html += '<li class="st-group">' + esc(groupLabel(g)) + '</li>';
+        last = g;
       }
-
-      return '<li class="st-card" data-state="' + st + '">'
-        +   '<div class="st-card-head">'
-        +     '<span class="st-dot"></span>'
-        +     '<div class="st-card-title">'
-        +       '<b class="st-name">' + esc(s.name) + '</b>'
-        +       '<a class="st-url" href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(hostOf(s.url)) + ' ↗</a>'
-        +     '</div>'
-        +     '<div class="st-card-stat">'
-        +       '<span class="st-ms" title="' + esc(detailTitle) + '">' + esc(detail) + '</span>'
-        +       '<span class="st-rate">' + esc(rateText) + '</span>'
-        +     '</div>'
-        +   '</div>'
-        +   '<div class="st-bars' + (isNew ? ' is-new' : '') + '" title="最近 24 小时，每格 30 分钟">' + bars + '</div>'
-        + '</li>';
-    }).join('');
+      html += cardOf(doc, bk, s, i);
+    });
+    box.innerHTML = html;
   }
 
   /* ---------- 近 7 天表格 ---------- */
@@ -179,17 +261,22 @@
     var days = doc.days || {};
     var keys = Object.keys(days).sort().slice(-7);
     if (!keys.length) { tbl.innerHTML = '<tbody><tr><td class="muted">还没有历史数据。</td></tr></tbody>'; return; }
+    var idx = orderedIndices(doc);
     var head = '<thead><tr><th>日期</th>'
-      + doc.services.map(function (s) {
+      + idx.map(function (i) {
+        var s = doc.services[i];
         return '<th title="' + esc(s.name) + '">' + esc(s.short || s.name.replace(/^.*·\s*/, '')) + '</th>';
       }).join('')
       + '</tr></thead>';
     var rows = keys.reverse().map(function (k) {
       var d = days[k] || {};
-      var cells = doc.services.map(function (_, i) {
-        var rate = pct((d.ok && d.ok[i]) || 0, d.n || 0);
-        var cls = rate == null ? '' : (rate >= 99.5 ? 'ok' : (rate >= 95 ? 'mid' : 'bad'));
-        return '<td class="' + cls + '">' + fmtPct(rate) + '</td>';
+      var cells = idx.map(function (i) {
+        var sinceTs = (doc.since && doc.since[i]) || 0;
+        var cnt = sampleCount(d, i, sinceTs, k);
+        var rate = pct((d.ok && d.ok[i]) || 0, cnt);
+        var cls = rate == null ? 'none' : (rate >= 99.5 ? 'ok' : (rate >= 95 ? 'mid' : 'bad'));
+        return '<td class="' + cls + '" title="' + esc(doc.services[i].name + ' · ' + cnt + ' 次样本') + '">'
+          + fmtPct(rate) + '</td>';
       }).join('');
       return '<tr><td class="d">' + esc(k.slice(5)) + '</td>' + cells + '</tr>';
     }).join('');

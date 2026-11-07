@@ -259,10 +259,10 @@ bash scripts/netlify-build.sh
 
 ```
 CF Worker「status-probe」 cron 每 2 分钟   ← 只在后台写库，不对外提供页面
-      │  探测 6 个端点，只取状态码（超时 10 秒判异常）
+      │  探测 25 个端点，只取状态码（超时 10 秒判异常）
       ▼
 Upstash Redis  键 bn:status:v1
-      │  最近 24 小时逐次位串 + 最近 90 天日聚合
+      │  最近 24 小时逐次位串 + 最近 90 天日聚合（含每项样本数 cnt）
       ▼
 status/api/status.js（独立项目自带函数，边缘缓存 30 秒）
       ▼
@@ -301,24 +301,34 @@ wrangler secret put UPSTASH_REDIS_REST_TOKEN -c backend\wrangler.status.toml
 「服务状态页（`.st-*`）」整段，取值逐一照搬。独立项目把这一套抽成了 `status/style.css`，
 **改样式要两边一起改**。
 
-版式：标题 → 总状态横幅 → 工具条（最后检测 / 刷新）→ 服务卡片列表（左色边 + 圆点 +
-48 格 24 小时条 + 24h/7 天可用率）→ 近 7 天可用率表格 → 一行页脚。
+版式：标题 → 总状态横幅 → 工具条（最后检测 / 刷新）→ 服务卡片列表（按分组）→ 近 7 天可用率表格 → 一行页脚。
 没有主站页头页脚，也没有原来的三栏说明。
+
+每张卡片：左色边 + 状态圆点 + 名称 + 可点 URL + 右侧 `毫秒 / 24h·7天可用率` + 下方 **48 格细条**
+（`--bar-h:6px`，移动端 4px，每格 30 分钟；桶里掉过一次就标红）。
 
 | 文件 | 作用 |
 |---|---|
 | `status/style.css` | 设计令牌 + `.st-*` 全套（与 `assets/site.css` 同源） |
 | `status/index.html` | 页面骨架 |
-| `status/app.js` | 拉 `/api/status`，渲染卡片与 7 天表格 |
+| `status/app.js` | 拉 `/api/status`，分组渲染卡片与 7 天表格 |
 | `status/api/status.js` | 取数：**优先直连 Upstash**；本项目没配密钥时回退到 `grp.blacknet.cc.cd/api/status` |
 | `status/vercel.json` | 缓存与安全头（无 rewrite，`/api/status` 走约定式路由） |
 | `api/status.js`（主站那份） | 只是上游备用，主站不再有状态页 |
 
 页面每 30 秒拉一次，标签页隐藏时暂停；`Cache-Control: s-maxage=30` 压住 Upstash 读取次数。
 
-**探测项 12 个**（`backend/status-probe.blacknet.cc.cd.js` 的 `TARGETS`）：
-主站、主站接口、RSS、主站函数自检、书阁、书阁接口自检、归档页、写稿台、
-书库页、书架、作品管理、书目源（jsDelivr）。
+**探测项 25 个**（`backend/status-probe.blacknet.cc.cd.js` 的 `TARGETS`），按 `group` 分四组显示：
+
+| 组 | 内容 |
+|---|---|
+| `site` 主站页面 | 主站、归档、写稿台、关于、联系、赞助、订阅 |
+| `book` 书阁页面 | 书库、全部书籍、我的书架、作品管理、阅读器、写作台、写作编辑器、作品集 |
+| `api` 接口与数据 | 主站接口（Discussions / RSS / 函数自检 / 样式 / 分类公告）、书阁接口自检、书目清单 |
+| `ext` 外部依赖 | jsDelivr 书目源、GitHub Raw、GitHub API |
+
+`group` 只影响显示分组，**不影响位序**。
+
 **只能在末尾追加**：`hist` 里每条是位串，位序就是 `TARGETS` 顺序，插在中间会让历史错位
 （新增位在旧位串里读不到，`bucketize` 会跳过并保留 null，不会误判）。
 
@@ -346,15 +356,30 @@ wrangler secret put UPSTASH_REDIS_REST_TOKEN -c backend\wrangler.status.toml
 ```json
 {
   "v": 1, "updated": 1762300000000, "seq": 123, "intervalSec": 120,
-  "services": [{ "id": "grp", "name": "群档案 · 主站", "short": "主站", "url": "https://grp.blacknet.cc.cd/", "ok": true, "ms": 92, "code": 200, "err": "", "at": 0 }],
-  "hist": [[14950211, "111011"]],
-  "days": { "2026-11-07": { "n": 720, "ok": [720, 719, 720, 700, 720, 720] } }
+  "services": [{ "id": "grp", "name": "群档案 · 主站", "short": "主站", "group": "site", "url": "https://grp.blacknet.cc.cd/", "ok": true, "ms": 92, "code": 200, "err": "", "at": 0 }],
+  "since": [0, 0, 1762397400000],
+  "hist": [[14950211, "1110111111111111111111111"]],
+  "days": { "2026-11-07": { "n": 720, "ok": [720, 719, 720], "cnt": [720, 720, 95] } }
 }
 ```
 
 - `hist` 的位串顺序 = `services` 顺序，**新服务只能追加到末尾**，插到中间会让历史错位。
 - 同一 2 分钟槽内重跑只覆盖、不重复计数。
 - 环境变量名两套都认：`UPSTASH_REDIS_REST_*` 或 `KV_REST_API_*`。
+
+**`since` 与 `cnt`：为什么可用率不能一律拿 `n` 当分母**
+
+监控项是陆续加进来的。假设第 20 项今天 12:00 才上线，当天 `n` 是 720，
+而它只有 360 次样本——直接 `ok/720` 会把它算成 50% 可用，纯属冤枉。
+
+- `since[i]`：该项「开始被监控」的时间戳，`0` 表示早于历史记录（视为一直存在）。
+  第一轮自动推断：最老位串里有的位 → `0`，否则取该位最早出现的槽，都没有 → 本轮时刻。
+- `days[k].cnt[i]`：该项当天**实际被探测到**的次数。有 `cnt` 就直接 `ok[i]/cnt[i]`。
+- 老数据（升级前的 `days`）没有 `cnt`：前端 `sampleCount()` 按
+  `n × (当天剩余时长 / 24h)` 折算分母；Worker 第一次补 `cnt` 时也用同一套算法给基线，
+  **不会从 0 起算**（否则当天可用率会变成几千 %）。
+- `hist` 那边靠 `since` 过滤：`slot × 120000 < since[i]` 的时段不计入，
+  位串里没有这一位的旧记录本来也会被跳过。
 
 ### 10.4 排查
 
@@ -363,4 +388,6 @@ wrangler secret put UPSTASH_REDIS_REST_TOKEN -c backend\wrangler.status.toml
 | 页面显示「暂时读不到状态数据」，`reason: no-data` | Worker 没部署 / cron 没触发 / 写进了别的库 | 先手动开 `/run` 看返回，再核对 secret 与 Vercel 是否同一个 Upstash |
 | `reason: no-upstash` | Vercel 项目缺环境变量 | 补 `UPSTASH_REDIS_REST_URL/_TOKEN` 后 Redeploy |
 | 条形图整条灰 | `hist` 为空 | 同 `no-data` |
+| 条左侧一段浅灰 | 该项上线不足 24 小时，那段本来就没数据 | 正常；不足 12 小时会显示「数据累积中」并贴右画 |
+| 7 天表某格是 `—` | 那天该项还没上线（`since` 晚于当天） | 正常 |
 | 某一项长期红 | 端点真挂了，或该端点需要鉴权 | 点卡片上的链接自查；需要登录的端点不要放进 `TARGETS` |

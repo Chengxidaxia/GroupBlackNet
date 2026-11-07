@@ -535,7 +535,10 @@ button{font-family:var(--sans)}
 .foot-col h5{font-size:13px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#fff;margin:0 0 14px}
 .foot-col a{display:block;font-size:14px;color:#9aa2b0;padding:5px 0;transition:.2s}
 .foot-col a:hover{color:#fff}
-.foot-bottom{margin-top:44px;padding-top:22px;border-top:1px solid #21262f;display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;font-size:13px;color:#6f7788}
+.foot-bottom{margin-top:44px;padding-top:22px;border-top:1px solid #21262f;display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:center;font-size:13px;color:#6f7788}
+.foot-status{display:inline-flex;align-items:center;gap:7px;color:#9aa2b0;transition:.2s}
+.foot-status:hover{color:#fff}
+.foot-status-dot{width:7px;height:7px;border-radius:50%;background:#16a34a;box-shadow:0 0 0 3px rgba(22,163,74,.18)}
 
 /* ---------- 9. 动效与响应式 ---------- */
 .reveal{opacity:0;transform:translateY(16px);transition:opacity .6s ease,transform .6s cubic-bezier(.2,.7,.3,1)}

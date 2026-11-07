@@ -98,6 +98,9 @@ button{font-family:var(--sans)}
 
 /* 服务卡片 */
 .st-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
+/* 分组小标题（主站页面 / 书阁页面 / 接口与数据 / 外部依赖） */
+.st-list > .st-group{font-size:12px;font-weight:700;letter-spacing:.12em;color:var(--muted);margin:8px 0 -4px;padding-left:2px}
+.st-list > .st-group:first-child{margin-top:0}
 .st-card{border:1px solid var(--line);border-radius:var(--radius);background:var(--bg);padding:16px 18px;transition:border-color .2s,box-shadow .2s}
 .st-card:hover{border-color:var(--line-2);box-shadow:var(--shadow-1)}
 .st-card-head{display:grid;grid-template-columns:12px minmax(0,1fr) auto;gap:12px;align-items:center}
@@ -113,12 +116,12 @@ a.st-url:hover{color:var(--accent)}
 .st-card[data-state="down"] .st-ms{color:var(--accent)}
 .st-rate{font-size:12px;color:var(--muted)}
 
-/* 24 小时条形图 */
-.st-bars{--bar-gap:2px;display:grid;grid-template-columns:repeat(48,1fr);gap:var(--bar-gap);margin-top:12px;height:26px}
+/* 24 小时细条（48 格，每格 30 分钟） */
+.st-bars{--bar-gap:2px;--bar-h:6px;display:grid;grid-template-columns:repeat(48,1fr);gap:var(--bar-gap);margin-top:11px;height:var(--bar-h)}
 .st-bar{height:100%;border-radius:2px;background:var(--line-2)}
-.st-bar.up{background:#16a34a;opacity:.78}
+.st-bar.up{background:#16a34a;opacity:.85}
 .st-bar.down{background:var(--accent);opacity:.95}
-.st-bar.empty{background:var(--line);opacity:.4}
+.st-bar.empty{background:var(--line);opacity:.5}
 /* 新增监控项：历史还没攒够，只画已有的点并贴右，避免一整条浅灰看着像故障 */
 .st-bars.is-new{display:flex;justify-content:flex-end}
 .st-bars.is-new .st-bar{flex:0 0 auto;width:calc((100% - 47 * var(--bar-gap)) / 48)}
@@ -135,6 +138,7 @@ a.st-url:hover{color:var(--accent)}
 .st-table td.ok{color:#16a34a;font-weight:600}
 .st-table td.mid{color:#d97706;font-weight:600}
 .st-table td.bad{color:var(--accent);font-weight:700}
+.st-table td.none{color:var(--line-2)}
 .st-table td.d{color:var(--muted)}
 
 /* 页脚：原来跟着主站页脚走，独立项目后简化成一行小字 */
@@ -149,7 +153,8 @@ a.st-url:hover{color:var(--accent)}
   .st-card-head{grid-template-columns:12px minmax(0,1fr)}
   .st-card-stat{grid-column:2;flex-direction:row;flex-wrap:wrap;align-items:baseline;gap:8px;min-width:0}
   .st-ms{max-width:100%;white-space:normal;overflow-wrap:anywhere}
-  .st-bars{--bar-gap:1px;grid-template-columns:repeat(48,1fr);gap:var(--bar-gap);height:20px}
+  .st-bars{--bar-gap:1.5px;--bar-h:4px;grid-template-columns:repeat(48,1fr);gap:var(--bar-gap);height:var(--bar-h)}
+  .st-list > .st-group{margin-top:6px}
   .st-banner{padding:15px 16px;gap:12px}
   .page-wrap{padding-left:16px;padding-right:16px}
   .page-wrap h1{font-size:30px}
