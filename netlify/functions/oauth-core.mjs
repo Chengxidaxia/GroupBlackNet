@@ -71,7 +71,7 @@ export async function handleOauth(request, env) {
       Location: 'https://github.com/login/oauth/authorize?' + new URLSearchParams({
         client_id: clientId,
         redirect_uri: redirectBase,
-        scope: 'public_repo,user:email',
+        scope: 'public_repo,gist,user:email',
         state,
       }),
     });
