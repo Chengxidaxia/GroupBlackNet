@@ -21,7 +21,7 @@ import java.util.function.Consumer;
 import javax.swing.SwingUtilities;
 
 /**
- * 后端访问层：api.blacknet.cc.cd（只读数据）+ oauth.blacknet.cc.cd（写入/登录）。
+ * 后端访问层：站点 Vercel Functions（/api/discussions 只读 + /api/oauth 写入/登录）。
  * 桌面端不受浏览器 CORS 限制，但鉴权沿用同一条链路：Cookie: github_token=...
  */
 public final class Api {
@@ -297,11 +297,18 @@ public final class Api {
                 .build();
         Map<String, Object> root = Json.obj(send(r));
         Map<String, Object> data = Json.map(root, "data");
-        Map<String, Object> map = data == null ? null : Json.map(data, "succMap");
-        if (map != null && !map.isEmpty()) {
-            for (Object v : map.values()) return String.valueOf(v);
+        if (data != null) {
+            // 书阁 /api/imgup 的格式：{code:0, data:{url, show, th}}
+            String url = Json.str(data, "url", null);
+            if (url != null && !url.isBlank()) return url;
+            // 兼容旧 upload Worker 的 succMap 格式
+            Map<String, Object> map = Json.map(data, "succMap");
+            if (map != null && !map.isEmpty()) {
+                for (Object v : map.values()) return String.valueOf(v);
+            }
         }
-        throw new IOException("上传失败：" + Json.str(root, "msg", "未知错误"));
+        throw new IOException("上传失败：" + firstNonBlank(
+                Json.str(root, "error", null), Json.str(root, "msg", null), "未知错误"));
     }
 
     /* ---------------- 解析辅助 ---------------- */

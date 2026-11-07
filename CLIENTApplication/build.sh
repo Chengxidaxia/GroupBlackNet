@@ -1,17 +1,31 @@
 #!/usr/bin/env bash
 # ============================================================
 #  群档案客户端 · 构建（Linux / macOS / Git Bash）
-#  1) javac → out/classes   2) jar → out/GroupBlackNet-Client.jar
-#  3) 若找到 Launch4j，再生成 out/GroupBlackNet.exe
+#
+#  产物（dist/，与 Mindustry 的分发形态一致）：
+#    GroupBlackNet.exe    原生启动器（Go，读同名 json）
+#    GroupBlackNet.json   配置（jrePath / classPath / mainClass / vmArgs）
+#    GroupBlackNet.jar    应用本体（外置，不内嵌进 exe）
+#    jre/                 便携运行时（jlink 裁剪，目标机无需装 Java）
+#
+#  三步：javac → jar → 组装 dist
 # ============================================================
 set -e
 cd "$(dirname "$0")"
+
+MODULES="java.base,java.desktop,java.net.http,java.logging,jdk.crypto.ec"
+
+# ---- 0. 版本一致性自检 ----
+VER_JAVA=$(grep -oP 'VERSION = "\K[0-9]+\.[0-9]+\.[0-9]+' src/main/java/com/groupblacknet/client/core/Config.java || echo "?")
+VER_RC=$(grep -oP '^\s*FILEVERSION\s+\K[0-9,]+' launcher/win/resource.rc 2>/dev/null | head -1 || echo "?")
+echo "[版本] Config.java=$VER_JAVA  resource.rc=$VER_RC"
 
 if ! command -v javac >/dev/null 2>&1; then
   echo "[错误] 未找到 javac，请安装 JDK 21 并把 bin 加入 PATH。"
   exit 1
 fi
 
+# ---- 1. 编译 ----
 rm -rf out/classes
 mkdir -p out/classes
 find src/main/java -name '*.java' > out/sources.txt
@@ -21,29 +35,55 @@ if [ -d src/main/resources ]; then
   cp -r src/main/resources/. out/classes/
 fi
 
+# ---- 2. 打包 jar ----
 rm -f out/GroupBlackNet-Client.jar
-jar --create --file out/GroupBlackNet-Client.jar     --main-class com.groupblacknet.client.App -C out/classes .
-echo "[完成] 可执行包：out/GroupBlackNet-Client.jar"
+jar --create --file out/GroupBlackNet-Client.jar \
+    --main-class com.groupblacknet.client.App -C out/classes .
+echo "[完成] jar：out/GroupBlackNet-Client.jar"
 
-# ---- 可选：Launch4j ----
-L4J=""
-if [ -f launcher/launch4j.path ]; then
-  L4J=$(head -n 1 launcher/launch4j.path | tr -d '' | sed 's/[[:space:]]*$//')
-fi
-[ -z "$L4J" ] && [ -n "${LAUNCH4J_HOME:-}" ] && L4J="$LAUNCH4J_HOME"
-[ -z "$L4J" ] && command -v launch4jc >/dev/null 2>&1 && L4J=$(dirname "$(command -v launch4jc)")
+# ---- 3. 组装 dist ----
+rm -rf dist
+mkdir -p dist
+cp out/GroupBlackNet-Client.jar dist/GroupBlackNet.jar
+cp launcher/GroupBlackNet.json dist/GroupBlackNet.json
 
-L4JC=""
-[ -n "$L4J" ] && [ -x "$L4J/launch4jc.exe" ] && L4JC="$L4J/launch4jc.exe"
-[ -z "$L4JC" ] && [ -n "$L4J" ] && [ -x "$L4J/launch4j" ] && L4JC="$L4J/launch4j"
-[ -z "$L4JC" ] && command -v launch4j >/dev/null 2>&1 && L4JC=$(command -v launch4j)
-
-if [ -n "$L4JC" ]; then
-  echo "[信息] 使用 Launch4j：$L4JC"
-  "$L4JC" launcher/launch4j-config.xml && echo "[完成] 启动器：out/GroupBlackNet.exe"     || echo "[警告] Launch4j 生成 exe 失败（jar 已可用）"
+# 3.1 便携运行时
+JAVAC_PATH=$(command -v javac)
+JLINK="$(dirname "$JAVAC_PATH")/jlink"
+if [ -x "$JLINK" ]; then
+  echo "[信息] jlink 裁剪运行时（$MODULES）"
+  "$JLINK" --add-modules "$MODULES" \
+      --strip-debug --no-header-files --no-man-pages --compress=zip-6 \
+      --output dist/jre
+  echo "[完成] 运行时：$(du -sh dist/jre | cut -f1)"
 else
-  echo "[跳过] 未找到 Launch4j，只生成 jar。"
-  echo "        设置 LAUNCH4J_HOME 或写入 launcher/launch4j.path 即可生成 exe。"
+  echo "[警告] 未找到 jlink，dist 里不含 jre/。目标机需要自行安装 JDK 21，"
+  echo "        或把 jrePath 留空让启动器回退到系统 PATH 上的 java。"
 fi
 
-echo "[完成] 编译输出：out/classes"
+# 3.2 原生启动器
+if command -v go >/dev/null 2>&1; then
+  echo "[信息] 编译启动器（Go）"
+  (
+    cd launcher/win
+    if command -v windres >/dev/null 2>&1 && [ -f resource.rc ]; then
+      windres -i resource.rc -o rsrc_windows_amd64.syso \
+        --codepage=65001 --target=pe-x86-64 -O coff
+    fi
+    GOCACHE="${GOCACHE:-$PWD/.gocache}" \
+      go build -trimpath -ldflags "-s -w -H=windowsgui" \
+      -o ../../dist/GroupBlackNet.exe .
+  )
+  echo "[完成] 启动器：dist/GroupBlackNet.exe"
+else
+  echo "[警告] 未找到 go，dist 里没有 exe。可只分发 jar + jre："
+  echo "        dist/jre/bin/javaw.exe -cp dist/GroupBlackNet.jar com.groupblacknet.client.App"
+fi
+
+# ---- 4. 汇总 ----
+echo
+echo "[完成] 分发目录 dist/"
+ls -lh dist | sed '1d'
+echo
+echo "运行：dist/GroupBlackNet.exe"
+echo "日志：dist/GroupBlackNet.log（启动器与 Java 侧输出都在这里）"

@@ -1,0 +1,12 @@
+{
+  "jrePath": "jre",
+  "classPath": [
+    "GroupBlackNet.jar"
+  ],
+  "mainClass": "com.groupblacknet.client.App",
+  "useZgcIfSupportedOs": false,
+  "vmArgs": [
+    "-Dfile.encoding=UTF-8",
+    "-XX:+ShowCodeDetailsInExceptionMessages"
+  ]
+}

@@ -18,3 +18,7 @@ Thumbs.db
 
 # 本地运行数据（登录态缓存等，运行时写到用户目录，这里兜底）
 *.log
+
+# 启动器构建中间产物（由 launcher/win/resource.rc 经 windres 重新生成）
+launcher/win/rsrc_*.syso
+launcher/win/.gocache/

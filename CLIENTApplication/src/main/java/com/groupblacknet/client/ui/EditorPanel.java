@@ -147,7 +147,7 @@ public class EditorPanel extends JPanel {
         JButton clear = Ui.ghost("清除");
         pick.addActionListener(e -> pickCover());
         clear.addActionListener(e -> { coverUrl = ""; coverDataUrl = ""; updateCoverThumb(); refreshJson(); });
-        JLabel tip = Ui.muted("上传到 upload.blacknet.cc.cd，成功后写入 icon", 11);
+        JLabel tip = Ui.muted("上传到书阁图床（/api/imgup），成功后写入 icon", 11);
         imgActions.add(pick);
         imgActions.add(Ui.vstrut(6));
         imgActions.add(clear);

@@ -3,11 +3,42 @@
 JDK 21 + Swing 实现的「群档案」桌面客户端，**功能对齐网页端**，零第三方依赖
 （只用 JDK 自带模块，`javac` 直接可编译，不需要 Maven / Gradle）。
 
-- 后端与网页端共用同一套接口：`api.blacknet.cc.cd`（只读数据）、`oauth.blacknet.cc.cd`（登录/写入）、`upload.blacknet.cc.cd`（图片上传）
+- 后端：站点自身的 Vercel Functions —— `grp.blacknet.cc.cd/api/discussions`（只读数据）、
+  `/api/oauth`（登录/写入）；图片上传走书阁 `book.blacknet.cc.cd/api/imgup`
 - 数据源：GitHub Discussions
-- **与网页端的差异**：网页端已迁到同源 Vercel Functions（`/api/*`，零 CORS），
-  客户端不受浏览器 CORS 限制，所以仍直连 CF Worker，两端接口形状一致、数据同源
+- **2026-11-07 换源**：CF Worker（`api` / `oauth` / `upload` / `auth` 四个子域）全线返回
+  `530 Origin DNS error`，已彻底不可用。客户端与网页端现在统一走 Vercel 同源 Functions，
+  路径参数与返回结构完全一致（`?first=` / `?d=` / `?after=` / `?cafter=`）
 - 默认**亮色主题**，可切暗色并持久化
+
+---
+
+## 分发形态（对齐 `K:\Play\Mindustry`）
+
+`dist/` 就是可以直接打包发走的完整目录：
+
+```
+dist/
+├─ GroupBlackNet.exe     原生启动器（Go 编译，约 3 MB，GUI 子系统无控制台）
+├─ GroupBlackNet.json    配置：jrePath / classPath / mainClass / vmArgs
+├─ GroupBlackNet.jar     应用本体（外置，不内嵌进 exe）
+└─ jre/                  便携运行时（jlink 裁剪，48 MB，目标机无需装 Java）
+```
+
+**exe 与 json 必须同名同级** —— 启动器按自己的文件名去找配置。字段名与 Mindustry 用的
+packr 配置逐字一致：
+
+| 字段 | 含义 |
+|---|---|
+| `jrePath` | 运行时目录（相对 exe 或绝对路径）。留空或目录不存在时回退到系统 PATH 上的 java |
+| `classPath` | jar 列表；相对路径按 **exe 所在目录**解析，与当前工作目录无关 |
+| `mainClass` | 入口类 |
+| `useZgcIfSupportedOs` | 为 true 时追加 `-XX:+UseZGC`（JDK 21 起已无需 UnlockExperimentalVMOptions） |
+| `vmArgs` | 其余 JVM 参数，排在 `-cp` 与主类之前 |
+
+只发 `exe + json + jar` 也能跑（目标机自备 Java 21）；连 `jre/` 一起发就是「解压即用」。
+启动器会把 Java 侧的 stdout/stderr 写进 `GroupBlackNet.log`（同目录，不可写时退到临时目录），
+出错时弹 MessageBox 并指向这个日志。
 
 ---
 
@@ -19,23 +50,22 @@ build.bat
 run.bat
 ```
 
-`build.bat` 一次产出三样东西（都在 `out\` 下）：
+`build.bat` 一条命令产出全套（详见上面「分发形态」）：
 
 | 产物 | 说明 |
 |---|---|
 | `out\classes\` | 编译输出 |
-| `out\GroupBlackNet-Client.jar` | 可执行 jar（145 KB，`Main-Class` 写进 manifest） |
-| `out\GroupBlackNet.exe` | **Windows 启动器**（Launch4j 生成，jar 已内嵌，双击即可运行） |
+| `out\GroupBlackNet-Client.jar` | 可执行 jar（`Main-Class` 写进 manifest） |
+| `dist\` | **完整分发目录**：exe + json + jar + jre |
 
-也可以绕过脚本直接跑：
+`run.bat` 的启动顺序：`dist\GroupBlackNet.exe` → `dist\jre + jar` → `java -jar out\...`；
+都没有就先自动 build。
 
-```bat
-java -Dfile.encoding=UTF-8 -jar out\GroupBlackNet-Client.jar
-```
+要求：JDK 21（`javac` / `jar` / `jlink` 在 PATH 上；本机为 Temurin 21.0.12）。
+生成 exe 需要 **Go**；生成带图标的 exe 需要 **windres**（MSYS2/MinGW 自带）。两者缺失时
+脚本会跳过对应步骤并说明，不会让整个构建失败。
 
-`run.bat` 会优先启动 `out\GroupBlackNet.exe`；没有 exe 就退回 jar；都没有就先自动 build。
-
-要求：JDK 21（`javac`、`jar`、`java` 在 PATH 上；本机为 Temurin 21.0.12）。
+Linux / macOS：`./build.sh`（同样产出 `dist/`，Go 交叉编译需自行加 `GOOS=windows`）。
 
 > **编码说明**：`build.bat` / `run.bat` 以 **GBK(936) + CRLF** 保存，首行 `chcp 936`，
 > 这样中文版 CMD 不会把中文注释读成乱码命令。请勿用编辑器把它们另存成 UTF-8，否则会出现
@@ -100,7 +130,7 @@ Linux / macOS：
 
 | 方式 | 说明 |
 |---|---|
-| **设备码登录（推荐）** | 客户端从 `oauth.blacknet.cc.cd/login` 的 302 中解析公开的 `client_id`，走 GitHub Device Flow：展示 8 位验证码 → 打开 `github.com/login/device` → 后台轮询换取令牌。**需在 GitHub OAuth App 里勾选 `Enable Device Flow`** |
+| **设备码登录（推荐）** | 客户端从 `grp.blacknet.cc.cd/api/oauth/login` 的 302 中解析公开的 `client_id`，走 GitHub Device Flow：展示 8 位验证码 → 打开 `github.com/login/device` → 后台轮询换取令牌。**需在 GitHub OAuth App 里勾选 `Enable Device Flow`** |
 | 浏览器登录后粘贴令牌 | 打开登录页完成授权，再把令牌粘贴进来 |
 | 手动粘贴 PAT | 经典令牌，勾选 `public_repo` 即可 |
 
@@ -109,59 +139,62 @@ Linux / macOS：
 
 ---
 
-## Windows 启动器（Launch4j）
+## 启动器（Go）
 
 ```
 launcher/
-├─ launch4j-config.xml     Launch4j 配置（jar/outfile/icon 的相对路径以本文件所在目录为基准）
-├─ app.ico                 应用图标（由站点 favicon.ico 生成，7 种尺寸；想换图标直接替换本文件）
-└─ launch4j.path           本机 Launch4j 目录（**机器相关**，可改可删）
+├─ GroupBlackNet.json      分发给用户的配置模板（构建时复制到 dist/）
+├─ app.ico                 应用图标（7 种尺寸，16→256）
+├─ win/                    原生启动器源码
+│  ├─ main.go              读同名 json → 定位 jre → 拼参数 → 拉起 java
+│  ├─ go.mod
+│  └─ resource.rc          exe 的图标与版本资源（windres → rsrc_windows_amd64.syso）
+└─ launch4j-config.xml     旧方案（Launch4j，jar 内嵌单文件）—— 已不再使用，仅留档
 ```
 
-`build.bat` 查找 Launch4j 的顺序：`launcher\launch4j.path` → 环境变量 `LAUNCH4J_HOME` → PATH 上的 `launch4jc.exe`；
-都找不到就只生成 jar 并打印提示（不会让构建失败）。
+启动器行为，逐条对齐 packr（Mindustry 的启动器）：
 
-生成 exe：
+| 行为 | 说明 |
+|---|---|
+| 找配置 | 用**自己的文件名**换扩展名找 `.json`，不是写死 `GroupBlackNet.json` |
+| 找 Java | `jrePath/bin/javaw.exe` → `jrePath/bin/java.exe` → PATH 上的 `javaw` / `java` |
+| 工作目录 | 强制设为 exe 所在目录，所以 json 里可以写相对路径 |
+| 单实例 | 命名互斥体 `Local\GroupBlackNetClientSingleInstance`，重复双击弹提示而不是开第二个窗口 |
+| 出错 | 弹 MessageBox（GUI 子系统没有控制台，不弹就什么也看不到） |
+| 日志 | 把 Java 侧 stdout/stderr 写进 `GroupBlackNet.log`，`javaw` 的异常不再无声消失 |
+| 退出码 | 等子进程结束并透传退出码 |
+
+与 packr 的**唯一技术差异**：packr 用 JNI 在**同一进程内**创建 JVM（`Creating Java VM...` /
+`Loading JAR file...`），本启动器是 **spawn 一个 `javaw.exe` 子进程**再等待。差异只在任务管理器里
+会看到两个进程，功能等价；换来的好处是 JVM 崩溃不会把启动器一起带走、也不用处理 Go 与 JVM 的
+信号/线程冲突。
+
+构建（`build.bat` / `build.sh` 已内置，单独跑也可以）：
 
 ```bat
-build.bat
-```
-或手动：
-```bat
-"C:\路径\launch4j\launch4jc.exe" "launcher\launch4j-config.xml"
+windres -i resource.rc -o rsrc_windows_amd64.syso --codepage=65001 --target=pe-x86-64 -O coff
+go build -trimpath -ldflags "-s -w -H=windowsgui" -o ..\..\dist\GroupBlackNet.exe .
 ```
 
-配置要点：
-
-| 项 | 设置 | 说明 |
-|---|---|---|
-| `dontWrapJar` | `false` | jar **内嵌**进 exe，单文件交付，旁边不需要放 jar |
-| `headerType` | `gui` | 双击不弹黑色控制台窗口 |
-| `minVersion` | `21.0.0` | 目标机需 JDK/JRE 21+；缺 JRE 时弹窗给出 Adoptium 下载页 |
-| `singleInstance` | 开 | 重复双击不会开第二个窗口，会提示「已在运行」 |
-| `icon` / `versionInfo` | 已设 | 图标 + 文件属性（产品名「群档案」、版本 1.0.1.0，与 `Config.VERSION` 保持同步） |
+`-H=windowsgui` 决定「双击不弹黑框」；`resource.rc` 里的 `FILEVERSION` 必须和
+`Config.VERSION` 同步（`build.sh` 会打印两者做比对）。
 
 几个实测过的坑：
 
-- **Launch4j 的官方 Windows 发行包只有 32 位**（`launch4j-3.50-win32.zip`，生成 `machine=0x014c` 的 exe），
-  但它用的是「spawn」版 head（`head/head.o`），只是拉起系统的 `javaw.exe`，**所以照样能跑 64 位 JDK**，不必找 64 位版本。
-- **杀软误报**：Launch4j 打包时会自己警告 `Sign the executable to minimize antivirus false positives`。
-  内嵌（wrapping）模式更容易被拦；真遇到就改成 `<dontWrapJar>true</dontWrapJar>`（需要把 jar 放在 exe 旁），或给 exe 签名。
-- **不要用「按启动器 PID 找窗口」来验证**：exe 只是外壳，界面窗口属于它拉起的 `javaw.exe` 子进程，
-  按启动器 PID 枚举必然找不到窗口（会被误判成启动失败）。
-- exe 返回码 `2` 不一定是 JVM 报错——`gui` 版 head 会把**子进程的退出码**透传出来；
-  若同时出现「An application instance is already running」，那是 `singleInstance` 互斥体被上一个实例占着（先结束残留进程）。
-- 免装 Java 交付：把 `<jre><path>` 指向一个便携 JRE 目录，并把 `<bundledJre64Bit>` 设为 `true`，
-  即可做出「目标机无需安装 Java」的绿色版。
+- **按启动器 PID 找窗口必然失败**：窗口属于 `javaw.exe` 子进程，验证时要按子进程 PID 枚举。
+- **不要用工具后台启动 GUI**：本机的沙箱会回收 detached 子进程，进程还在但窗口一闪就没。
+  验证脚本要在**同一进程内**完成「启动 → 等窗口 → 截图 → 结束」。
+- windres 编出来的 `.syso` 不入库（`.gitignore` 已忽略），缺 windres 时 exe 只是没图标没版本号。
 
 
 
 ```
 CLIENTApplication/
-├─ build.bat / build.sh      构建（javac → out/classes，jar 打包，可选 Launch4j 生成 exe）
-├─ run.bat / run.sh          运行（优先 out/GroupBlackNet.exe，否则 java -jar）
-├─ launcher/                 Launch4j 配置 + 图标（app.ico）+ 本机路径文件
-├─ .gitignore                只忽略产物：out/ dist/ build/ *.class *.jar …
+├─ build.bat / build.sh      一键构建：javac → jar → dist（exe + json + jar + jre）
+├─ run.bat / run.sh          运行（dist 的 exe → dist 的 jre+jar → out 的 jar）
+├─ dist/                     分发包（构建产物，不入库）
+├─ launcher/                 图标 + 配置模板 + Go 启动器源码（win/）
+├─ .gitignore                只忽略产物：out/ dist/ *.class *.jar *.log *.syso .gocache …
 └─ src/main/java/com/groupblacknet/client/
    ├─ App.java               入口：主题/登录态加载、Look&Feel、命令行参数
    ├─ core/
@@ -189,7 +222,11 @@ CLIENTApplication/
 
 - **封面图源**：部分文章封面指向 `img.blacknet.cc.cd`，该域目前对图片返回 404（B2 变量问题，与客户端无关）。
   此时客户端会按站点的兜底行为画**分类渐变 + 分类名**，不会出现空白块。
-- **分类 / 公告数据源**（1.0.1 起已改）：不再请求 `api.blacknet.cc.cd/categories` 与
+- **后端源**（1.0.2 起）：CF Worker 的 `api` / `oauth` / `upload` / `auth` 四个子域已全线
+  返回 `530 Origin DNS error`，不要再写回客户端。现在的直连地址是
+  `https://grp.blacknet.cc.cd/api/discussions`（只读）、`https://grp.blacknet.cc.cd/api/oauth`（写）、
+  `https://book.blacknet.cc.cd/api/imgup`（上传，主站没有上传 Function）。
+- **分类 / 公告数据源**（1.0.1 起已改）：不再请求旧 Worker 的 `/categories` 与
   `/announcements`（Worker 那版分支已下线，请求会失败）。现在的取数顺序是
   **站点 `/api/content`（Upstash 权威源，与网页端同库）→ 站点静态 JSON
   `/assets/data/categories.json`、`announcements.json` → 内置默认分类**。

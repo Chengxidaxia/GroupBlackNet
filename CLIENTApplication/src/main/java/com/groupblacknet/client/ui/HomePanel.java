@@ -195,7 +195,7 @@ public class HomePanel extends JPanel {
             loading = false;
             cardsGrid.removeAll();
             cardsGrid.add(Ui.emptyNote("加载失败：" + (e.getMessage() == null ? "网络错误" : e.getMessage())));
-            cardsGrid.add(Ui.emptyNote("点击工具栏「写稿」需先登录；数据来自 api.blacknet.cc.cd"));
+            cardsGrid.add(Ui.emptyNote("点击工具栏「写稿」需先登录；数据来自 grp.blacknet.cc.cd/api/discussions"));
             cardsGrid.revalidate();
             cardsGrid.repaint();
         });

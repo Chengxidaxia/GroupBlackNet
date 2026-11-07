@@ -8,12 +8,18 @@ public final class Config {
 
     private Config() {}
 
-    /** 数据接口（GitHub Discussions 只读代理） */
-    public static final String API = "https://api.blacknet.cc.cd";
-    /** GitHub OAuth 代理（登录 / 评论 / 反应 / 顶 / 发帖） */
-    public static final String OAUTH = "https://oauth.blacknet.cc.cd";
-    /** 图片上传 */
-    public static final String UPLOAD = "https://upload.blacknet.cc.cd";
+    /**
+     * 数据接口（GitHub Discussions 只读代理）。
+     *
+     * 2026-11-07 起改走站点自身的 Vercel Function：CF Worker（api/oauth/upload 三个子域）
+     * 已全线返回 530 Origin DNS error，彻底不可用。站点同源路径由 netlify/functions 提供，
+     * 支持同样的 ?first= / ?d= / ?after= / ?cafter= 参数，返回结构也一致。
+     */
+    public static final String API = "https://grp.blacknet.cc.cd/api/discussions";
+    /** GitHub OAuth 代理（登录 / 评论 / 反应 / 顶 / 发帖）—— Vercel Function，同源 /api/oauth */
+    public static final String OAUTH = "https://grp.blacknet.cc.cd/api/oauth";
+    /** 图片上传 —— 主站没有上传 Function，用书阁的 /api/imgup（转发 pixhost） */
+    public static final String UPLOAD = "https://book.blacknet.cc.cd/api/imgup";
     /** 主站（浏览器打开） */
     public static final String MAIN_SITE = "https://grp.blacknet.cc.cd";
 
@@ -31,5 +37,5 @@ public final class Config {
 
     public static final String APP_NAME = "群档案";
     public static final String APP_SUBTITLE = "Archive";
-    public static final String VERSION = "1.0.1";
+    public static final String VERSION = "1.0.2";
 }

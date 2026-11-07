@@ -1,69 +1,87 @@
 @echo off
 chcp 936 >nul
 rem ============================================================
-rem  群档案客户端 · 构建（Windows / CMD）
-rem  1) javac 编译到 out\classes
-rem  2) jar 打包 out\GroupBlackNet-Client.jar（可执行 jar）
-rem  3) 若找到 Launch4j，再生成 out\GroupBlackNet.exe（启动器）
-rem  产物都在 out\ 下，已在 .gitignore 中忽略
+rem  GroupBlackNet Client - build (Windows / CMD)
+rem
+rem  产物目录 dist\（与 Mindustry 的分发形态一致）：
+rem    GroupBlackNet.exe    原生启动器（Go 编译，读同名 json）
+rem    GroupBlackNet.json   配置（jrePath / classPath / mainClass / vmArgs）
+rem    GroupBlackNet.jar    应用本体（外置，不内嵌进 exe）
+rem    jre\                 便携运行时（jlink 裁剪，目标机无需装 Java）
+rem
+rem  三步：javac -> jar -> 组装 dist
 rem ============================================================
 setlocal
 cd /d "%~dp0"
 
+set "MODULES=java.base,java.desktop,java.net.http,java.logging,jdk.crypto.ec"
+
 where javac >nul 2>nul
 if errorlevel 1 (
-  echo [错误] 未找到 javac，请安装 JDK 21 并把 bin 加入 PATH。
+  echo [ERROR] javac not found. Install JDK 21 and add its bin to PATH.
   exit /b 1
 )
 
+for %%I in (javac.exe) do set "JBIN=%%~dp$PATH:I"
+
+echo [1/4] compile
 if exist out\classes rmdir /s /q out\classes
 mkdir out\classes
-
 dir /s /b src\main\java\*.java > out\sources.txt
 javac -encoding UTF-8 -d out\classes @out\sources.txt
 if errorlevel 1 (
-  echo [失败] 编译出错，请查看上面的错误信息。
+  echo [ERROR] compile failed.
   exit /b 1
 )
+if exist src\main\resources xcopy src\main\resources out\classes /E /I /Y >nul
 
-if exist src\mainesources xcopy src\mainesources out\classes /E /I /Y >nul
-
-rem ---- 打包可执行 jar（零第三方依赖，Main-Class 直接写进 manifest）----
+echo [2/4] jar
 if exist out\GroupBlackNet-Client.jar del /q out\GroupBlackNet-Client.jar
 jar --create --file out\GroupBlackNet-Client.jar --main-class com.groupblacknet.client.App -C out\classes .
 if errorlevel 1 (
-  echo [失败] 打包 jar 失败。
+  echo [ERROR] jar failed.
   exit /b 1
 )
-echo [完成] 可执行包：out\GroupBlackNet-Client.jar
 
-rem ---- 可选：用 Launch4j 生成 Windows 启动器 exe ----
-rem 查找顺序：launcher\launch4j.path 文件 → 环境变量 LAUNCH4J_HOME → PATH 上的 launch4jc
-set "L4J="
-if exist "launcher\launch4j.path" for /f "usebackq delims=" %%p in ("launcher\launch4j.path") do set "L4J=%%p"
-if not defined L4J if defined LAUNCH4J_HOME set "L4J=%LAUNCH4J_HOME%"
-if not defined L4J for %%I in (launch4jc.exe) do if not defined L4J set "L4J=%%~dpI"
-if defined L4J if "%L4J:~-1%"=="\" set "L4J=%L4J:~0,-1%"
+echo [3/4] assemble dist
+if exist dist rmdir /s /q dist
+mkdir dist
+copy /y out\GroupBlackNet-Client.jar dist\GroupBlackNet.jar >nul
+copy /y launcher\GroupBlackNet.json dist\GroupBlackNet.json >nul
 
-if defined L4J if exist "%L4J%\launch4jc.exe" (
-  echo [信息] 使用 Launch4j：%L4J%
-  "%L4J%\launch4jc.exe" "launcher\launch4j-config.xml"
+rem ---- portable runtime ----
+if exist "%JBIN%jlink.exe" (
+  echo       jlink %MODULES%
+  "%JBIN%jlink.exe" --add-modules %MODULES% --strip-debug --no-header-files --no-man-pages --compress=zip-6 --output dist\jre
   if errorlevel 1 (
-    echo [警告] Launch4j 生成 exe 失败（jar 已可用，不影响运行）。
-  ) else (
-    echo [完成] 启动器：out\GroupBlackNet.exe
+    echo [WARN] jlink failed. dist has no jre\; target machine needs JDK 21.
   )
-  goto :done
+) else (
+  echo [WARN] jlink not found. dist has no jre\.
 )
 
-echo [跳过] 未找到 Launch4j，本次只生成 jar。要生成启动器 exe，任选其一：
-echo        1^) 把 launch4jc.exe 所在目录写入 launcher\launch4j.path
-echo        2^) 设置环境变量 LAUNCH4J_HOME
-echo        3^) 把 launch4jc.exe 所在目录加入 PATH
-echo        下载：https://sourceforge.net/projects/launch4j/files/launch4j-3/3.50/
+echo [4/4] launcher
+where go >nul 2>nul
+if not errorlevel 1 (
+  pushd launcher\win
+  if exist resource.rc (
+    where windres >nul 2>nul
+    if not errorlevel 1 windres -i resource.rc -o rsrc_windows_amd64.syso --codepage=65001 --target=pe-x86-64 -O coff
+  )
+  set "GOCACHE=%CD%\.gocache"
+  go build -trimpath -ldflags "-s -w -H=windowsgui" -o ..\..\dist\GroupBlackNet.exe .
+  if errorlevel 1 echo [WARN] go build failed, dist has no exe.
+  popd
+) else (
+  echo [WARN] go not found, dist has no exe.
+  echo        You can still ship jar + jre:
+  echo        dist\jre\bin\javaw.exe -cp dist\GroupBlackNet.jar com.groupblacknet.client.App
+)
 
-:done
 echo.
-echo [完成] 编译输出：out\classes
-echo         运行：run.bat   或   java -jar out\GroupBlackNet-Client.jar
+echo [DONE] dist\
+dir /b dist
+echo.
+echo Run  : dist\GroupBlackNet.exe
+echo Log  : dist\GroupBlackNet.log
 endlocal

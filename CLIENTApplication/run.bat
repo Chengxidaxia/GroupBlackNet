@@ -1,20 +1,26 @@
 @echo off
 chcp 936 >nul
 rem ============================================================
-rem  群档案客户端 · 运行（Windows / CMD）
-rem  优先用 Launch4j 生成的 exe；没有就用 jar；都没有就先 build
-rem  可选参数：--page=home^|detail^|editor^|about^|contact  --d^=<文章号>  --theme=light^|dark
+rem  GroupBlackNet Client - run (Windows / CMD)
+rem  优先 dist\GroupBlackNet.exe（便携包，自带 jre），
+rem  其次 dist\jre + jar，最后才用系统 java -jar out\...
+rem  参数会透传：--page=home|detail|editor|about|contact  --d=<编号>  --theme=light|dark
 rem ============================================================
 setlocal
 cd /d "%~dp0"
 
-if exist out\GroupBlackNet.exe (
-  start "" out\GroupBlackNet.exe %*
+if exist dist\GroupBlackNet.exe (
+  start "" dist\GroupBlackNet.exe %*
+  goto :eof
+)
+
+if exist dist\jre\bin\javaw.exe if exist dist\GroupBlackNet.jar (
+  start "" dist\jre\bin\javaw.exe -Dfile.encoding=UTF-8 -cp dist\GroupBlackNet.jar com.groupblacknet.client.App %*
   goto :eof
 )
 
 if not exist out\GroupBlackNet-Client.jar (
-  echo [提示] 尚未构建，先执行 build.bat …
+  echo [INFO] not built yet, running build.bat ...
   call build.bat
   if errorlevel 1 exit /b 1
 )
