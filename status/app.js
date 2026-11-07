@@ -14,8 +14,16 @@
   var POLL_MS = 30000;
   var NEW_WINDOW = 12 * 3600 * 1000;   // 上线不足 12 小时按「数据累积中」处理
   var state = { doc: null, timer: null, ticker: null };
-  // 条的格数：窄屏少一点，保证每条还有 3px 左右的可视宽度；宽屏多一些，条更细
-  function barCount() { return (window.innerWidth || 960) < 760 ? 72 : 144; }
+  // 条的几何：条宽 3px、间隔 2px 都是整数物理像素，条数按卡片实际宽度算到恰好铺满，
+  // SVG 1:1 渲染（不拉伸）——只有全整数坐标才能保证间隔绝对均匀
+  function barsGeom() {
+    var list = $('stList');
+    var pad = (window.innerWidth || 960) <= 760 ? 15 : 18;   // .st-card 的左右 padding
+    var W = Math.max(120, (list.clientWidth || 810) - pad * 2);
+    var w = 3, g = 2;
+    var N = Math.max(24, Math.floor((W + g) / (w + g)));
+    return { W: W, w: w, g: g, N: N, total: N * (w + g) - g };
+  }
 
   // 分组顺序与标题
   var GROUPS = [
@@ -81,10 +89,9 @@
     return e ? '异常' : '无响应';
   }
 
-  /* ---------- 把 hist 切成 BARS 个桶 ---------- */
+  /* ---------- 把 hist 切成 N 个桶 ---------- */
   // hist: [[slot, "101101"], ...]
-  function bucketize(doc) {
-    var BARS = barCount();
+  function bucketize(doc, BARS) {
     var n = doc.services.length;
     var since = doc.since || [];
     var hist = (doc.hist || []).filter(function (h) { return Array.isArray(h) && typeof h[1] === 'string'; });
@@ -192,8 +199,7 @@
     return p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
   }
 
-  function cardOf(doc, bk, s, i) {
-    var BARS = barCount();
+  function cardOf(doc, bk, s, i, geom) {
     var m = metrics(doc, bk, i);
     var sinceTs = (doc.since && doc.since[i]) || 0;
     var isNew = sinceTs ? (Date.now() - sinceTs < NEW_WINDOW) : false;
@@ -203,25 +209,24 @@
     bk.buckets.forEach(function (row) { if (row[i] !== null) filled++; });
     if (!isNew && filled > 0 && filled < 6) isNew = true;
 
-    // 用 SVG 画：条与间隔都是精确坐标，整行等比缩放，间隔不会像 HTML 网格那样忽宽忽窄
-    var VB_W = 720, VB_H = 24;
-    var step = VB_W / BARS;
-    var bw = Math.min(3.4, step * 0.55);   // 条的逻辑宽度（胶囊条）
-    var rx = (bw / 2).toFixed(2);
-    var rects = bk.buckets.map(function (row, bi) {
-      var v = row[i];
-      var x = (bi * step + (step - bw) / 2).toFixed(2);
-      var geom = 'x="' + x + '" y="0" width="' + bw + '" height="' + VB_H + '" rx="' + rx + '"';
+    // SVG 1:1 绘制：全整数坐标（条 3px / 间隔 2px），间隔绝对均匀
+    var step = geom.w + geom.g;
+    var rects = '';
+    for (var bi = 0; bi < bk.buckets.length; bi++) {
+      var v = bk.buckets[bi][i];
+      var x = bi * step;
+      var g2 = 'x="' + x + '" y="0" width="' + geom.w + '" height="24" rx="1.5"';
       if (v === null) {
-        var gtip = bk.times && bk.times[bi] ? hhmm(bk.times[bi]) + ' · 无数据' : '无数据';
-        return '<rect ' + geom + ' fill="var(--c-gap)" data-tip="' + esc(gtip) + '"></rect>';
+        var gtip = (bk.times && bk.times[bi] ? hhmm(bk.times[bi]) + ' · ' : '') + '无数据';
+        rects += '<rect ' + g2 + ' fill="var(--c-gap)" data-tip="' + esc(gtip) + '"></rect>';
+      } else {
+        var tip = (bk.times && bk.times[bi] ? hhmm(bk.times[bi]) + ' · ' : '')
+          + (v === 1 ? '正常' : '异常');
+        rects += '<rect ' + g2 + ' fill="var(--c-' + (v === 1 ? 'up' : 'down') + ')" data-tip="' + esc(tip) + '"></rect>';
       }
-      var tip = (bk.times && bk.times[bi] ? hhmm(bk.times[bi]) + ' · ' : '')
-        + (v === 1 ? '正常' : '异常');
-      return '<rect ' + geom + ' fill="var(--c-' + (v === 1 ? 'up' : 'down') + ')" data-tip="' + esc(tip) + '"></rect>';
-    }).join('');
-    var bars = '<svg class="st-bars" viewBox="0 0 ' + VB_W + ' ' + VB_H
-      + '" preserveAspectRatio="none" aria-hidden="true">' + rects + '</svg>';
+    }
+    var bars = '<svg class="st-bars" width="' + geom.total + '" height="24" viewBox="0 0 '
+      + geom.total + ' 24" aria-hidden="true">' + rects + '</svg>';
 
     var st = s.ok ? 'up' : 'down';
     var detail = errText(s);
@@ -264,7 +269,8 @@
 
   function renderList(doc) {
     var box = $('stList');
-    var bk = bucketize(doc);
+    var geom = barsGeom();
+    var bk = bucketize(doc, geom.N);
     // 按分组排，组内保持 TARGETS 原始顺序（索引 i 必须一直是原索引，位串靠它对齐）
     var html = '';
     var last = '';
@@ -275,7 +281,7 @@
         html += '<li class="st-group">' + esc(groupLabel(g)) + '</li>';
         last = g;
       }
-      html += cardOf(doc, bk, s, i);
+      html += cardOf(doc, bk, s, i, geom);
     });
     box.innerHTML = html;
   }

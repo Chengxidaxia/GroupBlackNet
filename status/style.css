@@ -116,9 +116,9 @@ a.st-url:hover{color:var(--accent)}
 .st-card[data-state="down"] .st-ms{color:var(--accent)}
 .st-rate{font-size:12px;color:var(--muted)}
 
-/* 24 小时竖细条：SVG 绘制，条与间隔为精确坐标（宽屏 144 格 / 窄屏 72 格），
-   整行随卡片宽度等比缩放，间隔永远一致 */
-.st-bars{--c-up:#16a34a;--c-down:var(--accent);--c-gap:var(--line);display:block;width:100%;height:24px;margin-top:12px}
+/* 24 小时竖细条：SVG 1:1 渲染（条 3px / 间隔 2px，全整数坐标，宽度由 app.js 按卡片实宽算出），
+   间隔绝对均匀；卡片比条行宽一点点时居中，两侧余量对称 */
+.st-bars{--c-up:#16a34a;--c-down:var(--accent);--c-gap:var(--line);display:block;height:24px;margin:12px auto 0}
 .st-bars rect{opacity:.92}
 .st-bars rect[fill="var(--c-up)"]{opacity:.88}
 .st-bars rect[fill="var(--c-gap)"]{opacity:.45}
@@ -189,7 +189,6 @@ a.st-url:hover{color:var(--accent)}
   .st-card-head{grid-template-columns:12px minmax(0,1fr)}
   .st-card-stat{grid-column:2;flex-direction:row;flex-wrap:wrap;align-items:baseline;gap:8px;min-width:0}
   .st-ms{max-width:100%;white-space:normal;overflow-wrap:anywhere}
-  .st-bars{height:18px}
   .st-list > .st-group{margin-top:6px}
   .st-banner{padding:15px 16px;gap:12px}
   .page-wrap{padding-left:16px;padding-right:16px}
