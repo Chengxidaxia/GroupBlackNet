@@ -116,30 +116,43 @@ a.st-url:hover{color:var(--accent)}
 .st-card[data-state="down"] .st-ms{color:var(--accent)}
 .st-rate{font-size:12px;color:var(--muted)}
 
-/* 24 小时细条（48 格，每格 30 分钟） */
-.st-bars{--bar-gap:2px;--bar-h:6px;display:grid;grid-template-columns:repeat(48,1fr);gap:var(--bar-gap);margin-top:11px;height:var(--bar-h)}
-.st-bar{height:100%;border-radius:2px;background:var(--line-2)}
-.st-bar.up{background:#16a34a;opacity:.85}
-.st-bar.down{background:var(--accent);opacity:.95}
-.st-bar.empty{background:var(--line);opacity:.5}
-/* 新增监控项：历史还没攒够，只画已有的点并贴右，避免一整条浅灰看着像故障 */
-.st-bars.is-new{display:flex;justify-content:flex-end}
-.st-bars.is-new .st-bar{flex:0 0 auto;width:calc((100% - 47 * var(--bar-gap)) / 48)}
+/* 24 小时竖细条（宽屏 144 格 / 窄屏 72 格，格数由 app.js 的 barCount 经 --slices 给出） */
+.st-bars{--bar-gap:2px;--bar-h:24px;--slices:144;display:grid;grid-template-columns:repeat(var(--slices),1fr);gap:var(--bar-gap);margin-top:12px;height:var(--bar-h)}
+.st-bar{height:100%;border-radius:1px;background:var(--line-2)}
+.st-bar.up{background:#16a34a;opacity:.9}
+.st-bar.down{background:var(--accent)}
+/* 新增监控项：历史还没攒够，前面留透明占位，只画已有点，避免一整排浅灰看着像故障 */
+.st-bar.gap{background:transparent}
 
-/* 7 天表格 */
+/* 即时浮窗（替代原生 title 的延迟提示） */
+.st-tip{
+  position:fixed;left:0;top:0;z-index:99;padding:7px 10px;border-radius:8px;
+  font-size:12px;line-height:1.5;white-space:pre-line;max-width:300px;
+  background:#0f1216;color:#f3f4f6;border:1px solid rgba(255,255,255,.08);
+  box-shadow:0 8px 24px rgba(0,0,0,.25);
+  pointer-events:none;opacity:0;transform:translateY(3px);
+  transition:opacity .1s ease,transform .1s ease;
+}
+.st-tip.on{opacity:1;transform:none}
+@media (prefers-color-scheme: dark){
+  .st-tip{background:#f3f4f6;color:#0f1216;border-color:rgba(0,0,0,.1);box-shadow:0 8px 24px rgba(0,0,0,.5)}
+}
+
+/* 7 天表格（服务为行、日期为列，列宽固定百分比，永远不产生横向滚动） */
 .st-week{margin:34px 0 0;border-top:1px solid var(--line);padding-top:26px}
 .st-h2{font-family:var(--serif);font-size:22px;font-weight:800;margin:0 0 14px;letter-spacing:-.01em}
-.st-table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius-sm)}
-.st-table{width:100%;border-collapse:collapse;font-size:13.5px;font-variant-numeric:tabular-nums}
-.st-table th,.st-table td{padding:10px 12px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+.st-table-wrap{border:1px solid var(--line);border-radius:var(--radius-sm);overflow:hidden}
+.st-table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:13.5px;font-variant-numeric:tabular-nums}
+.st-table th,.st-table td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .st-table th{font-size:12px;font-weight:700;color:var(--muted);background:var(--paper)}
-.st-table th:first-child,.st-table td:first-child{text-align:left}
+.st-table th:first-child,.st-table td:first-child{text-align:left;width:30%}
 .st-table tbody tr:last-child td{border-bottom:0}
 .st-table td.ok{color:#16a34a;font-weight:600}
 .st-table td.mid{color:#d97706;font-weight:600}
 .st-table td.bad{color:var(--accent);font-weight:700}
 .st-table td.none{color:var(--line-2)}
 .st-table td.d{color:var(--muted)}
+.st-table .d-mini{display:none}
 
 /* 页脚：原来跟着主站页脚走，独立项目后简化成一行小字 */
 .st-foot{margin:40px 0 0;padding:18px 0 0;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center;font-size:12.5px;color:var(--muted)}
@@ -153,13 +166,16 @@ a.st-url:hover{color:var(--accent)}
   .st-card-head{grid-template-columns:12px minmax(0,1fr)}
   .st-card-stat{grid-column:2;flex-direction:row;flex-wrap:wrap;align-items:baseline;gap:8px;min-width:0}
   .st-ms{max-width:100%;white-space:normal;overflow-wrap:anywhere}
-  .st-bars{--bar-gap:1.5px;--bar-h:4px;grid-template-columns:repeat(48,1fr);gap:var(--bar-gap);height:var(--bar-h)}
+  .st-bars{--bar-gap:1px;--bar-h:18px}
   .st-list > .st-group{margin-top:6px}
   .st-banner{padding:15px 16px;gap:12px}
   .page-wrap{padding-left:16px;padding-right:16px}
   .page-wrap h1{font-size:30px}
   .st-head{margin-bottom:18px}
-  /* 探测项变多后表格列也多，窄屏收紧一点，横向滚动由 .st-table-wrap 负责 */
-  .st-table{font-size:12.5px}
-  .st-table th,.st-table td{padding:9px 10px}
+  /* 窄屏：日期列只留「日」，服务名列让出空间；单元格只放数字，永远不会撑出横向滚动 */
+  .st-table{font-size:11.5px}
+  .st-table th,.st-table td{padding:8px 3px}
+  .st-table th:first-child,.st-table td:first-child{width:30%}
+  .st-table .d-full{display:none}
+  .st-table .d-mini{display:inline}
 }

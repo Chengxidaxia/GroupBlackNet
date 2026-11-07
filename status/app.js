@@ -7,13 +7,15 @@
   'use strict';
 
   var API = '/api/status';
-  var BARS = 48;            // 24 小时切成 48 格（每格 30 分钟）
   var SLOT_MS = 120000;     // 探测间隔，与 Worker 的 SLOT_MS 一致
   var DAY_MS = 86400000;
+  var WINDOW_SLOTS = Math.round(DAY_MS / SLOT_MS);   // 一天 720 个探测点
   var TZ_MS = 8 * 3600 * 1000;   // 日聚合按 UTC+8 分天
   var POLL_MS = 30000;
   var NEW_WINDOW = 12 * 3600 * 1000;   // 上线不足 12 小时按「数据累积中」处理
   var state = { doc: null, timer: null, ticker: null };
+  // 条的格数：窄屏少一点，保证每条还有 3px 左右的可视宽度；宽屏多一些，条更细
+  function barCount() { return (window.innerWidth || 960) < 760 ? 72 : 144; }
 
   // 分组顺序与标题
   var GROUPS = [
@@ -55,6 +57,11 @@
     if (v == null) return '—';
     return (v >= 100 ? '100' : v.toFixed(1).replace(/\.0$/, '')) + '%';
   }
+  // 表格里只放数字，百分号统一写在标题上，窄屏才不会撑出横向滚动
+  function numPct(v) {
+    if (v == null) return '—';
+    return v >= 100 ? '100' : v.toFixed(1).replace(/\.0$/, '');
+  }
   function ago(ms) {
     if (!ms) return '—';
     var s = Math.max(0, Math.round((Date.now() - ms) / 1000));
@@ -79,27 +86,32 @@
     return e ? '异常' : '无响应';
   }
 
-  /* ---------- 把 hist 切成 48 个桶 ---------- */
-  // hist: [[slot, "101101"], ...]（新在前）
+  /* ---------- 把 hist 切成 BARS 个桶 ---------- */
+  // hist: [[slot, "101101"], ...]
   function bucketize(doc) {
+    var BARS = barCount();
     var n = doc.services.length;
     var since = doc.since || [];
     var hist = (doc.hist || []).filter(function (h) { return Array.isArray(h) && typeof h[1] === 'string'; });
     hist.sort(function (a, b) { return a[0] - b[0]; });
-    var slots = hist.slice(-BARS * 15);              // 2 分钟一格 × 15 = 每桶 30 分钟
-    var per = Math.max(1, Math.ceil(slots.length / BARS));
+    var slots = hist.slice(-WINDOW_SLOTS);          // 只取最近 24 小时
+    var per = Math.max(1e-6, slots.length / BARS);  // 每个桶分到多少个探测点（可为小数）
     var buckets = [];
+    var times = [];                                  // 每个桶最新一个探测点的时刻（做 tooltip 用）
     for (var b = 0; b < BARS; b++) {
       var row = [];
       for (var i = 0; i < n; i++) row.push(null);
       buckets.push(row);
+      times.push(null);
     }
     var L = slots.length;
     for (var j = 0; j < L; j++) {
       var bi = BARS - 1 - Math.floor((L - 1 - j) / per);
       if (bi < 0) continue;
+      if (bi >= BARS) bi = BARS - 1;
       var slot = slots[j][0];
       var at = slot * SLOT_MS;
+      times[bi] = at;
       var bitstr = slots[j][1];
       for (var s = 0; s < n; s++) {
         // 该项上线之前的时段不算（新增目标不该拖累历史）
@@ -112,7 +124,7 @@
         buckets[bi][s] = cur === null ? v : Math.min(cur, v);   // 桶里只要掉过一次就标红
       }
     }
-    return { buckets: buckets, hist: hist };
+    return { buckets: buckets, hist: hist, times: times };
   }
 
   /* ---------- 可用率分母 ----------
@@ -179,7 +191,14 @@
   }
 
   /* ---------- 服务卡片 ---------- */
+  function hhmm(ts) {
+    var d = new Date(ts);
+    var p = function (x) { return (x < 10 ? '0' : '') + x; };
+    return p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
   function cardOf(doc, bk, s, i) {
+    var BARS = barCount();
     var m = metrics(doc, bk, i);
     var sinceTs = (doc.since && doc.since[i]) || 0;
     var isNew = sinceTs ? (Date.now() - sinceTs < NEW_WINDOW) : false;
@@ -189,13 +208,14 @@
     bk.buckets.forEach(function (row) { if (row[i] !== null) filled++; });
     if (!isNew && filled > 0 && filled < 6) isNew = true;
 
-    var bars = bk.buckets.map(function (row) {
+    var bars = bk.buckets.map(function (row, bi) {
       var v = row[i];
-      if (v === null) {
-        // 新项：不画空槽（否则一整条浅灰看着像故障），只贴右显示已有的点
-        return isNew ? '' : '<span class="st-bar empty"></span>';
-      }
-      return '<span class="st-bar ' + (v === 1 ? 'up' : 'down') + '"></span>';
+      // 没有这一位（该项上线前 / 旧记录里还没这一列）→ 透明占位，不画灰条，
+      // 否则一整段浅灰会被误读成「未知状态」
+      if (v === null) return '<span class="st-bar gap"></span>';
+      var tip = (bk.times && bk.times[bi] ? hhmm(bk.times[bi]) + ' · ' : '')
+        + (v === 1 ? '正常' : '异常');
+      return '<span class="st-bar ' + (v === 1 ? 'up' : 'down') + '" data-tip="' + esc(tip) + '"></span>';
     }).join('');
 
     var st = s.ok ? 'up' : 'down';
@@ -207,11 +227,11 @@
       sinceText = ' · 自 ' + (d0.getMonth() + 1) + '-' + d0.getDate() + ' 起监控';
     }
     // 悬停能看到：HTTP 状态码、原始错误、24h 与近 7 天（含真实样本数）
-    var detailTitle = (s.code ? 'HTTP ' + s.code + ' · ' : '')
+    var detailTip = (s.code ? 'HTTP ' + s.code + ' · ' : '')
       + (s.ok ? (s.ms + ' ms') : (s.err || detail))
-      + ' · 24h ' + fmtPct(m.h24) + '（' + m.h24n + ' 次样本）'
-      + ' · 近 7 天 ' + fmtPct(m.d7) + '（' + m.n7 + ' 次样本）'
-      + sinceText;
+      + '\n24h ' + fmtPct(m.h24) + '（' + m.h24n + ' 次样本）'
+      + '\n近 7 天 ' + fmtPct(m.d7) + '（' + m.n7 + ' 次样本）'
+      + sinceText.replace(/^ · /, '自 ');
 
     var rateText;
     if (isNew) {
@@ -228,12 +248,12 @@
       +       '<b class="st-name">' + esc(s.name) + '</b>'
       +       '<a class="st-url" href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(hostOf(s.url)) + ' ↗</a>'
       +     '</div>'
-      +     '<div class="st-card-stat">'
-      +       '<span class="st-ms" title="' + esc(detailTitle) + '">' + esc(detail) + '</span>'
+      +     '<div class="st-card-stat" data-tip="' + esc(detailTip) + '">'
+      +       '<span class="st-ms">' + esc(detail) + '</span>'
       +       '<span class="st-rate">' + esc(rateText) + '</span>'
       +     '</div>'
       +   '</div>'
-      +   '<div class="st-bars' + (isNew ? ' is-new' : '') + '" title="最近 24 小时，每格 30 分钟">' + bars + '</div>'
+      +   '<div class="st-bars' + (isNew ? ' is-new' : '') + '" style="--slices:' + BARS + '">' + bars + '</div>'
       + '</li>';
   }
 
@@ -255,31 +275,35 @@
     box.innerHTML = html;
   }
 
-  /* ---------- 近 7 天表格 ---------- */
+  /* ---------- 近 7 天表格（服务为行、日期为列，窄屏也不横向滚动） ---------- */
   function renderWeek(doc) {
     var tbl = $('stWeek');
     var days = doc.days || {};
-    var keys = Object.keys(days).sort().slice(-7);
+    var keys = Object.keys(days).sort().slice(-7);   // 升序：左旧右新
     if (!keys.length) { tbl.innerHTML = '<tbody><tr><td class="muted">还没有历史数据。</td></tr></tbody>'; return; }
     var idx = orderedIndices(doc);
-    var head = '<thead><tr><th>日期</th>'
-      + idx.map(function (i) {
-        var s = doc.services[i];
-        return '<th title="' + esc(s.name) + '">' + esc(s.short || s.name.replace(/^.*·\s*/, '')) + '</th>';
+    var head = '<thead><tr><th>服务</th>'
+      + keys.map(function (k) {
+        return '<th title="' + esc(k) + '">'
+          + '<span class="d-full">' + esc(k.slice(5)) + '</span>'
+          + '<span class="d-mini">' + esc(k.slice(8)) + '</span>'
+          + '</th>';
       }).join('')
       + '</tr></thead>';
-    var rows = keys.reverse().map(function (k) {
-      var d = days[k] || {};
-      var cells = idx.map(function (i) {
-        var sinceTs = (doc.since && doc.since[i]) || 0;
+    var rows = idx.map(function (i) {
+      var s = doc.services[i];
+      var sinceTs = (doc.since && doc.since[i]) || 0;
+      var cells = keys.map(function (k) {
+        var d = days[k] || {};
         var cnt = sampleCount(d, i, sinceTs, k);
         // 样本太少（< 5 次）不给百分比：1/1 的 100% 比留空更容易误导
         var rate = cnt >= 5 ? pct((d.ok && d.ok[i]) || 0, cnt) : null;
         var cls = rate == null ? 'none' : (rate >= 99.5 ? 'ok' : (rate >= 95 ? 'mid' : 'bad'));
-        var tip = doc.services[i].name + ' · ' + (cnt ? cnt + ' 次样本' : '当天还没上线');
-        return '<td class="' + cls + '" title="' + esc(tip) + '">' + fmtPct(rate) + '</td>';
+        var tip = s.name + ' · ' + k + ' · ' + (cnt ? cnt + ' 次样本' : '当天还没上线');
+        return '<td class="' + cls + '" data-tip="' + esc(tip) + '">' + numPct(rate) + '</td>';
       }).join('');
-      return '<tr><td class="d">' + esc(k.slice(5)) + '</td>' + cells + '</tr>';
+      var label = s.short || s.name.replace(/^.*·\s*/, '');
+      return '<tr><td class="d" title="' + esc(s.name) + '">' + esc(label) + '</td>' + cells + '</tr>';
     }).join('');
     tbl.innerHTML = head + '<tbody>' + rows + '</tbody>';
   }
@@ -345,6 +369,41 @@
   document.addEventListener('visibilitychange', function () {
     if (document.hidden) stopPolling();
     else { load(); startPolling(); }
+  });
+
+  /* ---------- 即时浮窗（原生 title 有约 1 秒延迟，改用自己的） ---------- */
+  var tipEl = $('stTip');
+  function placeTip(e) {
+    if (!tipEl) return;
+    var pad = 12, w = tipEl.offsetWidth, h = tipEl.offsetHeight;
+    var x = e.clientX + pad, y = e.clientY + pad;
+    if (x + w > window.innerWidth - 8) x = e.clientX - w - pad;
+    if (y + h > window.innerHeight - 8) y = e.clientY - h - pad;
+    tipEl.style.left = Math.max(8, x) + 'px';
+    tipEl.style.top = Math.max(8, y) + 'px';
+  }
+  document.addEventListener('mouseover', function (e) {
+    if (!tipEl) return;
+    var t = e.target.closest ? e.target.closest('[data-tip]') : null;
+    if (!t) return;
+    tipEl.textContent = t.getAttribute('data-tip');
+    tipEl.classList.add('on');
+    placeTip(e);
+  });
+  document.addEventListener('mousemove', function (e) {
+    if (tipEl && tipEl.classList.contains('on')) placeTip(e);
+  });
+  document.addEventListener('mouseout', function (e) {
+    if (!tipEl) return;
+    var t = e.target.closest ? e.target.closest('[data-tip]') : null;
+    if (t) tipEl.classList.remove('on');
+  });
+
+  /* ---------- 窗口尺寸变化后按新格数重画 ---------- */
+  var rzTimer = null;
+  window.addEventListener('resize', function () {
+    clearTimeout(rzTimer);
+    rzTimer = setTimeout(function () { if (state.doc) renderList(state.doc); }, 250);
   });
 
   load().then(startPolling);
