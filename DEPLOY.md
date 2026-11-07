@@ -36,7 +36,7 @@
 | `/feed.xml` → `/api/feed` | RSS 2.0，每次请求实时读 Discussions |
 | `/api/discussions`、`/api/gh/*`、`/api/oauth/*` | 同源 Function |
 | `/api/status` | 服务状态数据（读 Upstash `bn:status:v1`，见 §10） |
-| `status.blacknet.cc.cd/` → `/status.html` | 按 Host 重写，状态子域直接出状态页 |
+| `status.blacknet.cc.cd/` → `/status` | 按 Host 307 跳转。**不能用 rewrite**：根路径会先命中 `index.html`，rewrite 不生效 |
 | `/proxy/<host>/*` → 对应上游 | 前端同源反代（见 §4） |
 
 > **`cleanUrls` 的副作用**：`location.pathname` 里没有 `.html`，任何「按文件名比对」的逻辑都会失效
@@ -110,9 +110,9 @@
 
 | 域名 | 记录 | 目标 |
 |---|---|---|
-| `grp.blacknet.cc.cd` | CNAME | `cname.vercel-dns.com`（或 Vercel 面板给出的专用值） |
+| `grp.blacknet.cc.cd` | CNAME | `56439f02d4832c87.vercel-dns-017.com`（Vercel 项目专用值，不是 `cname.vercel-dns.com`） |
 | `book.blacknet.cc.cd` | CNAME | 同上 |
-| `status.blacknet.cc.cd` | CNAME | 同上（同一个 Vercel 项目，按 Host 重写到 `/status.html`） |
+| `status.blacknet.cc.cd` | CNAME | 同上，**代理状态选「仅 DNS」灰云** |
 
 要点：
 

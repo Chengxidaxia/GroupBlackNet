@@ -4,8 +4,10 @@
   "outputDirectory": "dist",
   "cleanUrls": true,
   "trailingSlash": false,
+  "redirects": [
+    { "source": "/", "has": [{ "type": "host", "value": "status.blacknet.cc.cd" }], "destination": "/status", "permanent": false }
+  ],
   "rewrites": [
-    { "source": "/", "has": [{ "type": "host", "value": "status.blacknet.cc.cd" }], "destination": "/status.html" },
     { "source": "/feed.xml", "destination": "/api/feed" },
     { "source": "/api/discussions", "destination": "/api/discussions" },
     { "source": "/api/status", "destination": "/api/status" },
