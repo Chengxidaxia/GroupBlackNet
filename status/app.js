@@ -14,15 +14,24 @@
   var POLL_MS = 30000;
   var NEW_WINDOW = 12 * 3600 * 1000;   // 上线不足 12 小时按「数据累积中」处理
   var state = { doc: null, timer: null, ticker: null };
-  // 条的几何：条宽 3px、间隔 2px 都是整数物理像素，条数按卡片实际宽度算到恰好铺满，
-  // SVG 1:1 渲染（不拉伸）——只有全整数坐标才能保证间隔绝对均匀
+  // 条的几何：时间粒度固定（宽屏每格 10 分钟 / 窄屏 20 分钟），条与间隔都是固定整数像素，
+  // 行宽因此恒定、居中显示——间隔不随浏览器宽度变化，每格的时间含义也永远一致
   function barsGeom() {
     var list = $('stList');
     var pad = (window.innerWidth || 960) <= 760 ? 15 : 18;   // .st-card 的左右 padding
     var W = Math.max(120, (list.clientWidth || 810) - pad * 2);
-    var w = 3, g = 2;
-    var N = Math.max(24, Math.floor((W + g) / (w + g)));
-    return { W: W, w: w, g: g, N: N, total: N * (w + g) - g };
+    var g = 2;
+    // 档位从大到小降级，直到放得下（正常只会用到第一或第二档）
+    var tiers = [
+      { N: 144, w: 3, gran: 10 },   // 24h ÷ 144 = 每格 10 分钟，行宽 717px
+      { N: 72,  w: 2, gran: 20 },   // 每格 20 分钟，行宽 286px
+      { N: 36,  w: 2, gran: 40 },   // 每格 40 分钟，行宽 143px
+    ];
+    for (var t = 0; t < tiers.length; t++) {
+      var d = tiers[t];
+      var total = d.N * (d.w + g) - g;
+      if (total <= W || t === tiers.length - 1) return { W: W, w: d.w, g: g, N: d.N, total: total, gran: d.gran };
+    }
   }
 
   // 分组顺序与标题
@@ -284,6 +293,8 @@
       html += cardOf(doc, bk, s, i, geom);
     });
     box.innerHTML = html;
+    var granEl = $('stGran');
+    if (granEl) granEl.textContent = '24 小时 · 每格 ' + geom.gran + ' 分钟';
   }
 
   /* ---------- 近 7 天表格（服务为行、日期为列，窄屏也不横向滚动） ---------- */
