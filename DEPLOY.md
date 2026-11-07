@@ -297,23 +297,30 @@ wrangler secret put UPSTASH_REDIS_REST_TOKEN -c backend\wrangler.status.toml
 
 ### 10.2 独立项目的文件与部署
 
-版式参照 `status.deepseek.com` / `www.githubstatus.com` / `status.natfrp.com` 的共同做法：
-**没有导航栏**，顶部一行（标题 + 最后更新时间）、一块总状态横幅、一张服务列表（每项一行，
-右侧可用率，下方 48 格 24 小时条）、底部一行小字。
+**样式沿用主站设计系统**（`assets/site.css`）：设计令牌、基础排版、按钮，以及第 10 节
+「服务状态页（`.st-*`）」整段，取值逐一照搬。独立项目把这一套抽成了 `status/style.css`，
+**改样式要两边一起改**。
 
-基础样式仍来自 [Upptime status-page](https://github.com/upptime/status-page)（MIT）：
-`global.css` 原样未改；`themes/{light,dark}.css` 变量名沿用，取值换成参考站点的中性色。
+版式：标题 → 总状态横幅 → 工具条（最后检测 / 刷新）→ 服务卡片列表（左色边 + 圆点 +
+48 格 24 小时条 + 24h/7 天可用率）→ 近 7 天可用率表格 → 一行页脚。
+没有主站页头页脚，也没有原来的三栏说明。
 
 | 文件 | 作用 |
 |---|---|
-| `status/global.css`、`status/themes/{light,dark}.css` | 基础排版与配色变量（Upptime，深浅色跟随系统） |
-| `status/index.html` | 页面骨架 + 覆盖三块的 `<style>`（顶部、横幅、服务行与条） |
-| `status/app.js` | 拉 `/api/status`，渲染横幅与服务行（含 48 格 24 小时条） |
+| `status/style.css` | 设计令牌 + `.st-*` 全套（与 `assets/site.css` 同源） |
+| `status/index.html` | 页面骨架 |
+| `status/app.js` | 拉 `/api/status`，渲染卡片与 7 天表格 |
 | `status/api/status.js` | 取数：**优先直连 Upstash**；本项目没配密钥时回退到 `grp.blacknet.cc.cd/api/status` |
 | `status/vercel.json` | 缓存与安全头（无 rewrite，`/api/status` 走约定式路由） |
 | `api/status.js`（主站那份） | 只是上游备用，主站不再有状态页 |
 
 页面每 30 秒拉一次，标签页隐藏时暂停；`Cache-Control: s-maxage=30` 压住 Upstash 读取次数。
+
+**探测项 12 个**（`backend/status-probe.blacknet.cc.cd.js` 的 `TARGETS`）：
+主站、主站接口、RSS、主站函数自检、书阁、书阁接口自检、归档页、写稿台、
+书库页、书架、作品管理、书目源（jsDelivr）。
+**只能在末尾追加**：`hist` 里每条是位串，位序就是 `TARGETS` 顺序，插在中间会让历史错位
+（新增位在旧位串里读不到，`bucketize` 会跳过并保留 null，不会误判）。
 
 **部署靠 Git 集成，不用 CLI**：项目 Root Directory 指向仓库内的 `status`，
 所以 `cd status && vercel deploy` 会报 `Root Directory "status" does not exist`

@@ -2,34 +2,31 @@
 
 `status.blacknet.cc.cd` 的源码。Vercel 项目 `groupblacknet-status`，Root Directory 指向本目录。
 
-## 版式
+## 版式与样式
 
-参照 `status.deepseek.com` / `www.githubstatus.com` / `status.natfrp.com` 三家的共同做法：
+**样式沿用主站设计系统**（`assets/site.css`）：设计令牌、基础排版、按钮，以及第 10 节
+「服务状态页（`.st-*`）」整段，取值逐一照搬，没有另起一套视觉。
 
-- **没有导航栏**。顶部只有一行：左边标题，右边「最后更新 x · 每 2 分钟探测」。
-- 中间是**一块总状态横幅**（全绿 / 部分异常 / 全断三态）＋**一张服务列表**。
-- 每项一行：状态图标 + 名称 + 当前耗时，右侧 24 小时可用率，下方一条 48 格细条（每格 30 分钟）。
-- 底部**只有一行小字**：探测说明 + 主站 / 书阁 / API 三个链接。
-
-## 样式来源
-
-| 文件 | 来源 | 说明 |
-|---|---|---|
-| `global.css` | [Upptime status-page](https://github.com/upptime/status-page)（MIT）`static/global.css` | **原样未改**，提供 reset、`.container`、基线排版 |
-| `themes/light.css` `themes/dark.css` | 同上 `static/themes/*.css` | **变量名沿用**，取值换成参考站点的中性色（白底 / 绿 #22c55e / 深色 #0a0a0a） |
-
-页面自带的 `<style>` 只覆盖三块：顶部一行、总状态横幅、服务行 + 24 小时条。
-模板里 `article` 原本是「带左侧色边的卡片」，这里覆盖成表格行（`border:0` + 行间 1px 分隔线）。
-
-## 我们自己的部分
-
-| 文件 | 作用 |
+| 文件 | 说明 |
 |---|---|
-| `index.html` | 页面骨架：顶部一行、横幅、卡片（标题栏 + 列表）、底部一行 |
-| `app.js` | 拉 `/api/status`，渲染横幅与服务行（含 48 格条、24h 与近 7 天可用率） |
+| `style.css` | 设计令牌 + 基础 + `.st-*` 全套。与 `assets/site.css` 同源，改一处要两边一起改 |
+| `index.html` | 页面骨架：标题 → 总状态横幅 → 工具条 → 服务卡片列表 → 近 7 天表格 → 一行页脚 |
+| `app.js` | 拉 `/api/status`，渲染卡片（含 48 格条、24h 与近 7 天可用率）与 7 天表格 |
 | `api/status.js` | 只读取数：直连 Upstash；未配密钥时回退 `grp.blacknet.cc.cd/api/status` |
 | `vercel.json` | 缓存与安全头 |
 | `package.json` | `"type": "module"`，**不能删**（见下） |
+
+与主站版的差异只有三处，都是为了独立部署：
+
+1. 去掉了主站页头 / 页脚（`#header-placeholder` / `#footer-placeholder`）与三栏说明，
+   顶部只留标题与一行副标题，底部只留一行小字；
+2. 深色从 `[data-theme="dark"]` 改为 `prefers-color-scheme` 跟随系统（独立项目没有主题按钮）；
+3. 每张卡片的可用率多显示一个「7 天」，悬停还能看到 HTTP 状态码与原始错误。
+
+**探测项目前 12 个**：主站、主站接口、RSS、主站函数自检、书阁、书阁接口自检、
+归档页、写稿台、书库页、书架、作品管理、书目源（jsDelivr）。
+增删只能在 `backend/status-probe.blacknet.cc.cd.js` 的 `TARGETS` **末尾**追加，
+插在中间会让历史位串错位。
 
 ## 两个部署坑
 
@@ -42,6 +39,7 @@
 ## 本地预览
 
 ```bash
-node .workbuddy/preview/mock-status-site.mjs    # 线上真实数据，监听 8140
-node .workbuddy/preview/mock-status-anomaly.mjs # 构造的异常态，监听 8142
+node .workbuddy/preview/mock-status-anomaly.mjs              # 12 项、2 项失败，8142
+PORT=8143 MODE=ok node .workbuddy/preview/mock-status-anomaly.mjs  # 12 项全绿
+node .workbuddy/preview/mock-status-site.mjs                 # 线上真实数据，8140
 ```

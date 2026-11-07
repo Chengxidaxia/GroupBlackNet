@@ -86,8 +86,8 @@ GroupBlackNet/
 ├─ archive.html archive.js   归档：按年月分组、年份与分类筛选、标题正文搜索
 ├─ subscribe.html        订阅说明：RSS / Discussions Watch / 邮件
 ├─ status/               服务状态（**独立 Vercel 项目** groupblacknet-status，根目录指向此处）
-│  ├─ index.html app.js  无导航栏：顶部一行 + 总状态横幅 + 服务行（右侧可用率、下方 48 格条）+ 底部一行
-│  ├─ global.css themes/ 基础排版与配色变量取自 Upptime status-page（MIT）
+│  ├─ index.html app.js  标题 + 总状态横幅 + 服务卡片（48 格条、24h/7 天）+ 7 天表格 + 一行页脚
+│  ├─ style.css          沿用主站设计系统（与 assets/site.css 同源，改要两边一起改）
 │  └─ api/status.js      取数：Upstash 直连，缺密钥时回退主站接口
 ├─ about.html            关于
 ├─ contact.html          联系

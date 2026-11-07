@@ -14,11 +14,7 @@
       ]
     },
     {
-      "source": "/(app.js|global.css)",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
-    },
-    {
-      "source": "/themes/(.*)",
+      "source": "/(app.js|style.css)",
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
     },
     {
