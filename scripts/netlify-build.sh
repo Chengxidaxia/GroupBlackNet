@@ -31,7 +31,7 @@ mkdir -p "$DIST"
 
 # ---- 页面 ----
 for f in index.html blog.html edit.html about.html contact.html sponsor.html 404.html \
-         archive.html subscribe.html status.html archive.js \
+         archive.html subscribe.html archive.js \
          head.html foot.html load-commons.js config.js oauth.js \
          main.js blog.js edit.js favicon.ico .nojekyll; do
   if [ -f "$ROOT/$f" ]; then

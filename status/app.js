@@ -1,85 +1,9 @@
-<!DOCTYPE html>
-<html lang="zh-CN" data-theme="light">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>服务状态 · 群档案</title>
-<meta name="description" content="群档案主站、接口、RSS 与群书阁的实时可用性。数据每 2 分钟更新一次。">
-<link rel="icon" href="/favicon.ico" type="image/x-icon">
-<link rel="stylesheet" href="assets/site.css">
-<script>/* 主题预设 */try{var t=localStorage.getItem('gb-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
-</head>
-<body>
-
-<div id="header-placeholder"></div>
-
-<div class="page-wrap st-page">
-
-  <header class="st-head">
-    <p class="st-eyebrow"><span class="st-eyebrow-dot"></span>服务状态</p>
-    <h1>群档案 · 运行状态</h1>
-    <p class="sub-lede">主站、接口、RSS 与书阁的可用性。探测由 Cloudflare 边缘每 2 分钟发起一次，页面由 Vercel 托管。</p>
-  </header>
-
-  <div class="st-banner" id="stBanner" data-state="loading">
-    <span class="st-banner-dot"></span>
-    <div class="st-banner-text">
-      <strong id="stBannerTitle">正在读取…</strong>
-      <span id="stBannerSub">数据来自 Upstash，稍等片刻。</span>
-    </div>
-  </div>
-
-  <div class="st-toolbar">
-    <span id="stUpdated">最后检测：—</span>
-    <span class="st-sep">·</span>
-    <span id="stInterval">每 2 分钟探测</span>
-    <button class="btn btn-ghost btn-sm st-refresh" id="stRefresh" type="button">刷新</button>
-  </div>
-
-  <ul class="st-list" id="stList" aria-live="polite">
-    <li class="st-card" data-state="loading">
-      <div class="st-card-head"><span class="st-dot"></span><b class="st-name">正在读取服务列表…</b></div>
-    </li>
-  </ul>
-
-  <section class="st-week">
-    <h2 class="st-h2">近 7 天可用率</h2>
-    <div class="st-table-wrap">
-      <table class="st-table" id="stWeek">
-        <tbody><tr><td class="muted">正在读取…</td></tr></tbody>
-      </table>
-    </div>
-  </section>
-
-  <section class="st-about">
-    <h2 class="st-h2">这套状态页是怎么来的</h2>
-    <div class="st-about-grid">
-      <div class="st-about-col">
-        <h3>探测</h3>
-        <p>一个 Cloudflare Worker 按 cron 每 2 分钟从边缘发起 GET 请求，只取状态码，超时 10 秒判为异常。它不对外提供页面，只负责写数据。</p>
-      </div>
-      <div class="st-about-col">
-        <h3>存储</h3>
-        <p>结果写进 Upstash Redis 的 <code>bn:status:v1</code>：最近 24 小时的逐次结果（2 分钟一格）与最近 90 天的日聚合。</p>
-      </div>
-      <div class="st-about-col">
-        <h3>展示</h3>
-        <p>页面本身是纯静态的 Vercel 部署，数据由同源函数 <code>/api/status</code> 读出。页面每 30 秒自动刷新一次，标签页隐藏时暂停。</p>
-      </div>
-    </div>
-    <p class="st-about-note">
-      只统计到「端点有没有正常响应」。状态码 2xx–3xx 记为正常，4xx/5xx、超时、连接失败记为异常。
-      内容是否正确、有无错别字不在监测范围。原始数据：<a href="/api/status" target="_blank" rel="noopener">/api/status</a>
-    </p>
-  </section>
-
-</div>
-
-<div id="footer-placeholder"></div>
-
-<script src="config.js"></script>
-<script src="load-commons.js" defer></script>
-<script>
+/* ============================================================
+   app.js — 服务状态页逻辑（独立项目）
+   ------------------------------------------------------------
+   数据来自同源 /api/status（本项目自带函数，见 api/status.js）。
+   页面每 30 秒刷新一次；标签页隐藏时停止请求与计时。
+   ============================================================ */
 (function () {
   'use strict';
 
@@ -127,11 +51,9 @@
   }
 
   /* ---------- 把 hist 切成 48 个桶 ---------- */
-  // hist: [[slot, "101101"], ...]（新在前）。返回 { buckets: [[0|1|null × 服务数] × 48], total } 
   function bucketize(doc) {
     var n = doc.services.length;
     var hist = (doc.hist || []).filter(function (h) { return Array.isArray(h) && typeof h[1] === 'string'; });
-    // 按 slot 升序
     hist.sort(function (a, b) { return a[0] - b[0]; });
     var slots = hist.slice(-BARS * 15);              // 2 分钟一格 × 15 = 每桶 30 分钟
     var per = Math.max(1, Math.ceil(slots.length / BARS));
@@ -141,7 +63,6 @@
       for (var i = 0; i < n; i++) row.push(null);
       buckets.push(row);
     }
-    // 最新的点落在最后一个桶；往前每 per 个点退一格
     var L = slots.length;
     for (var j = 0; j < L; j++) {
       var bi = BARS - 1 - Math.floor((L - 1 - j) / per);
@@ -184,10 +105,8 @@
   /* ---------- 服务卡片 ---------- */
   function renderList(doc) {
     var box = $('stList');
-    var n = doc.services.length;
     var bk = bucketize(doc);
     var html = doc.services.map(function (s, i) {
-      // 24h 可用率
       var up = 0, total = 0;
       bk.hist.forEach(function (h) {
         var ch = h[1].charAt(i);
@@ -252,7 +171,7 @@
     $('stBannerTitle').textContent = '暂时读不到状态数据';
     var map = {
       'no-data': 'Worker 还没写过数据。确认 status-probe 已部署、cron 已触发。',
-      'no-upstash': '服务端没配 Upstash 环境变量。',
+      'no-upstash': '服务端没配 Upstash 环境变量，也没找到可用的上游接口。',
       'read-failed': '读取存储时出错：' + (info.error || '未知错误'),
     };
     $('stBannerSub').textContent = map[info.reason] || (info.reason || '未知原因');
@@ -302,6 +221,25 @@
     state.timer = state.ticker = null;
   }
 
+  /* ---------- 主题切换（与主站共用 localStorage 键） ---------- */
+  (function theme() {
+    var btn = $('stTheme');
+    if (!btn) return;
+    var root = document.documentElement;
+    function paint() {
+      var cur = root.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+      btn.textContent = cur === 'dark' ? '☀' : '◐';
+      btn.setAttribute('aria-label', cur === 'dark' ? '切换到亮色主题' : '切换到暗色主题');
+    }
+    btn.addEventListener('click', function () {
+      var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem('gb-theme', next); } catch (e) {}
+      paint();
+    });
+    paint();
+  })();
+
   $('stRefresh').addEventListener('click', load);
   document.addEventListener('visibilitychange', function () {
     if (document.hidden) stopPolling();
@@ -310,6 +248,3 @@
 
   load().then(startPolling);
 })();
-</script>
-</body>
-</html>

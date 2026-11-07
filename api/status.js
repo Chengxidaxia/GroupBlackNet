@@ -5,7 +5,8 @@
 //           写进 Upstash Redis 的单个键 bn:status:v1。
 //           本函数只负责把它读出来给页面用，不做任何写操作。
 //
-// 页面：status.html（status.blacknet.cc.cd，同一 Vercel 项目托管）
+// 页面：独立项目 status/（部署在 status.blacknet.cc.cd，自带同名函数；
+//       本项目这个接口只作为它的上游备用数据源，主站本身没有状态页）
 //
 // 响应：
 //   { ok:true,  source:'upstash', updated, seq, intervalSec, services[], hist[], days{} }

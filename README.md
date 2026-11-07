@@ -85,7 +85,10 @@ GroupBlackNet/
 ├─ edit.html             写稿页：Vditor 编辑器 + 封面 / 分类 / 标签 / 简介
 ├─ archive.html archive.js   归档：按年月分组、年份与分类筛选、标题正文搜索
 ├─ subscribe.html        订阅说明：RSS / Discussions Watch / 邮件
-├─ status.html           服务状态：CF Worker 探活 + Upstash 存数据，页面在 Vercel（status.blacknet.cc.cd）
+├─ status/               服务状态（**独立 Vercel 项目** groupblacknet-status，根目录指向此处）
+│  ├─ index.html         页面本体，status.blacknet.cc.cd 根路径直接出
+│  ├─ style.css app.js   自包含样式与渲染逻辑，不引用主站文件
+│  └─ api/status.js      取数：Upstash 直连，缺密钥时回退主站接口
 ├─ about.html            关于
 ├─ contact.html          联系
 ├─ sponsor.html          无偿赞助说明

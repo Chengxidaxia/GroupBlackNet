@@ -35,8 +35,7 @@
 | `trailingSlash: false` | `/about/` 会跳回 `/about` |
 | `/feed.xml` → `/api/feed` | RSS 2.0，每次请求实时读 Discussions |
 | `/api/discussions`、`/api/gh/*`、`/api/oauth/*` | 同源 Function |
-| `/api/status` | 服务状态数据（读 Upstash `bn:status:v1`，见 §10） |
-| `status.blacknet.cc.cd/` → `/status` | 按 Host 307 跳转。**不能用 rewrite**：根路径会先命中 `index.html`，rewrite 不生效 |
+| `/api/status` | 服务状态数据（读 Upstash `bn:status:v1`，见 §10）。**主站只作上游备用**，正式状态页是独立项目 |
 | `/proxy/<host>/*` → 对应上游 | 前端同源反代（见 §4） |
 
 > **`cleanUrls` 的副作用**：`location.pathname` 里没有 `.html`，任何「按文件名比对」的逻辑都会失效
@@ -106,13 +105,13 @@
 
 ## 3. 域名与 DNS
 
-两个域都在 Cloudflare，记录指向 Vercel：
+三个域都在 Cloudflare，记录指向 Vercel。**三个子域分属三个 Vercel 项目**，不要混：
 
-| 域名 | 记录 | 目标 |
-|---|---|---|
-| `grp.blacknet.cc.cd` | CNAME | `56439f02d4832c87.vercel-dns-017.com`（Vercel 项目专用值，不是 `cname.vercel-dns.com`） |
-| `book.blacknet.cc.cd` | CNAME | 同上 |
-| `status.blacknet.cc.cd` | CNAME | 同上，**代理状态选「仅 DNS」灰云** |
+| 域名 | 记录 | 目标 | Vercel 项目 |
+|---|---|---|---|
+| `grp.blacknet.cc.cd` | CNAME | `56439f02d4832c87.vercel-dns-017.com`（Vercel 项目专用值，不是 `cname.vercel-dns.com`） | `groupblacknet`（根目录 `.`） |
+| `book.blacknet.cc.cd` | CNAME | 同上 | `bookblacknet`（根目录 `.`，独立仓库 BookBlackNet） |
+| `status.blacknet.cc.cd` | CNAME | 同上，**代理状态选「仅 DNS」灰云** | `groupblacknet-status`（根目录 `status`，本仓库子目录） |
 
 要点：
 
@@ -252,18 +251,22 @@ bash scripts/netlify-build.sh
 
 ## 10. 服务状态页（status.blacknet.cc.cd）
 
+**状态页是一个独立项目**：页面在 Vercel 项目 `groupblacknet-status`（根目录 `status/`），
+与主站 `groupblacknet`、书阁 `bookblacknet` 分开部署、分开回滚。主站与书阁里**没有**状态界面，
+只有页脚的一个外链指过来。
+
 分工一句话：**CF 只当探针，Vercel 只当页面**。
 
 ```
-CF Worker「status-probe」 cron 每 2 分钟
+CF Worker「status-probe」 cron 每 2 分钟   ← 只在后台写库，不对外提供页面
       │  探测 6 个端点，只取状态码（超时 10 秒判异常）
       ▼
 Upstash Redis  键 bn:status:v1
       │  最近 24 小时逐次位串 + 最近 90 天日聚合
       ▼
-Vercel Function  /api/status（api/status.js，边缘缓存 30 秒）
+status/api/status.js（独立项目自带函数，边缘缓存 30 秒）
       ▼
-status.html（Vercel 托管，status.blacknet.cc.cd）
+status/index.html  →  https://status.blacknet.cc.cd/   ← 根路径直接出页面，没有任何跳转
 ```
 
 ### 10.1 探活 Worker
@@ -292,16 +295,33 @@ wrangler secret put UPSTASH_REDIS_REST_TOKEN -c backend\wrangler.status.toml
 手动跑一次：打开 `https://status-probe.<account>.workers.dev/run`，
 返回体就是准备写入 Upstash 的完整文档 —— 排错先看这个。
 
-### 10.2 页面与接口
+### 10.2 独立项目的文件与部署
 
 | 文件 | 作用 |
 |---|---|
-| `status.html` | 页面本体（纯静态，复用站点设计系统） |
-| `api/status.js` | 读 Upstash 并返回 JSON；没数据时给 `reason` 而不是空数组 |
-| `vercel.json` | `/api/status` 转发 + `status.` 子域的 Host 重写 |
-| `scripts/netlify-build.sh` | 已把 `status.html` 纳入产物（漏了线上 404） |
+| `status/index.html` | 页面本体（纯静态，自包含页头页脚） |
+| `status/style.css` | 自带样式。设计令牌与主站同值，但**不引用主站任何文件** |
+| `status/app.js` | 渲染、24 小时分桶、30 秒轮询、主题切换 |
+| `status/api/status.js` | 取数：**优先直连 Upstash**；本项目没配密钥时回退到 `grp.blacknet.cc.cd/api/status` |
+| `status/vercel.json` | 缓存与安全头（无 rewrite，`/api/status` 走约定式路由） |
+| `api/status.js`（主站那份） | 只是上游备用，主站不再有状态页 |
 
 页面每 30 秒拉一次，标签页隐藏时暂停；`Cache-Control: s-maxage=30` 压住 Upstash 读取次数。
+
+部署（**Root Directory 必须是 `status`**，否则 Git 集成会把整个主站构建到这个项目里）：
+
+```cmd
+cd /d K:\GroupBlackNet\status
+vercel link --project groupblacknet-status
+vercel deploy --prod
+```
+
+> 项目建好后 Root Directory 若显示 `.`，去 Vercel 面板 Settings → General → Root Directory
+> 改成 `status` 保存。改了以后 `git push` 会让两个项目同时构建：主站构建仓库根，状态页只构建 `status/`。
+
+想让它彻底不依赖主站：在 `groupblacknet-status` 项目里补 `UPSTASH_REDIS_REST_URL` /
+`UPSTASH_REDIS_REST_TOKEN`（与探活 Worker 用同一组值），`/api/status` 就会直连 Upstash，
+不再经过 `grp.blacknet.cc.cd`。不配也能用，只是多一跳。
 
 ### 10.3 数据结构
 
