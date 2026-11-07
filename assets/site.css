@@ -595,3 +595,87 @@ button{font-family:var(--sans)}
 .gb-loading.overlay{position:fixed;inset:0;z-index:900;background:var(--bg);opacity:.92;backdrop-filter:blur(2px);padding:0}
 .gb-loading.overlay .txt{margin-top:2px;letter-spacing:.04em}
 @keyframes gb-spin{to{transform:rotate(360deg)}}
+
+/* ---------- 10. 服务状态页（status.html） ---------- */
+.st-page{max-width:960px;padding-bottom:44px}
+.st-head{margin-bottom:22px}
+.st-eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:800;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin:0 0 12px}
+.st-eyebrow-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:pulse 1.8s infinite}
+
+/* 总体横幅 */
+.st-banner{display:flex;gap:14px;align-items:center;border:1px solid var(--line);border-left-width:4px;border-radius:var(--radius);padding:18px 20px;background:var(--paper);margin:0 0 14px;transition:background .25s,border-color .25s}
+.st-banner-dot{width:11px;height:11px;border-radius:50%;flex:none;background:var(--muted);box-shadow:0 0 0 4px rgba(115,122,134,.16)}
+.st-banner-text{display:flex;flex-direction:column;gap:3px;min-width:0}
+.st-banner-text strong{font-family:var(--serif);font-size:19px;font-weight:800;color:var(--ink);letter-spacing:-.01em}
+.st-banner-text span{font-size:13.5px;color:var(--muted);line-height:1.55;overflow-wrap:anywhere}
+.st-banner[data-state="up"]{border-left-color:#16a34a;background:rgba(22,163,74,.07)}
+.st-banner[data-state="up"] .st-banner-dot{background:#16a34a;box-shadow:0 0 0 4px rgba(22,163,74,.16)}
+.st-banner[data-state="warn"]{border-left-color:#d97706;background:rgba(217,119,6,.08)}
+.st-banner[data-state="warn"] .st-banner-dot{background:#d97706;box-shadow:0 0 0 4px rgba(217,119,6,.16)}
+.st-banner[data-state="down"]{border-left-color:var(--accent);background:var(--accent-soft)}
+.st-banner[data-state="down"] .st-banner-dot{background:var(--accent);box-shadow:0 0 0 4px rgba(200,16,46,.16);animation:pulse 1.6s infinite}
+.st-banner[data-state="unknown"]{border-left-color:var(--line-2)}
+
+/* 工具条 */
+.st-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin:0 0 18px}
+.st-toolbar .st-sep{opacity:.5}
+.st-refresh{margin-left:auto}
+
+/* 服务卡片 */
+.st-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
+.st-card{border:1px solid var(--line);border-radius:var(--radius);background:var(--bg);padding:16px 18px;transition:border-color .2s,box-shadow .2s}
+.st-card:hover{border-color:var(--line-2);box-shadow:var(--shadow-1)}
+.st-card-head{display:grid;grid-template-columns:12px minmax(0,1fr) auto;gap:12px;align-items:center}
+.st-dot{width:10px;height:10px;border-radius:50%;background:var(--line-2)}
+.st-card[data-state="up"] .st-dot{background:#16a34a;box-shadow:0 0 0 4px rgba(22,163,74,.12)}
+.st-card[data-state="down"] .st-dot{background:var(--accent);box-shadow:0 0 0 4px rgba(200,16,46,.12);animation:pulse 1.6s infinite}
+.st-card-title{display:flex;flex-direction:column;gap:2px;min-width:0}
+.st-name{font-size:15.5px;font-weight:700;color:var(--ink);line-height:1.4}
+.st-url{font-size:12.5px;color:var(--muted);font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+a.st-url:hover{color:var(--accent)}
+.st-card-stat{display:flex;flex-direction:column;align-items:flex-end;gap:2px;font-variant-numeric:tabular-nums;min-width:0}
+.st-ms{font-size:13.5px;font-weight:600;color:var(--ink-2);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.st-card[data-state="down"] .st-ms{color:var(--accent)}
+.st-rate{font-size:12px;color:var(--muted)}
+
+/* 24 小时条形图 */
+.st-bars{display:grid;grid-template-columns:repeat(48,1fr);gap:2px;margin-top:12px;height:26px}
+.st-bar{height:100%;border-radius:2px;background:var(--line-2)}
+.st-bar.up{background:#16a34a;opacity:.68}
+.st-bar.down{background:var(--accent);opacity:.95}
+.st-bar.empty{background:var(--line);opacity:.55}
+
+/* 7 天表格 */
+.st-week{margin:34px 0 0;border-top:1px solid var(--line);padding-top:26px}
+.st-h2{font-family:var(--serif);font-size:22px;font-weight:800;margin:0 0 14px;letter-spacing:-.01em}
+.st-table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius-sm)}
+.st-table{width:100%;border-collapse:collapse;font-size:13.5px;font-variant-numeric:tabular-nums}
+.st-table th,.st-table td{padding:10px 12px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+.st-table th{font-size:12px;font-weight:700;color:var(--muted);background:var(--paper)}
+.st-table th:first-child,.st-table td:first-child{text-align:left}
+.st-table tbody tr:last-child td{border-bottom:0}
+.st-table td.ok{color:#16a34a;font-weight:600}
+.st-table td.mid{color:#d97706;font-weight:600}
+.st-table td.bad{color:var(--accent);font-weight:700}
+.st-table td.d{color:var(--muted)}
+
+/* 说明 */
+.st-about{margin:34px 0 0;border-top:1px solid var(--line);padding-top:26px}
+.st-about-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.st-about-col{border:1px solid var(--line);border-radius:var(--radius-sm);padding:16px 18px;background:var(--paper)}
+.st-about-col h3{font-family:var(--serif);font-size:16px;margin:0 0 8px;color:var(--ink)}
+.st-about-col p{margin:0;font-size:13.5px;line-height:1.7;color:var(--ink-2)}
+.st-about code{font-family:var(--mono);font-size:.92em;background:var(--paper-2);padding:1px 5px;border-radius:4px;color:var(--ink-2)}
+.st-about-note{font-size:13px;color:var(--muted);line-height:1.75;margin:16px 0 0}
+.st-about-note a{color:var(--accent);text-decoration:underline;text-underline-offset:3px}
+
+@media (max-width:760px){
+  .st-page{padding-left:16px;padding-right:16px}
+  .st-card{padding:14px 15px}
+  .st-card-head{grid-template-columns:12px minmax(0,1fr)}
+  .st-card-stat{grid-column:2;flex-direction:row;flex-wrap:wrap;align-items:baseline;gap:8px;min-width:0}
+  .st-ms{max-width:100%;white-space:normal;overflow-wrap:anywhere}
+  .st-bars{grid-template-columns:repeat(48,1fr);gap:1px;height:20px}
+  .st-about-grid{grid-template-columns:1fr}
+  .st-banner{padding:15px 16px;gap:12px}
+}

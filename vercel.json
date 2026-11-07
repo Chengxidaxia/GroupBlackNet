@@ -5,8 +5,10 @@
   "cleanUrls": true,
   "trailingSlash": false,
   "rewrites": [
+    { "source": "/", "has": [{ "type": "host", "value": "status.blacknet.cc.cd" }], "destination": "/status.html" },
     { "source": "/feed.xml", "destination": "/api/feed" },
     { "source": "/api/discussions", "destination": "/api/discussions" },
+    { "source": "/api/status", "destination": "/api/status" },
     { "source": "/api/gh", "destination": "/api/gh" },
     { "source": "/api/gh/:path*", "destination": "/api/gh" },
     { "source": "/api/oauth/:path*", "destination": "/api/oauth" },

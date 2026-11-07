@@ -35,6 +35,8 @@
 | `trailingSlash: false` | `/about/` 会跳回 `/about` |
 | `/feed.xml` → `/api/feed` | RSS 2.0，每次请求实时读 Discussions |
 | `/api/discussions`、`/api/gh/*`、`/api/oauth/*` | 同源 Function |
+| `/api/status` | 服务状态数据（读 Upstash `bn:status:v1`，见 §10） |
+| `status.blacknet.cc.cd/` → `/status.html` | 按 Host 重写，状态子域直接出状态页 |
 | `/proxy/<host>/*` → 对应上游 | 前端同源反代（见 §4） |
 
 > **`cleanUrls` 的副作用**：`location.pathname` 里没有 `.html`，任何「按文件名比对」的逻辑都会失效
@@ -110,6 +112,7 @@
 |---|---|---|
 | `grp.blacknet.cc.cd` | CNAME | `cname.vercel-dns.com`（或 Vercel 面板给出的专用值） |
 | `book.blacknet.cc.cd` | CNAME | 同上 |
+| `status.blacknet.cc.cd` | CNAME | 同上（同一个 Vercel 项目，按 Host 重写到 `/status.html`） |
 
 要点：
 
@@ -244,3 +247,79 @@ bash scripts/netlify-build.sh
 | Netlify | Deploys → 选上一次成功部署 → **Publish deploy** |
 | 书阁数据 | 书籍在 `BookBlackNet` 仓库，`git revert` 对应提交即可；书目索引是 `docs/books/index.json` |
 | 域名 | 把 CNAME 改回上一家（Pages 的 A 记录需重新加回），几分钟生效 |
+
+---
+
+## 10. 服务状态页（status.blacknet.cc.cd）
+
+分工一句话：**CF 只当探针，Vercel 只当页面**。
+
+```
+CF Worker「status-probe」 cron 每 2 分钟
+      │  探测 6 个端点，只取状态码（超时 10 秒判异常）
+      ▼
+Upstash Redis  键 bn:status:v1
+      │  最近 24 小时逐次位串 + 最近 90 天日聚合
+      ▼
+Vercel Function  /api/status（api/status.js，边缘缓存 30 秒）
+      ▼
+status.html（Vercel 托管，status.blacknet.cc.cd）
+```
+
+### 10.1 探活 Worker
+
+| 项 | 值 |
+|---|---|
+| 源码 | `backend/status-probe.blacknet.cc.cd.js` |
+| 配置 | `backend/wrangler.status.toml`（name `status-probe`，cron `*/2 * * * *`） |
+| 自定义域 | **不绑**：只跑 cron，调试用 workers.dev 的 `/run`，避免与 `status.` 的 Vercel CNAME 冲突 |
+
+```cmd
+wrangler login
+wrangler secret put UPSTASH_REDIS_REST_URL -c backend\wrangler.status.toml
+wrangler secret put UPSTASH_REDIS_REST_TOKEN -c backend\wrangler.status.toml
+wrangler deploy -c backend\wrangler.status.toml
+```
+
+两个 secret 的值与 Vercel 项目里的 `UPSTASH_REDIS_REST_*` **完全相同**（同一个库）。
+不配 secret 时 cron 照样触发，但会返回 `ok:false` 且不写库。
+
+手动跑一次：打开 `https://status-probe.<account>.workers.dev/run`，
+返回体就是准备写入 Upstash 的完整文档 —— 排错先看这个。
+
+### 10.2 页面与接口
+
+| 文件 | 作用 |
+|---|---|
+| `status.html` | 页面本体（纯静态，复用站点设计系统） |
+| `api/status.js` | 读 Upstash 并返回 JSON；没数据时给 `reason` 而不是空数组 |
+| `vercel.json` | `/api/status` 转发 + `status.` 子域的 Host 重写 |
+| `scripts/netlify-build.sh` | 已把 `status.html` 纳入产物（漏了线上 404） |
+
+页面每 30 秒拉一次，标签页隐藏时暂停；`Cache-Control: s-maxage=30` 压住 Upstash 读取次数。
+
+### 10.3 数据结构
+
+存在 Upstash 单键 `bn:status:v1`，每轮探测 **GET + SET 各一条命令**（2 分钟一轮 ≈ 720 次/天）：
+
+```json
+{
+  "v": 1, "updated": 1762300000000, "seq": 123, "intervalSec": 120,
+  "services": [{ "id": "grp", "name": "群档案 · 主站", "short": "主站", "url": "https://grp.blacknet.cc.cd/", "ok": true, "ms": 92, "code": 200, "err": "", "at": 0 }],
+  "hist": [[14950211, "111011"]],
+  "days": { "2026-11-07": { "n": 720, "ok": [720, 719, 720, 700, 720, 720] } }
+}
+```
+
+- `hist` 的位串顺序 = `services` 顺序，**新服务只能追加到末尾**，插到中间会让历史错位。
+- 同一 2 分钟槽内重跑只覆盖、不重复计数。
+- 环境变量名两套都认：`UPSTASH_REDIS_REST_*` 或 `KV_REST_API_*`。
+
+### 10.4 排查
+
+| 现象 | 原因 | 处理 |
+|---|---|---|
+| 页面显示「暂时读不到状态数据」，`reason: no-data` | Worker 没部署 / cron 没触发 / 写进了别的库 | 先手动开 `/run` 看返回，再核对 secret 与 Vercel 是否同一个 Upstash |
+| `reason: no-upstash` | Vercel 项目缺环境变量 | 补 `UPSTASH_REDIS_REST_URL/_TOKEN` 后 Redeploy |
+| 条形图整条灰 | `hist` 为空 | 同 `no-data` |
+| 某一项长期红 | 端点真挂了，或该端点需要鉴权 | 点卡片上的链接自查；需要登录的端点不要放进 `TARGETS` |

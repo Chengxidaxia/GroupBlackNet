@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>服务状态 · 群档案</title>
+<meta name="description" content="群档案主站、接口、RSS 与群书阁的实时可用性。数据每 2 分钟更新一次。">
+<link rel="icon" href="/favicon.ico" type="image/x-icon">
+<link rel="stylesheet" href="assets/site.css">
+<script>/* 主题预设 */try{var t=localStorage.getItem('gb-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
+</head>
+<body>
+
+<div id="header-placeholder"></div>
+
+<div class="page-wrap st-page">
+
+  <header class="st-head">
+    <p class="st-eyebrow"><span class="st-eyebrow-dot"></span>服务状态</p>
+    <h1>群档案 · 运行状态</h1>
+    <p class="sub-lede">主站、接口、RSS 与书阁的可用性。探测由 Cloudflare 边缘每 2 分钟发起一次，页面由 Vercel 托管。</p>
+  </header>
+
+  <div class="st-banner" id="stBanner" data-state="loading">
+    <span class="st-banner-dot"></span>
+    <div class="st-banner-text">
+      <strong id="stBannerTitle">正在读取…</strong>
+      <span id="stBannerSub">数据来自 Upstash，稍等片刻。</span>
+    </div>
+  </div>
+
+  <div class="st-toolbar">
+    <span id="stUpdated">最后检测：—</span>
+    <span class="st-sep">·</span>
+    <span id="stInterval">每 2 分钟探测</span>
+    <button class="btn btn-ghost btn-sm st-refresh" id="stRefresh" type="button">刷新</button>
+  </div>
+
+  <ul class="st-list" id="stList" aria-live="polite">
+    <li class="st-card" data-state="loading">
+      <div class="st-card-head"><span class="st-dot"></span><b class="st-name">正在读取服务列表…</b></div>
+    </li>
+  </ul>
+
+  <section class="st-week">
+    <h2 class="st-h2">近 7 天可用率</h2>
+    <div class="st-table-wrap">
+      <table class="st-table" id="stWeek">
+        <tbody><tr><td class="muted">正在读取…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="st-about">
+    <h2 class="st-h2">这套状态页是怎么来的</h2>
+    <div class="st-about-grid">
+      <div class="st-about-col">
+        <h3>探测</h3>
+        <p>一个 Cloudflare Worker 按 cron 每 2 分钟从边缘发起 GET 请求，只取状态码，超时 10 秒判为异常。它不对外提供页面，只负责写数据。</p>
+      </div>
+      <div class="st-about-col">
+        <h3>存储</h3>
+        <p>结果写进 Upstash Redis 的 <code>bn:status:v1</code>：最近 24 小时的逐次结果（2 分钟一格）与最近 90 天的日聚合。</p>
+      </div>
+      <div class="st-about-col">
+        <h3>展示</h3>
+        <p>页面本身是纯静态的 Vercel 部署，数据由同源函数 <code>/api/status</code> 读出。页面每 30 秒自动刷新一次，标签页隐藏时暂停。</p>
+      </div>
+    </div>
+    <p class="st-about-note">
+      只统计到「端点有没有正常响应」。状态码 2xx–3xx 记为正常，4xx/5xx、超时、连接失败记为异常。
+      内容是否正确、有无错别字不在监测范围。原始数据：<a href="/api/status" target="_blank" rel="noopener">/api/status</a>
+    </p>
+  </section>
+
+</div>
+
+<div id="footer-placeholder"></div>
+
+<script src="config.js"></script>
+<script src="load-commons.js" defer></script>
+<script>
+(function () {
+  'use strict';
+
+  var API = '/api/status';
+  var BARS = 48;            // 24 小时切成 48 格（每格 30 分钟）
+  var POLL_MS = 30000;
+  var state = { doc: null, timer: null, ticker: null };
+
+  var $ = function (id) { return document.getElementById(id); };
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+    });
+  }
+  function pct(up, total) {
+    if (!total) return null;
+    return Math.round((up / total) * 1000) / 10;
+  }
+  function fmtPct(v) {
+    if (v == null) return '—';
+    return (v >= 100 ? '100' : v.toFixed(1).replace(/\.0$/, '')) + '%';
+  }
+  function ago(ms) {
+    if (!ms) return '—';
+    var s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+    if (s < 60) return s + ' 秒前';
+    var m = Math.round(s / 60);
+    if (m < 60) return m + ' 分钟前';
+    var h = Math.round(m / 60);
+    if (h < 24) return h + ' 小时前';
+    return Math.round(h / 24) + ' 天前';
+  }
+  function hostOf(u) {
+    try { return new URL(u).host + (new URL(u).pathname === '/' ? '' : new URL(u).pathname); } catch (e) { return u || ''; }
+  }
+  // 把探测端吐回来的英文错误翻成人话；原文保留在 title 里
+  function errText(s) {
+    if (s.ok) return (s.ms || 0) + ' ms';
+    var e = String(s.err || '');
+    if (/timeout|abort|timed out/i.test(e)) return '超时（10 秒无响应）';
+    if (/dns|ENOTFOUND|getaddrinfo/i.test(e)) return '域名解析失败';
+    if (/connect|network|fetch failed|ECONN/i.test(e)) return '连接失败';
+    if (s.code) return 'HTTP ' + s.code;
+    return e ? '异常' : '无响应';
+  }
+
+  /* ---------- 把 hist 切成 48 个桶 ---------- */
+  // hist: [[slot, "101101"], ...]（新在前）。返回 { buckets: [[0|1|null × 服务数] × 48], total } 
+  function bucketize(doc) {
+    var n = doc.services.length;
+    var hist = (doc.hist || []).filter(function (h) { return Array.isArray(h) && typeof h[1] === 'string'; });
+    // 按 slot 升序
+    hist.sort(function (a, b) { return a[0] - b[0]; });
+    var slots = hist.slice(-BARS * 15);              // 2 分钟一格 × 15 = 每桶 30 分钟
+    var per = Math.max(1, Math.ceil(slots.length / BARS));
+    var buckets = [];
+    for (var b = 0; b < BARS; b++) {
+      var row = [];
+      for (var i = 0; i < n; i++) row.push(null);
+      buckets.push(row);
+    }
+    // 最新的点落在最后一个桶；往前每 per 个点退一格
+    var L = slots.length;
+    for (var j = 0; j < L; j++) {
+      var bi = BARS - 1 - Math.floor((L - 1 - j) / per);
+      if (bi < 0) continue;
+      var bitstr = slots[j][1];
+      for (var s = 0; s < n; s++) {
+        var ch = bitstr.charAt(s);
+        if (ch !== '0' && ch !== '1') continue;
+        var cur = buckets[bi][s];
+        var v = ch === '1' ? 1 : 0;
+        buckets[bi][s] = cur === null ? v : Math.min(cur, v);   // 桶里只要掉过一次就标红
+      }
+    }
+    return { buckets: buckets, hist: hist };
+  }
+
+  /* ---------- 顶部横幅 ---------- */
+  function renderBanner(doc) {
+    var el = $('stBanner');
+    var title = $('stBannerTitle');
+    var sub = $('stBannerSub');
+    if (!doc) return;
+    var bad = doc.services.filter(function (s) { return !s.ok; });
+    var tail = ' · 最后检测 <span class="st-ago">' + ago(doc.updated) + '</span>';
+    if (!bad.length) {
+      el.setAttribute('data-state', 'up');
+      title.textContent = '全部服务正常';
+      sub.innerHTML = doc.services.length + ' 项检查全部通过' + tail;
+    } else if (bad.length === doc.services.length) {
+      el.setAttribute('data-state', 'down');
+      title.textContent = '全部服务异常';
+      sub.innerHTML = '可能是网络或数据源整体故障' + tail;
+    } else {
+      el.setAttribute('data-state', 'warn');
+      title.textContent = bad.length + ' 项服务异常';
+      sub.innerHTML = esc(bad.map(function (s) { return s.name; }).join('、')) + tail;
+    }
+  }
+
+  /* ---------- 服务卡片 ---------- */
+  function renderList(doc) {
+    var box = $('stList');
+    var n = doc.services.length;
+    var bk = bucketize(doc);
+    var html = doc.services.map(function (s, i) {
+      // 24h 可用率
+      var up = 0, total = 0;
+      bk.hist.forEach(function (h) {
+        var ch = h[1].charAt(i);
+        if (ch === '1') { up++; total++; } else if (ch === '0') { total++; }
+      });
+      var rate = pct(up, total);
+
+      var bars = bk.buckets.map(function (row) {
+        var v = row[i];
+        var cls = v === null ? 'empty' : (v === 1 ? 'up' : 'down');
+        return '<span class="st-bar ' + cls + '"></span>';
+      }).join('');
+
+      var st = s.ok ? 'up' : 'down';
+      var detail = errText(s);
+      var detailTitle = s.ok ? (s.ms + ' ms') : (s.err || detail);
+
+      return '<li class="st-card" data-state="' + st + '">'
+        +   '<div class="st-card-head">'
+        +     '<span class="st-dot"></span>'
+        +     '<div class="st-card-title">'
+        +       '<b class="st-name">' + esc(s.name) + '</b>'
+        +       '<a class="st-url" href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(hostOf(s.url)) + ' ↗</a>'
+        +     '</div>'
+        +     '<div class="st-card-stat">'
+        +       '<span class="st-ms" title="' + esc(detailTitle) + '">' + esc(detail) + '</span>'
+        +       '<span class="st-rate">24h ' + fmtPct(rate) + '</span>'
+        +     '</div>'
+        +   '</div>'
+        +   '<div class="st-bars" title="最近 24 小时，每格 30 分钟">' + bars + '</div>'
+        + '</li>';
+    }).join('');
+    box.innerHTML = html;
+  }
+
+  /* ---------- 近 7 天表格 ---------- */
+  function renderWeek(doc) {
+    var tbl = $('stWeek');
+    var days = doc.days || {};
+    var keys = Object.keys(days).sort().slice(-7);
+    if (!keys.length) { tbl.innerHTML = '<tbody><tr><td class="muted">还没有历史数据。</td></tr></tbody>'; return; }
+    var head = '<thead><tr><th>日期</th>'
+      + doc.services.map(function (s) {
+        return '<th>' + esc(s.short || s.name.replace(/^.*·\s*/, '')) + '</th>';
+      }).join('')
+      + '</tr></thead>';
+    var rows = keys.reverse().map(function (k) {
+      var d = days[k] || {};
+      var cells = doc.services.map(function (_, i) {
+        var rate = pct((d.ok && d.ok[i]) || 0, d.n || 0);
+        var cls = rate == null ? '' : (rate >= 99.5 ? 'ok' : (rate >= 95 ? 'mid' : 'bad'));
+        return '<td class="' + cls + '">' + fmtPct(rate) + '</td>';
+      }).join('');
+      return '<tr><td class="d">' + esc(k.slice(5)) + '</td>' + cells + '</tr>';
+    }).join('');
+    tbl.innerHTML = head + '<tbody>' + rows + '</tbody>';
+  }
+
+  /* ---------- 空态 ---------- */
+  function renderEmpty(info) {
+    $('stBanner').setAttribute('data-state', 'unknown');
+    $('stBannerTitle').textContent = '暂时读不到状态数据';
+    var map = {
+      'no-data': 'Worker 还没写过数据。确认 status-probe 已部署、cron 已触发。',
+      'no-upstash': '服务端没配 Upstash 环境变量。',
+      'read-failed': '读取存储时出错：' + (info.error || '未知错误'),
+    };
+    $('stBannerSub').textContent = map[info.reason] || (info.reason || '未知原因');
+    $('stList').innerHTML = '<li class="st-card" data-state="unknown"><div class="st-card-head">'
+      + '<span class="st-dot"></span><div class="st-card-title"><b class="st-name">没有可显示的服务</b>'
+      + '<span class="st-url">数据源为空</span></div></div></li>';
+    $('stWeek').innerHTML = '<tbody><tr><td class="muted">暂无数据。</td></tr></tbody>';
+    $('stUpdated').textContent = '最后检测：—';
+  }
+
+  /* ---------- 拉取 ---------- */
+  async function load() {
+    $('stRefresh').disabled = true;
+    try {
+      var res = await fetch(API + '?t=' + Date.now(), { cache: 'no-store' });
+      var doc = await res.json();
+      if (!doc || doc.ok !== true || !Array.isArray(doc.services) || !doc.services.length) {
+        renderEmpty(doc || {});
+        return;
+      }
+      state.doc = doc;
+      $('stInterval').textContent = '每 ' + Math.round((doc.intervalSec || 120) / 60) + ' 分钟探测';
+      renderBanner(doc);
+      renderList(doc);
+      renderWeek(doc);
+      $('stUpdated').innerHTML = '最后检测：<span class="st-ago">' + ago(doc.updated) + '</span>';
+    } catch (e) {
+      renderEmpty({ reason: 'read-failed', error: String(e.message || e) });
+    } finally {
+      $('stRefresh').disabled = false;
+    }
+  }
+
+  function startPolling() {
+    stopPolling();
+    state.timer = setInterval(load, POLL_MS);
+    state.ticker = setInterval(function () {
+      if (!state.doc) return;
+      var a = ago(state.doc.updated);
+      var list = document.querySelectorAll('.st-ago');
+      for (var i = 0; i < list.length; i++) list[i].textContent = a;
+    }, 1000);
+  }
+  function stopPolling() {
+    if (state.timer) clearInterval(state.timer);
+    if (state.ticker) clearInterval(state.ticker);
+    state.timer = state.ticker = null;
+  }
+
+  $('stRefresh').addEventListener('click', load);
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) stopPolling();
+    else { load(); startPolling(); }
+  });
+
+  load().then(startPolling);
+})();
+</script>
+</body>
+</html>
