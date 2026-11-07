@@ -203,15 +203,25 @@
     bk.buckets.forEach(function (row) { if (row[i] !== null) filled++; });
     if (!isNew && filled > 0 && filled < 6) isNew = true;
 
-    var bars = bk.buckets.map(function (row, bi) {
+    // 用 SVG 画：条与间隔都是精确坐标，整行等比缩放，间隔不会像 HTML 网格那样忽宽忽窄
+    var VB_W = 720, VB_H = 24;
+    var step = VB_W / BARS;
+    var bw = Math.min(3.4, step * 0.55);   // 条的逻辑宽度（胶囊条）
+    var rx = (bw / 2).toFixed(2);
+    var rects = bk.buckets.map(function (row, bi) {
       var v = row[i];
-      // 没有这一位（该项上线前 / 旧记录里还没这一列）→ 透明占位，不画灰条，
-      // 否则一整段浅灰会被误读成「未知状态」
-      if (v === null) return '<span class="st-bar gap"></span>';
+      var x = (bi * step + (step - bw) / 2).toFixed(2);
+      var geom = 'x="' + x + '" y="0" width="' + bw + '" height="' + VB_H + '" rx="' + rx + '"';
+      if (v === null) {
+        var gtip = bk.times && bk.times[bi] ? hhmm(bk.times[bi]) + ' · 无数据' : '无数据';
+        return '<rect ' + geom + ' fill="var(--c-gap)" data-tip="' + esc(gtip) + '"></rect>';
+      }
       var tip = (bk.times && bk.times[bi] ? hhmm(bk.times[bi]) + ' · ' : '')
         + (v === 1 ? '正常' : '异常');
-      return '<span class="st-bar ' + (v === 1 ? 'up' : 'down') + '" data-tip="' + esc(tip) + '"></span>';
+      return '<rect ' + geom + ' fill="var(--c-' + (v === 1 ? 'up' : 'down') + ')" data-tip="' + esc(tip) + '"></rect>';
     }).join('');
+    var bars = '<svg class="st-bars" viewBox="0 0 ' + VB_W + ' ' + VB_H
+      + '" preserveAspectRatio="none" aria-hidden="true">' + rects + '</svg>';
 
     var st = s.ok ? 'up' : 'down';
     var detail = errText(s);
@@ -248,7 +258,7 @@
       +       '<span class="st-rate">' + esc(rateText) + '</span>'
       +     '</div>'
       +   '</div>'
-      +   '<div class="st-bars' + (isNew ? ' is-new' : '') + '" style="--slices:' + BARS + '">' + bars + '</div>'
+      +   bars
       + '</li>';
   }
 
