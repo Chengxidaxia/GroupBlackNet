@@ -276,10 +276,15 @@ status.html（Vercel 托管，status.blacknet.cc.cd）
 
 ```cmd
 wrangler login
+wrangler deploy -c backend\wrangler.status.toml
 wrangler secret put UPSTASH_REDIS_REST_URL -c backend\wrangler.status.toml
 wrangler secret put UPSTASH_REDIS_REST_TOKEN -c backend\wrangler.status.toml
-wrangler deploy -c backend\wrangler.status.toml
 ```
+
+**顺序不能反**：Worker 还不存在时 `secret put` 会问
+`There doesn't seem to be a Worker called "status-probe". Do you want to create a new Worker…?`，
+直接回车默认是 No，会以 `Aborting. No secrets added.` 结束。
+所以先把 Worker `deploy` 出来，再补两个 secret（补完下一轮 cron 就会正常写库）。
 
 两个 secret 的值与 Vercel 项目里的 `UPSTASH_REDIS_REST_*` **完全相同**（同一个库）。
 不配 secret 时 cron 照样触发，但会返回 `ok:false` 且不写库。
