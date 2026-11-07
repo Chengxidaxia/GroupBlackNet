@@ -1,0 +1,6 @@
+{
+  "name": "groupblacknet-status",
+  "private": true,
+  "description": "群档案服务状态页（独立 Vercel 项目）。type:module 让 Vercel 以 ESM 运行 api/status.js，不做 ESM→CJS 转换——否则会继承上级仓库的 type:module 而报 exports is not defined",
+  "type": "module"
+}
