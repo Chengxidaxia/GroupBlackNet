@@ -34,3 +34,6 @@ _img-migrate/
 # 群书阁工作副本：真源在独立仓库 BookBlackNet（线上部署/jsDelivr 都读它），
 # 主仓库不再携带；本地文件保留仅供编辑与 sync-book-repo.sh 同步
 book/
+
+.vercel
+.env*
