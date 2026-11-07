@@ -152,7 +152,7 @@
       up7 += (d.ok && d.ok[i]) || 0;
       n7 += sampleCount(d, i, sinceTs, k);
     });
-    return { h24: pct(up, total), d7: pct(up7, n7), n7: n7, h24n: total };
+    return { h24: pct(up, total), d7: n7 >= 5 ? pct(up7, n7) : null, n7: n7, h24n: total };
   }
 
   /* ---------- 顶部横幅 ---------- */
@@ -273,10 +273,11 @@
       var cells = idx.map(function (i) {
         var sinceTs = (doc.since && doc.since[i]) || 0;
         var cnt = sampleCount(d, i, sinceTs, k);
-        var rate = pct((d.ok && d.ok[i]) || 0, cnt);
+        // 样本太少（< 5 次）不给百分比：1/1 的 100% 比留空更容易误导
+        var rate = cnt >= 5 ? pct((d.ok && d.ok[i]) || 0, cnt) : null;
         var cls = rate == null ? 'none' : (rate >= 99.5 ? 'ok' : (rate >= 95 ? 'mid' : 'bad'));
-        return '<td class="' + cls + '" title="' + esc(doc.services[i].name + ' · ' + cnt + ' 次样本') + '">'
-          + fmtPct(rate) + '</td>';
+        var tip = doc.services[i].name + ' · ' + (cnt ? cnt + ' 次样本' : '当天还没上线');
+        return '<td class="' + cls + '" title="' + esc(tip) + '">' + fmtPct(rate) + '</td>';
       }).join('');
       return '<tr><td class="d">' + esc(k.slice(5)) + '</td>' + cells + '</tr>';
     }).join('');
