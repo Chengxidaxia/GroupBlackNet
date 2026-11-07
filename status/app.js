@@ -14,24 +14,16 @@
   var POLL_MS = 30000;
   var NEW_WINDOW = 12 * 3600 * 1000;   // 上线不足 12 小时按「数据累积中」处理
   var state = { doc: null, timer: null, ticker: null };
-  // 条的几何：时间粒度固定（宽屏每格 10 分钟 / 窄屏 20 分钟），条与间隔都是固定整数像素，
-  // 行宽因此恒定、居中显示——间隔不随浏览器宽度变化，每格的时间含义也永远一致
+  // 条的几何：按卡片实际内容宽铺满整行，条宽整数、间隔恒定 2px → 间隔绝对均匀。
+  // 时间窗口固定 24 小时，早期还没有数据的格子由灰色条补齐（app.js 里 var(--c-gap)）。
   function barsGeom() {
     var list = $('stList');
     var pad = (window.innerWidth || 960) <= 760 ? 15 : 18;   // .st-card 的左右 padding
     var W = Math.max(120, (list.clientWidth || 810) - pad * 2);
-    var g = 2;
-    // 档位从大到小降级，直到放得下（正常只会用到第一或第二档）
-    var tiers = [
-      { N: 144, w: 3, gran: 10 },   // 24h ÷ 144 = 每格 10 分钟，行宽 717px
-      { N: 72,  w: 2, gran: 20 },   // 每格 20 分钟，行宽 286px
-      { N: 36,  w: 2, gran: 40 },   // 每格 40 分钟，行宽 143px
-    ];
-    for (var t = 0; t < tiers.length; t++) {
-      var d = tiers[t];
-      var total = d.N * (d.w + g) - g;
-      if (total <= W || t === tiers.length - 1) return { W: W, w: d.w, g: g, N: d.N, total: total, gran: d.gran };
-    }
+    var g = 2, w = window.innerWidth <= 760 ? 2 : 3;
+    var N = Math.max(12, Math.floor((W + g) / (w + g)));
+    var total = N * (w + g) - g;
+    return { W: W, w: w, g: g, N: N, total: total };
   }
 
   // 分组顺序与标题
@@ -98,44 +90,48 @@
     return e ? '异常' : '无响应';
   }
 
-  /* ---------- 把 hist 切成 N 个桶 ---------- */
-  // hist: [[slot, "101101"], ...]
+  /* ---------- 把 hist 按「时间」切成 BARS 个桶 ---------- */
+  // 数据可能还不满 24 小时。窗口取「实际数据跨度」与 24 小时中较小的那个，
+  // 桶在整个窗口上均匀分布 —— 条形因此连续铺满整行，不会左半边一片空白。
   function bucketize(doc, BARS) {
     var n = doc.services.length;
     var since = doc.since || [];
     var hist = (doc.hist || []).filter(function (h) { return Array.isArray(h) && typeof h[1] === 'string'; });
     hist.sort(function (a, b) { return a[0] - b[0]; });
-    var slots = hist.slice(-WINDOW_SLOTS);          // 只取最近 24 小时
-    var per = Math.max(1e-6, slots.length / BARS);  // 每个桶分到多少个探测点（可为小数）
     var buckets = [];
-    var times = [];                                  // 每个桶最新一个探测点的时刻（做 tooltip 用）
+    var spans = [];                                  // 每个桶的时间范围（做 tooltip 用）
     for (var b = 0; b < BARS; b++) {
       var row = [];
       for (var i = 0; i < n; i++) row.push(null);
       buckets.push(row);
-      times.push(null);
+      spans.push(null);
     }
-    var L = slots.length;
-    for (var j = 0; j < L; j++) {
-      var bi = BARS - 1 - Math.floor((L - 1 - j) / per);
-      if (bi < 0) continue;
+    if (!hist.length) return { buckets: buckets, hist: hist, spans: spans, spanMs: 0 };
+    var newest = hist[hist.length - 1][0];
+    var per = Math.max(1e-6, WINDOW_SLOTS / BARS);   // 每桶包含多少个 2 分钟槽（可为小数）
+    for (var j = 0; j < hist.length; j++) {
+      var slot = hist[j][0];
+      var back = newest - slot;                      // 距最新一个槽多少个槽
+      if (back < 0 || back >= WINDOW_SLOTS) continue; // 超出 24 小时
+      var bi = BARS - 1 - Math.floor(back / per);
+      if (bi < 0) bi = 0;
       if (bi >= BARS) bi = BARS - 1;
-      var slot = slots[j][0];
       var at = slot * SLOT_MS;
-      times[bi] = at;
-      var bitstr = slots[j][1];
+      var cur = spans[bi];
+      if (!cur) spans[bi] = { from: at, to: at };
+      else { if (at < cur.from) cur.from = at; if (at > cur.to) cur.to = at; }
+      var bitstr = hist[j][1];
       for (var s = 0; s < n; s++) {
         // 该项上线之前的时段不算（新增目标不该拖累历史）
         if (since[s] && at < since[s]) continue;
         var ch = bitstr.charAt(s);
         // 新增探测项后，旧位串里没有这一位 → 跳过，桶保持 null
         if (ch !== '0' && ch !== '1') continue;
-        var cur = buckets[bi][s];
-        var v = ch === '1' ? 1 : 0;
-        buckets[bi][s] = cur === null ? v : Math.min(cur, v);   // 桶里只要掉过一次就标红
+        var v2 = ch === '1' ? 1 : 0;
+        buckets[bi][s] = buckets[bi][s] === null ? v2 : Math.min(buckets[bi][s], v2);
       }
     }
-    return { buckets: buckets, hist: hist, times: times };
+    return { buckets: buckets, hist: hist, spans: spans, spanMs: WINDOW_SLOTS * SLOT_MS };
   }
 
   /* ---------- 可用率分母 ----------
@@ -225,13 +221,14 @@
       var v = bk.buckets[bi][i];
       var x = bi * step;
       var g2 = 'x="' + x + '" y="0" width="' + geom.w + '" height="24" rx="1.5"';
+      var sp = bk.spans && bk.spans[bi];
+      var when = sp ? (sp.to > sp.from ? hhmm(sp.from) + '–' + hhmm(sp.to) : hhmm(sp.from)) : '';
       if (v === null) {
-        var gtip = (bk.times && bk.times[bi] ? hhmm(bk.times[bi]) + ' · ' : '') + '无数据';
-        rects += '<rect ' + g2 + ' fill="var(--c-gap)" data-tip="' + esc(gtip) + '"></rect>';
+        rects += '<rect ' + g2 + ' fill="var(--c-gap)" data-tip="'
+          + esc((when ? when + ' · ' : '') + '无数据') + '"></rect>';
       } else {
-        var tip = (bk.times && bk.times[bi] ? hhmm(bk.times[bi]) + ' · ' : '')
-          + (v === 1 ? '正常' : '异常');
-        rects += '<rect ' + g2 + ' fill="var(--c-' + (v === 1 ? 'up' : 'down') + ')" data-tip="' + esc(tip) + '"></rect>';
+        rects += '<rect ' + g2 + ' fill="var(--c-' + (v === 1 ? 'up' : 'down') + ')" data-tip="'
+          + esc((when ? when + ' · ' : '') + (v === 1 ? '正常' : '异常')) + '"></rect>';
       }
     }
     var bars = '<svg class="st-bars" width="' + geom.total + '" height="24" viewBox="0 0 '
@@ -293,8 +290,12 @@
       html += cardOf(doc, bk, s, i, geom);
     });
     box.innerHTML = html;
+    // 工具栏显示时间窗口与每格粒度
     var granEl = $('stGran');
-    if (granEl) granEl.textContent = '24 小时 · 每格 ' + geom.gran + ' 分钟';
+    if (granEl) {
+      var granMin = Math.max(1, Math.round(WINDOW_SLOTS / geom.N * SLOT_MS / 60000));
+      granEl.textContent = '24 小时 · 每格 ' + granMin + ' 分钟';
+    }
   }
 
   /* ---------- 近 7 天表格（服务为行、日期为列，窄屏也不横向滚动） ---------- */
