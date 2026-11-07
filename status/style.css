@@ -140,31 +140,40 @@ a.st-url:hover{color:var(--accent)}
   .st-tip{background:#f3f4f6;color:#0f1216;border-color:rgba(0,0,0,.1);box-shadow:0 8px 24px rgba(0,0,0,.5)}
 }
 
-/* 7 天表格（服务为行、日期为列，列宽固定百分比，永远不产生横向滚动） */
+/* 近 7 天可用率：每个服务一项，项内横排 7 天的色块 */
 .st-week{margin:34px 0 0;border-top:1px solid var(--line);padding-top:26px}
 .st-h2{font-family:var(--serif);font-size:22px;font-weight:800;margin:0 0 14px;letter-spacing:-.01em}
-.st-table-wrap{border:1px solid var(--line);border-radius:var(--radius-sm);overflow:hidden}
-.st-table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:13.5px;font-variant-numeric:tabular-nums}
-.st-table th,.st-table td{padding:5px 4px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.st-table th{font-size:12px;font-weight:700;color:var(--muted);background:var(--paper)}
-.st-table th:first-child,.st-table td:first-child{text-align:left;width:30%;padding-left:12px}
-.st-table tbody tr:last-child td{border-bottom:0}
-
-/* 可用率色块（块表格）：块底色按档位，数值直接写在块里 */
-.st-cell{
-  display:flex;align-items:center;justify-content:center;gap:1px;
-  height:26px;border-radius:7px;font-size:12.5px;font-weight:650;
-  font-variant-numeric:tabular-nums;cursor:default;
+/* 一行排多项：宽屏 2 项、更宽 3 项，窄屏自动降为 1 项 */
+.st-week-list{
+  list-style:none;margin:0;padding:0;
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;
 }
-.st-table td.ok .st-cell{background:rgba(22,163,74,.13);color:#15803d}
-.st-table td.mid .st-cell{background:rgba(217,119,6,.15);color:#b45309}
-.st-table td.bad .st-cell{background:rgba(200,16,46,.12);color:#b91c1c}
-.st-table td.none .st-cell{background:var(--paper-2);color:var(--muted);font-weight:500}
-.st-cell .pu{font-size:10.5px;font-weight:600;opacity:.75}
+.st-wrow{
+  display:block;padding:10px 12px 11px;
+  border:1px solid var(--line);border-radius:10px;background:var(--bg);
+}
+.st-wname{display:block;font-size:12.5px;font-weight:600;color:var(--ink-2);margin-bottom:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.st-wcells{display:flex;gap:4px}
+
+/* 单个可用率色块：上为日期，下为数值 + 单位 */
+.st-wcell{
+  flex:1 1 0;min-width:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  height:36px;border-radius:7px;cursor:default;
+  font-variant-numeric:tabular-nums;line-height:1.14;
+}
+.st-wcell .d{font-size:9px;font-style:normal;font-weight:500;opacity:.62}
+.st-wcell b{font-size:12.5px;font-weight:650;white-space:nowrap}
+.st-wcell b .pu{font-size:9.5px;font-weight:600;font-style:normal;opacity:.7;margin-left:1px}
+.st-wcell.ok{background:rgba(22,163,74,.13);color:#15803d}
+.st-wcell.mid{background:rgba(217,119,6,.15);color:#b45309}
+.st-wcell.bad{background:rgba(200,16,46,.12);color:#b91c1c}
+.st-wcell.none{background:var(--paper-2);color:var(--muted)}
+.st-wcell.none b{font-weight:500}
 @media (prefers-color-scheme: dark){
-  .st-table td.ok .st-cell{background:rgba(74,222,128,.14);color:#4ade80}
-  .st-table td.mid .st-cell{background:rgba(251,191,36,.15);color:#fbbf24}
-  .st-table td.bad .st-cell{background:rgba(248,113,113,.16);color:#f87171}
+  .st-wcell.ok{background:rgba(74,222,128,.14);color:#4ade80}
+  .st-wcell.mid{background:rgba(251,191,36,.15);color:#fbbf24}
+  .st-wcell.bad{background:rgba(248,113,113,.16);color:#f87171}
 }
 
 /* 图例 */
@@ -174,8 +183,6 @@ a.st-url:hover{color:var(--accent)}
 .st-legend .lg-mid{background:rgba(217,119,6,.4)}
 .st-legend .lg-bad{background:rgba(200,16,46,.35)}
 .st-legend .lg-none{background:var(--paper-2);border:1px solid var(--line)}
-.st-table td.d{color:var(--muted)}
-.st-table .d-mini{display:none}
 
 /* 页脚：原来跟着主站页脚走，独立项目后简化成一行小字 */
 .st-foot{margin:40px 0 0;padding:18px 0 0;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center;font-size:12.5px;color:var(--muted)}
@@ -194,12 +201,13 @@ a.st-url:hover{color:var(--accent)}
   .page-wrap{padding-left:16px;padding-right:16px}
   .page-wrap h1{font-size:30px}
   .st-head{margin-bottom:18px}
-  /* 窄屏：日期列只留「日」，服务名列让出空间；块内隐藏 % 号（标题与悬浮窗里有单位），不会撑出横向滚动 */
-  .st-table{font-size:11.5px}
-  .st-table th,.st-table td{padding:4px 3px}
-  .st-table th:first-child,.st-table td:first-child{width:30%;padding-left:8px}
-  .st-cell{height:22px;border-radius:6px;font-size:11px}
-  .st-cell .pu{display:none}
-  .st-table .d-full{display:none}
-  .st-table .d-mini{display:inline}
+  /* 窄屏：一行 1 项，色块随宽度均分，7 天并排仍不换行、不溢出 */
+  .st-week-list{grid-template-columns:1fr;gap:8px}
+  .st-wrow{padding:9px 10px 10px}
+  .st-wname{font-size:12px;margin-bottom:7px}
+  .st-wcells{gap:3px}
+  .st-wcell{height:32px;border-radius:6px}
+  .st-wcell .d{font-size:8.5px}
+  .st-wcell b{font-size:11px}
+  .st-wcell b .pu{font-size:8.5px}
 }

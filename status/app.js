@@ -298,21 +298,13 @@
     }
   }
 
-  /* ---------- 近 7 天表格（服务为行、日期为列，窄屏也不横向滚动） ---------- */
+  /* ---------- 近 7 天可用率：每个服务一块，块内横排 7 天 ---------- */
   function renderWeek(doc) {
-    var tbl = $('stWeek');
+    var ul = $('stWeek');
     var days = doc.days || {};
     var keys = Object.keys(days).sort().slice(-7);   // 升序：左旧右新
-    if (!keys.length) { tbl.innerHTML = '<tbody><tr><td class="muted">还没有历史数据。</td></tr></tbody>'; return; }
+    if (!keys.length) { ul.innerHTML = '<li class="st-wrow" style="grid-column:1/-1"><span class="st-wname muted">还没有历史数据。</span></li>'; return; }
     var idx = orderedIndices(doc);
-    var head = '<thead><tr><th>服务</th>'
-      + keys.map(function (k) {
-        return '<th title="' + esc(k) + '">'
-          + '<span class="d-full">' + esc(k.slice(5)) + '</span>'
-          + '<span class="d-mini">' + esc(k.slice(8)) + '</span>'
-          + '</th>';
-      }).join('')
-      + '</tr></thead>';
     var rows = idx.map(function (i) {
       var s = doc.services[i];
       var sinceTs = (doc.since && doc.since[i]) || 0;
@@ -325,16 +317,17 @@
         var v = rate == null ? '—' : (rate >= 100 ? '100' : rate.toFixed(1).replace(/\.0$/, ''));
         var tip = s.name + ' · ' + k + ' · 可用率 ' + (rate == null ? '—' : v + '%')
           + ' · ' + (cnt ? cnt + ' 次样本' : '当天还没上线');
-        return '<td class="' + cls + '"><span class="st-cell" data-tip="' + esc(tip) + '">'
-          + (rate == null
-            ? '<span class="pv">—</span>'
-            : '<span class="pv">' + v + '</span><span class="pu">%</span>')
-          + '</span></td>';
+        return '<span class="st-wcell ' + cls + '" data-tip="' + esc(tip) + '">'
+          + '<i class="d">' + esc(k.slice(8)) + '</i>'
+          + '<b>' + v + (v === '—' ? '' : '<i class="pu">%</i>') + '</b>'
+          + '</span>';
       }).join('');
-      var label = s.short || s.name.replace(/^.*·\s*/, '');
-      return '<tr><td class="d" title="' + esc(s.name) + '">' + esc(label) + '</td>' + cells + '</tr>';
+      return '<li class="st-wrow">'
+        + '<span class="st-wname" title="' + esc(s.name) + '">' + esc(s.short || s.name.replace(/^.*·\s*/, '')) + '</span>'
+        + '<span class="st-wcells">' + cells + '</span>'
+        + '</li>';
     }).join('');
-    tbl.innerHTML = head + '<tbody>' + rows + '</tbody>';
+    ul.innerHTML = rows;
   }
 
   /* ---------- 空态 ---------- */
@@ -350,7 +343,7 @@
     $('stList').innerHTML = '<li class="st-card" data-state="unknown"><div class="st-card-head">'
       + '<span class="st-dot"></span><div class="st-card-title"><b class="st-name">没有可显示的服务</b>'
       + '<span class="st-url">数据源为空</span></div></div></li>';
-    $('stWeek').innerHTML = '<tbody><tr><td class="muted">暂无数据。</td></tr></tbody>';
+    $('stWeek').innerHTML = '<li class="st-wrow" style="grid-column:1/-1"><span class="st-wname muted">暂无数据。</span></li>';
     $('stUpdated').textContent = '最后检测：—';
   }
 
