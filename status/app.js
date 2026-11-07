@@ -1,8 +1,8 @@
 /* ============================================================
-   app.js — 把 /api/status 渲染成 Upptime 风格的卡片列表
+   app.js — 把 /api/status 渲染成一行一项的状态列表
    ------------------------------------------------------------
-   页面样式 100% 来自 Upptime（global.css + themes），本文件只生成
-   article / h4 / .tag / .bars 这些结构，不改任何视觉规则。
+   结构：总状态横幅 + 服务行（名称 / 当前耗时 / 24 小时可用率 / 条）
+   只有这一份渲染逻辑，不引入任何外部脚本。
    ============================================================ */
 (function () {
   'use strict';
@@ -46,6 +46,23 @@
     return '无响应';
   }
 
+  /* 状态图标：绿勾 / 黄叹号 / 红叉，取自参考站点的实心圆 + 白色笔画 */
+  function icon(ok) {
+    if (ok) {
+      return '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#22c55e"/>'
+        + '<path d="M5.9 10.4l2.6 2.6 5.6-5.7" fill="none" stroke="#fff" stroke-width="1.8"'
+        + ' stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    }
+    return '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#ef4444"/>'
+      + '<path d="M6.8 6.8l6.4 6.4M13.2 6.8l-6.4 6.4" fill="none" stroke="#fff" stroke-width="1.8"'
+      + ' stroke-linecap="round"/></svg>';
+  }
+  function warnIcon() {
+    return '<svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="10" fill="#f59e0b"/>'
+      + '<path d="M10 5.6v5.2" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round"/>'
+      + '<circle cx="10" cy="14.2" r="1.05" fill="#fff"/></svg>';
+  }
+
   /* ---------- 把 hist 切成 48 个桶（用于 24 小时条） ---------- */
   function bucketize(doc) {
     var n = doc.services.length;
@@ -69,7 +86,7 @@
         if (ch !== '0' && ch !== '1') continue;
         var cur = buckets[bi][s];
         var v = ch === '1' ? 1 : 0;
-        buckets[bi][s] = cur === null ? v : Math.min(cur, v);   // 桶里掉过一次就标红
+        buckets[bi][s] = cur === null ? v : Math.min(cur, v);   // 桶里掉过一次就标出来
       }
     }
     return { buckets: buckets, hist: hist };
@@ -82,13 +99,11 @@
 
   /* ---------- 每行的 24h / 7d 指标 ---------- */
   function metrics(doc, bk, i) {
-    // 24 小时
     var up24 = 0, n24 = 0;
     bk.hist.forEach(function (h) {
       var ch = h[1].charAt(i);
       if (ch === '1') { up24++; n24++; } else if (ch === '0') { n24++; }
     });
-    // 近 7 天（days 是日聚合）
     var keys = Object.keys(doc.days || {}).sort().slice(-7);
     var up7 = 0, n7 = 0;
     keys.forEach(function (k) {
@@ -99,19 +114,31 @@
     return { h24: rate(up24, n24), d7: rate(up7, n7) };
   }
 
-  /* ---------- 顶部总状态 ---------- */
-  function renderSummary(doc) {
+  /* ---------- 顶部总状态横幅 ---------- */
+  function renderBanner(doc) {
     var bad = doc.services.filter(function (s) { return !s.ok; });
-    var el = $('summary');
+    var el = $('banner');
+    var title = $('bannerTitle');
+    var sub = $('bannerSub');
+
     if (!bad.length) {
-      el.innerHTML = '<span class="tag up">正常</span> '
-        + doc.services.length + ' 项检查全部通过，最后检测 <span class="ago">' + ago(doc.updated) + '</span>';
+      el.className = 'banner up';
+      title.textContent = '一切运行正常';
+      sub.innerHTML = '所有服务均按预期运行 · 最后检测 <span class="ago">' + ago(doc.updated) + '</span>';
     } else if (bad.length === doc.services.length) {
-      el.innerHTML = '<span class="tag down">异常</span> 全部服务无响应，最后检测 <span class="ago">' + ago(doc.updated) + '</span>';
+      el.className = 'banner down';
+      title.textContent = '服务全部不可用';
+      sub.innerHTML = '可能是网络或数据源整体故障 · 最后检测 <span class="ago">' + ago(doc.updated) + '</span>';
     } else {
-      el.innerHTML = '<span class="tag degraded">部分异常</span> '
-        + esc(bad.map(function (s) { return s.name; }).join('、'))
-        + '，最后检测 <span class="ago">' + ago(doc.updated) + '</span>';
+      el.className = 'banner warn';
+      title.textContent = bad.length + ' 项服务异常';
+      sub.innerHTML = esc(bad.map(function (s) { return s.name; }).join('、'))
+        + ' · 最后检测 <span class="ago">' + ago(doc.updated) + '</span>';
+    }
+    // 图标跟着状态换：全绿绿勾、部分异常黄叹号、全断红叉
+    var ic = el.querySelector('svg');
+    if (ic) {
+      ic.outerHTML = !bad.length ? icon(true) : (bad.length === doc.services.length ? icon(false) : warnIcon());
     }
   }
 
@@ -121,31 +148,38 @@
     $('list').innerHTML = doc.services.map(function (s, i) {
       var m = metrics(doc, bk, i);
       var st = s.ok ? 'up' : 'down';
-      var label = s.ok ? '正常' : '异常';
 
-      // 只画已经有数据的格子：数据不足 24 小时时不会留一长串空格
+      // 只画已经有数据的格子：数据不足 24 小时时不会先摆一长串空槽
       var bars = '';
       bk.buckets.forEach(function (row) {
         var v = row[i];
         if (v === null) return;
         bars += '<i class="' + (v === 1 ? 'up' : 'down') + '"></i>';
       });
-      if (!bars) bars = '<i class="none"></i>';
+      if (!bars) bars = '<i class="warn"></i>';
 
-      var detail = m.h24 == null ? '还没有 24 小时数据'
-        : '24 小时 ' + fmtPct(m.h24)
-          + (m.d7 == null ? '' : ' · 近 7 天 ' + fmtPct(m.d7));
+      var tip = '24 小时 ' + fmtPct(m.h24)
+        + ' · 近 7 天 ' + fmtPct(m.d7)
+        + ' · 当前 ' + (s.ok ? (s.ms || 0) + ' ms' : errText(s));
 
-      return '<article class="' + st + '">'
-        +   '<div class="f">'
-        +     '<h4><a href="' + esc(s.url) + '" target="_blank" rel="noopener" title="' + esc(hostOf(s.url)) + '">'
-        +       esc(s.name) + '</a> <span class="tag ' + st + '">' + label + '</span></h4>'
-        +     '<div title="' + esc(s.ok ? s.ms + ' ms' : (s.err || errText(s))) + '">' + esc(errText(s)) + '</div>'
+      return '<article class="svc-row ' + st + '">'
+        +   '<div class="row">'
+        +     '<div class="svc">'
+        +       icon(s.ok)
+        +       '<b><a href="' + esc(s.url) + '" target="_blank" rel="noopener" title="' + esc(hostOf(s.url)) + '">'
+        +         esc(s.name) + '</a></b>'
+        +       '<em>' + esc(errText(s)) + '</em>'
+        +     '</div>'
+        +     '<div class="pct" title="' + esc(tip) + '"><b>' + fmtPct(m.h24) + '</b> 可用率</div>'
         +   '</div>'
         +   '<div class="bars" title="最近 24 小时，每格 30 分钟">' + bars + '</div>'
-        +   '<p style="margin:.5rem 0 0;opacity:.8"><small>' + esc(detail) + '</small></p>'
         + '</article>';
     }).join('');
+
+    // 卡片里的链接沿用模板做法：整块可点太吵，只让名称可点
+    $('list').querySelectorAll('article a').forEach(function (a) {
+      a.style.textDecoration = 'none';
+    });
   }
 
   /* ---------- 空态 ---------- */
@@ -155,8 +189,11 @@
       'no-upstash': '服务端没有配置数据源。',
       'read-failed': '读取数据出错：' + (info.error || '未知错误'),
     };
-    $('summary').innerHTML = '<span class="tag down">读不到数据</span> '
-      + esc(map[info.reason] || info.reason || '未知原因');
+    $('banner').className = 'banner warn';
+    var ic = $('banner').querySelector('svg');
+    if (ic) ic.outerHTML = warnIcon();
+    $('bannerTitle').textContent = '暂时读不到状态数据';
+    $('bannerSub').textContent = map[info.reason] || info.reason || '未知原因';
     $('list').innerHTML = '';
     $('updated').textContent = '';
   }
@@ -171,11 +208,10 @@
         return;
       }
       state.doc = doc;
-      renderSummary(doc);
+      renderBanner(doc);
       renderList(doc);
-      $('updated').textContent = '最后检测 ' + ago(doc.updated)
-        + ' · 每 ' + Math.round((doc.intervalSec || 120) / 60) + ' 分钟探测一次 · 数据源 '
-        + (doc.servedBy === 'upstream' ? '主站接口' : 'Upstash');
+      $('updated').textContent = '最后更新 ' + ago(doc.updated)
+        + ' · 每 ' + Math.round((doc.intervalSec || 120) / 60) + ' 分钟探测';
     } catch (e) {
       renderEmpty({ reason: 'read-failed', error: String(e.message || e) });
     }

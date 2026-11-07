@@ -1,26 +1,36 @@
+/* 变量名沿用 Upptime 模板，取值参考 status.deepseek.com 的深色模式 */
 :root {
-  --body-background-color: #001716;
-  --body-text-color: #f0ffff;
-  --card-background-color: #002b29;
-  --nav-background-color: #002b29;
-  --nav-border-bottom-color: #015450;
-  --nav-current-border-bottom-color: #1abc9c;
-  --card-border-color: #015450;
-  --down-border-left-color: #eb3b5a;
-  --down-background-color: #6b1020;
-  --degraded-border-left-color: #f7b731;
-  --up-border-left-color: #20bf6b;
-  --tag-color: #002b29;
-  --tag-up-background-color: #20bf6b;
-  --tag-down-background-color: #eb3b5a;
-  --tag-degraded-background-color: #f7b731;
-  --change-background-color: #f7b731;
-  --error-button-border-color: #1a46ad;
-  --error-button-background-color: #3867d6;
-  --error-button-color: #ffffff;
-  --submit-button-border-color: #1a46ad;
-  --submit-button-background-color: #3867d6;
-  --submit-button-color: #ffffff;
+  --body-background-color: #0a0a0a;
+  --body-text-color: #f2f3f5;
+
+  --card-background-color: #121212;
+  --card-border-color: #262626;
+  --muted-surface-color: #191919;
+  --line-color: #232323;
+  --muted-text-color: #a1a1aa;
+  --bar-empty-color: #2a2a2a;
+
+  --up-border-left-color: #22c55e;
+  --down-border-left-color: #ef4444;
+  --degraded-border-left-color: #f59e0b;
+
+  --nav-background-color: #121212;
+  --nav-border-bottom-color: #262626;
+  --nav-current-border-bottom-color: #22c55e;
+  --down-background-color: #2a1214;
+  --tag-color: #0a0a0a;
+  --tag-up-background-color: #22c55e;
+  --tag-down-background-color: #ef4444;
+  --tag-degraded-background-color: #f59e0b;
+  --change-background-color: #f59e0b;
+  --error-button-border-color: #f87171;
+  --error-button-background-color: #ef4444;
+  --error-button-color: #0a0a0a;
+  --submit-button-border-color: #4ade80;
+  --submit-button-background-color: #22c55e;
+  --submit-button-color: #0a0a0a;
+  --code-color: #f2f3f5;
+  --code-background-color: #191919;
   --graph-opacity: 1;
   --graph-filter: none;
 }

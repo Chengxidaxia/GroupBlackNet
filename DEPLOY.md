@@ -297,14 +297,18 @@ wrangler secret put UPSTASH_REDIS_REST_TOKEN -c backend\wrangler.status.toml
 
 ### 10.2 独立项目的文件与部署
 
-页面**视觉直接采用 [Upptime status-page](https://github.com/upptime/status-page)（MIT）**，
-样式文件原样下载、未作改动；本地只补了「24 小时细条」与一条窄屏导航适配。
+版式参照 `status.deepseek.com` / `www.githubstatus.com` / `status.natfrp.com` 的共同做法：
+**没有导航栏**，顶部一行（标题 + 最后更新时间）、一块总状态横幅、一张服务列表（每项一行，
+右侧可用率，下方 48 格 24 小时条）、底部一行小字。
+
+基础样式仍来自 [Upptime status-page](https://github.com/upptime/status-page)（MIT）：
+`global.css` 原样未改；`themes/{light,dark}.css` 变量名沿用，取值换成参考站点的中性色。
 
 | 文件 | 作用 |
 |---|---|
-| `status/global.css`、`status/themes/{light,dark}.css` | **Upptime 原样样式**，深浅色跟随系统 |
-| `status/index.html` | 页面骨架（nav / header / 总状态 / 列表 / footer，模板原有结构） |
-| `status/app.js` | 拉 `/api/status`，渲染成 `<article>` 卡片（含 48 格 24 小时条） |
+| `status/global.css`、`status/themes/{light,dark}.css` | 基础排版与配色变量（Upptime，深浅色跟随系统） |
+| `status/index.html` | 页面骨架 + 覆盖三块的 `<style>`（顶部、横幅、服务行与条） |
+| `status/app.js` | 拉 `/api/status`，渲染横幅与服务行（含 48 格 24 小时条） |
 | `status/api/status.js` | 取数：**优先直连 Upstash**；本项目没配密钥时回退到 `grp.blacknet.cc.cd/api/status` |
 | `status/vercel.json` | 缓存与安全头（无 rewrite，`/api/status` 走约定式路由） |
 | `api/status.js`（主站那份） | 只是上游备用，主站不再有状态页 |
