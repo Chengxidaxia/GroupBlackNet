@@ -43,7 +43,8 @@ done
 
 # ---- 书籍数据 docs/：远端为准，本地只补「远端没有的」 ----
 # FORCE_BOOKS=1 时才允许用本地文件覆盖同名书（改示例书时用）
-if [ -d "$ROOT/book/docs" ]; then
+# SKIP_DOCS=1 时整段跳过（只想同步页面改动、不想把本地测试书推到线上书库时用）
+if [ -d "$ROOT/book/docs" ] && [ "${SKIP_DOCS:-0}" != "1" ]; then
   mkdir -p "$WORK/docs"
   ( cd "$ROOT/book/docs" && find . -type f ! -path './books/index.json' -print ) | while IFS= read -r rel; do
     rel="${rel#./}"
