@@ -1,102 +1,76 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-theme="light">
+<html lang="zh-CN">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>服务状态 · 群档案</title>
-<meta name="description" content="群档案主站、接口、RSS 与群书阁的实时可用性。探测每 2 分钟一次，页面自包含、独立部署。">
-<meta name="color-scheme" content="light dark">
+<title>运行状态 · 群档案</title>
+<meta name="description" content="群档案主站、接口、RSS 与群书阁的可用性，每 2 分钟探测一次。">
 <link rel="icon" href="/favicon.ico" type="image/x-icon">
-<link rel="stylesheet" href="/style.css">
-<script>/* 主题预设：避免首屏闪白 */try{var t=localStorage.getItem('gb-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}</script>
+<!-- 样式全部来自 Upptime status-page（MIT），原样未改；深浅色跟随系统 -->
+<link rel="stylesheet" href="/themes/light.css" media="(prefers-color-scheme: light)">
+<link rel="stylesheet" href="/themes/dark.css" media="(prefers-color-scheme: dark)">
+<link rel="stylesheet" href="/global.css">
+<style>
+/* 以下四条为本地补充：24 小时条、标题外链，颜色全部复用主题变量 */
+.bars{display:flex;gap:2px;height:6px;margin-top:.6rem}
+.bars i{flex:1;border-radius:1px;background:var(--card-border-color)}
+.bars i.up{background:var(--up-border-left-color)}
+.bars i.down{background:var(--down-border-left-color)}
+.bars i.none{opacity:.4}
+article h4 a{text-decoration:none}
+article h4 a:hover{text-decoration:underline}
+
+/* 以下原样搬自模板组件内的 scoped 样式：
+   Nav.svelte / index.svelte / _layout.svelte，未作改动（模板把它们写在组件里，
+   单独引 global.css 拿不到，所以照抄到页面） */
+nav{font-weight:300;padding:0 1em;margin-bottom:2rem;white-space:nowrap;overflow-x:auto}
+nav ul{margin:0;padding:0;display:flex;list-style:none;align-items:center;justify-content:center}
+nav a{text-decoration:none;padding:1.5rem 2rem;display:block}
+nav .logo{float:left;display:flex;align-items:center;padding:.5rem 0;font-weight:bold;margin-right:2rem}
+nav .container{display:flex;justify-content:space-between;align-items:center}
+header{margin-bottom:2rem}
+p.lead{font-size:110%}
+footer{text-align:center;opacity:.75;margin-top:3rem}
+
+/* 一条窄屏适配：模板的 nav 链接在 390px 下会横向溢出，收一下内边距 */
+@media (max-width:560px){
+  nav a{padding:1rem .7rem}
+  nav .logo{margin-right:.4rem}
+  nav{padding:0 .5em}
+}
+</style>
 </head>
 <body>
 
-<header class="st-top">
-  <div class="st-top-inner">
-    <a class="st-brand" href="https://grp.blacknet.cc.cd/" title="返回群档案主站">群档案<span class="dot">.</span><small>Status</small></a>
-    <nav class="st-nav">
-      <a href="https://grp.blacknet.cc.cd/">主站</a>
-      <a href="https://grp.blacknet.cc.cd/archive.html">归档</a>
-      <a href="https://book.blacknet.cc.cd/">书阁</a>
-      <button class="st-theme" id="stTheme" type="button" title="切换亮/暗主题" aria-label="切换亮/暗主题">◐</button>
-    </nav>
+<nav>
+  <div class="container">
+    <div><a class="logo" href="https://grp.blacknet.cc.cd/" title="返回群档案主站">群档案 Status</a></div>
+    <ul>
+      <li><a href="https://grp.blacknet.cc.cd/">主站</a></li>
+      <li><a href="https://book.blacknet.cc.cd/">书阁</a></li>
+      <li><a href="/api/status" target="_blank" rel="noopener">API</a></li>
+    </ul>
   </div>
-</header>
+</nav>
 
-<main class="st-page">
-
-  <header class="st-head">
-    <p class="st-eyebrow"><span class="st-eyebrow-dot"></span>服务状态</p>
-    <h1>群档案 · 运行状态</h1>
-    <p class="sub-lede">主站、接口、RSS 与书阁的可用性。探测由 Cloudflare 边缘每 2 分钟发起一次，数据存在 Upstash，本页是一个独立部署的纯静态站点。</p>
+<main class="container">
+  <header>
+    <h1>运行状态</h1>
+    <p class="lead">主站、接口、RSS 与书阁的可用性。探测由 Cloudflare 边缘每 2 分钟发起一次。</p>
   </header>
 
-  <div class="st-banner" id="stBanner" data-state="loading">
-    <span class="st-banner-dot"></span>
-    <div class="st-banner-text">
-      <strong id="stBannerTitle">正在读取…</strong>
-      <span id="stBannerSub">数据来自 Upstash，稍等片刻。</span>
-    </div>
-  </div>
-
-  <div class="st-toolbar">
-    <span id="stUpdated">最后检测：—</span>
-    <span class="st-sep">·</span>
-    <span id="stInterval">每 2 分钟探测</span>
-    <button class="btn btn-ghost btn-sm st-refresh" id="stRefresh" type="button">刷新</button>
-  </div>
-
-  <ul class="st-list" id="stList" aria-live="polite">
-    <li class="st-card" data-state="loading">
-      <div class="st-card-head"><span class="st-dot"></span><b class="st-name">正在读取服务列表…</b></div>
-    </li>
-  </ul>
-
-  <section class="st-week">
-    <h2 class="st-h2">近 7 天可用率</h2>
-    <div class="st-table-wrap">
-      <table class="st-table" id="stWeek">
-        <tbody><tr><td class="muted">正在读取…</td></tr></tbody>
-      </table>
-    </div>
+  <section>
+    <h2>当前状态</h2>
+    <p id="summary">正在读取…</p>
   </section>
 
-  <section class="st-about">
-    <h2 class="st-h2">这套状态页是怎么来的</h2>
-    <div class="st-about-grid">
-      <div class="st-about-col">
-        <h3>探测</h3>
-        <p>一个 Cloudflare Worker 按 cron 每 2 分钟从边缘发起 GET 请求，只取状态码，超时 10 秒判为异常。它不对外提供页面，只负责写数据。</p>
-      </div>
-      <div class="st-about-col">
-        <h3>存储</h3>
-        <p>结果写进 Upstash Redis 的 <code>bn:status:v1</code>：最近 24 小时的逐次结果（2 分钟一格）与最近 90 天的日聚合。</p>
-      </div>
-      <div class="st-about-col">
-        <h3>展示</h3>
-        <p>本页是独立项目（不与主站、书阁共用一个部署），纯静态页面 + 一个只读函数 <code>/api/status</code>。每 30 秒自动刷新，标签页隐藏时暂停。</p>
-      </div>
-    </div>
-    <p class="st-about-note">
-      只统计到「端点有没有正常响应」。状态码 2xx–3xx 记为正常，4xx/5xx、超时、连接失败记为异常。
-      内容是否正确、有无错别字不在监测范围。原始数据：<a id="stRaw" href="/api/status" target="_blank" rel="noopener">/api/status</a>
-    </p>
-  </section>
+  <section class="live-status" id="list"></section>
 
+  <p><small id="updated" style="opacity:.75"></small></p>
 </main>
 
-<footer class="st-foot">
-  <div class="st-foot-inner">
-    <span class="st-foot-brand">群档案<span>.</span> Status</span>
-    <nav class="st-foot-links">
-      <a href="https://grp.blacknet.cc.cd/">主站</a>
-      <a href="https://book.blacknet.cc.cd/">群书阁</a>
-      <a href="https://grp.blacknet.cc.cd/subscribe.html">订阅</a>
-      <a href="https://github.com/Chengxidaxia/GroupBlackNet" target="_blank" rel="noopener">GitHub</a>
-    </nav>
-  </div>
-  <div class="st-foot-copy">探测频率 2 分钟 · 历史保留 24 小时与 90 天聚合 · 本页独立部署，不依赖主站运行</div>
+<footer>
+  <p>页面样式取自 <a href="https://upptime.js.org/" target="_blank" rel="noopener">Upptime</a>（MIT）· 数据显示为最近一次探测结果，每 30 秒自动刷新</p>
 </footer>
 
 <script src="/app.js" defer></script>

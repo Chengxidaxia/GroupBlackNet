@@ -297,27 +297,27 @@ wrangler secret put UPSTASH_REDIS_REST_TOKEN -c backend\wrangler.status.toml
 
 ### 10.2 独立项目的文件与部署
 
+页面**视觉直接采用 [Upptime status-page](https://github.com/upptime/status-page)（MIT）**，
+样式文件原样下载、未作改动；本地只补了「24 小时细条」与一条窄屏导航适配。
+
 | 文件 | 作用 |
 |---|---|
-| `status/index.html` | 页面本体（纯静态，自包含页头页脚） |
-| `status/style.css` | 自带样式。设计令牌与主站同值，但**不引用主站任何文件** |
-| `status/app.js` | 渲染、24 小时分桶、30 秒轮询、主题切换 |
+| `status/global.css`、`status/themes/{light,dark}.css` | **Upptime 原样样式**，深浅色跟随系统 |
+| `status/index.html` | 页面骨架（nav / header / 总状态 / 列表 / footer，模板原有结构） |
+| `status/app.js` | 拉 `/api/status`，渲染成 `<article>` 卡片（含 48 格 24 小时条） |
 | `status/api/status.js` | 取数：**优先直连 Upstash**；本项目没配密钥时回退到 `grp.blacknet.cc.cd/api/status` |
 | `status/vercel.json` | 缓存与安全头（无 rewrite，`/api/status` 走约定式路由） |
 | `api/status.js`（主站那份） | 只是上游备用，主站不再有状态页 |
 
 页面每 30 秒拉一次，标签页隐藏时暂停；`Cache-Control: s-maxage=30` 压住 Upstash 读取次数。
 
-部署（**Root Directory 必须是 `status`**，否则 Git 集成会把整个主站构建到这个项目里）：
+**部署靠 Git 集成，不用 CLI**：项目 Root Directory 指向仓库内的 `status`，
+所以 `cd status && vercel deploy` 会报 `Root Directory "status" does not exist`
+（CLI 上传的已是该目录内容，Vercel 又按项目设置去找 `status/status`）。
+改完直接 `git push`，两个项目会各自构建：主站构建仓库根，状态页只构建 `status/`。
 
-```cmd
-cd /d K:\GroupBlackNet\status
-vercel link --project groupblacknet-status
-vercel deploy --prod
-```
-
-> 项目建好后 Root Directory 若显示 `.`，去 Vercel 面板 Settings → General → Root Directory
-> 改成 `status` 保存。改了以后 `git push` 会让两个项目同时构建：主站构建仓库根，状态页只构建 `status/`。
+> 项目设置里 Root Directory 必须是 `status`。若被改成 `.`，push 时会把整个主站构建进这个项目，
+> `status.blacknet.cc.cd` 就变成主站首页了。
 
 想让它彻底不依赖主站：在 `groupblacknet-status` 项目里补 `UPSTASH_REDIS_REST_URL` /
 `UPSTASH_REDIS_REST_TOKEN`（与探活 Worker 用同一组值），`/api/status` 就会直连 Upstash，

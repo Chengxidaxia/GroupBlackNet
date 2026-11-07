@@ -1,8 +1,8 @@
 /* ============================================================
-   app.js — 服务状态页逻辑（独立项目）
+   app.js — 把 /api/status 渲染成 Upptime 风格的卡片列表
    ------------------------------------------------------------
-   数据来自同源 /api/status（本项目自带函数，见 api/status.js）。
-   页面每 30 秒刷新一次；标签页隐藏时停止请求与计时。
+   页面样式 100% 来自 Upptime（global.css + themes），本文件只生成
+   article / h4 / .tag / .bars 这些结构，不改任何视觉规则。
    ============================================================ */
 (function () {
   'use strict';
@@ -17,10 +17,6 @@
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
       return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
     });
-  }
-  function pct(up, total) {
-    if (!total) return null;
-    return Math.round((up / total) * 1000) / 10;
   }
   function fmtPct(v) {
     if (v == null) return '—';
@@ -39,23 +35,23 @@
   function hostOf(u) {
     try { return new URL(u).host + (new URL(u).pathname === '/' ? '' : new URL(u).pathname); } catch (e) { return u || ''; }
   }
-  // 把探测端吐回来的英文错误翻成人话；原文保留在 title 里
+  // 探测端返回的英文错误翻成人话
   function errText(s) {
     if (s.ok) return (s.ms || 0) + ' ms';
     var e = String(s.err || '');
-    if (/timeout|abort|timed out/i.test(e)) return '超时（10 秒无响应）';
-    if (/dns|ENOTFOUND|getaddrinfo/i.test(e)) return '域名解析失败';
+    if (/timeout|abort|timed out/i.test(e)) return '超时';
+    if (/dns|ENOTFOUND|getaddrinfo/i.test(e)) return '解析失败';
     if (/connect|network|fetch failed|ECONN/i.test(e)) return '连接失败';
     if (s.code) return 'HTTP ' + s.code;
-    return e ? '异常' : '无响应';
+    return '无响应';
   }
 
-  /* ---------- 把 hist 切成 48 个桶 ---------- */
+  /* ---------- 把 hist 切成 48 个桶（用于 24 小时条） ---------- */
   function bucketize(doc) {
     var n = doc.services.length;
     var hist = (doc.hist || []).filter(function (h) { return Array.isArray(h) && typeof h[1] === 'string'; });
     hist.sort(function (a, b) { return a[0] - b[0]; });
-    var slots = hist.slice(-BARS * 15);              // 2 分钟一格 × 15 = 每桶 30 分钟
+    var slots = hist.slice(-BARS * 15);
     var per = Math.max(1, Math.ceil(slots.length / BARS));
     var buckets = [];
     for (var b = 0; b < BARS; b++) {
@@ -73,118 +69,100 @@
         if (ch !== '0' && ch !== '1') continue;
         var cur = buckets[bi][s];
         var v = ch === '1' ? 1 : 0;
-        buckets[bi][s] = cur === null ? v : Math.min(cur, v);   // 桶里只要掉过一次就标红
+        buckets[bi][s] = cur === null ? v : Math.min(cur, v);   // 桶里掉过一次就标红
       }
     }
     return { buckets: buckets, hist: hist };
   }
 
-  /* ---------- 顶部横幅 ---------- */
-  function renderBanner(doc) {
-    var el = $('stBanner');
-    var title = $('stBannerTitle');
-    var sub = $('stBannerSub');
-    if (!doc) return;
+  function rate(up, total) {
+    if (!total) return null;
+    return Math.round((up / total) * 1000) / 10;
+  }
+
+  /* ---------- 每行的 24h / 7d 指标 ---------- */
+  function metrics(doc, bk, i) {
+    // 24 小时
+    var up24 = 0, n24 = 0;
+    bk.hist.forEach(function (h) {
+      var ch = h[1].charAt(i);
+      if (ch === '1') { up24++; n24++; } else if (ch === '0') { n24++; }
+    });
+    // 近 7 天（days 是日聚合）
+    var keys = Object.keys(doc.days || {}).sort().slice(-7);
+    var up7 = 0, n7 = 0;
+    keys.forEach(function (k) {
+      var d = doc.days[k] || {};
+      up7 += (d.ok && d.ok[i]) || 0;
+      n7 += d.n || 0;
+    });
+    return { h24: rate(up24, n24), d7: rate(up7, n7) };
+  }
+
+  /* ---------- 顶部总状态 ---------- */
+  function renderSummary(doc) {
     var bad = doc.services.filter(function (s) { return !s.ok; });
-    var tail = ' · 最后检测 <span class="st-ago">' + ago(doc.updated) + '</span>';
+    var el = $('summary');
     if (!bad.length) {
-      el.setAttribute('data-state', 'up');
-      title.textContent = '全部服务正常';
-      sub.innerHTML = doc.services.length + ' 项检查全部通过' + tail;
+      el.innerHTML = '<span class="tag up">正常</span> '
+        + doc.services.length + ' 项检查全部通过，最后检测 <span class="ago">' + ago(doc.updated) + '</span>';
     } else if (bad.length === doc.services.length) {
-      el.setAttribute('data-state', 'down');
-      title.textContent = '全部服务异常';
-      sub.innerHTML = '可能是网络或数据源整体故障' + tail;
+      el.innerHTML = '<span class="tag down">异常</span> 全部服务无响应，最后检测 <span class="ago">' + ago(doc.updated) + '</span>';
     } else {
-      el.setAttribute('data-state', 'warn');
-      title.textContent = bad.length + ' 项服务异常';
-      sub.innerHTML = esc(bad.map(function (s) { return s.name; }).join('、')) + tail;
+      el.innerHTML = '<span class="tag degraded">部分异常</span> '
+        + esc(bad.map(function (s) { return s.name; }).join('、'))
+        + '，最后检测 <span class="ago">' + ago(doc.updated) + '</span>';
     }
   }
 
-  /* ---------- 服务卡片 ---------- */
+  /* ---------- 服务列表 ---------- */
   function renderList(doc) {
-    var box = $('stList');
     var bk = bucketize(doc);
-    var html = doc.services.map(function (s, i) {
-      var up = 0, total = 0;
-      bk.hist.forEach(function (h) {
-        var ch = h[1].charAt(i);
-        if (ch === '1') { up++; total++; } else if (ch === '0') { total++; }
-      });
-      var rate = pct(up, total);
-
-      var bars = bk.buckets.map(function (row) {
-        var v = row[i];
-        var cls = v === null ? 'empty' : (v === 1 ? 'up' : 'down');
-        return '<span class="st-bar ' + cls + '"></span>';
-      }).join('');
-
+    $('list').innerHTML = doc.services.map(function (s, i) {
+      var m = metrics(doc, bk, i);
       var st = s.ok ? 'up' : 'down';
-      var detail = errText(s);
-      var detailTitle = s.ok ? (s.ms + ' ms') : (s.err || detail);
+      var label = s.ok ? '正常' : '异常';
 
-      return '<li class="st-card" data-state="' + st + '">'
-        +   '<div class="st-card-head">'
-        +     '<span class="st-dot"></span>'
-        +     '<div class="st-card-title">'
-        +       '<b class="st-name">' + esc(s.name) + '</b>'
-        +       '<a class="st-url" href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(hostOf(s.url)) + ' ↗</a>'
-        +     '</div>'
-        +     '<div class="st-card-stat">'
-        +       '<span class="st-ms" title="' + esc(detailTitle) + '">' + esc(detail) + '</span>'
-        +       '<span class="st-rate">24h ' + fmtPct(rate) + '</span>'
-        +     '</div>'
+      // 只画已经有数据的格子：数据不足 24 小时时不会留一长串空格
+      var bars = '';
+      bk.buckets.forEach(function (row) {
+        var v = row[i];
+        if (v === null) return;
+        bars += '<i class="' + (v === 1 ? 'up' : 'down') + '"></i>';
+      });
+      if (!bars) bars = '<i class="none"></i>';
+
+      var detail = m.h24 == null ? '还没有 24 小时数据'
+        : '24 小时 ' + fmtPct(m.h24)
+          + (m.d7 == null ? '' : ' · 近 7 天 ' + fmtPct(m.d7));
+
+      return '<article class="' + st + '">'
+        +   '<div class="f">'
+        +     '<h4><a href="' + esc(s.url) + '" target="_blank" rel="noopener" title="' + esc(hostOf(s.url)) + '">'
+        +       esc(s.name) + '</a> <span class="tag ' + st + '">' + label + '</span></h4>'
+        +     '<div title="' + esc(s.ok ? s.ms + ' ms' : (s.err || errText(s))) + '">' + esc(errText(s)) + '</div>'
         +   '</div>'
-        +   '<div class="st-bars" title="最近 24 小时，每格 30 分钟">' + bars + '</div>'
-        + '</li>';
+        +   '<div class="bars" title="最近 24 小时，每格 30 分钟">' + bars + '</div>'
+        +   '<p style="margin:.5rem 0 0;opacity:.8"><small>' + esc(detail) + '</small></p>'
+        + '</article>';
     }).join('');
-    box.innerHTML = html;
-  }
-
-  /* ---------- 近 7 天表格 ---------- */
-  function renderWeek(doc) {
-    var tbl = $('stWeek');
-    var days = doc.days || {};
-    var keys = Object.keys(days).sort().slice(-7);
-    if (!keys.length) { tbl.innerHTML = '<tbody><tr><td class="muted">还没有历史数据。</td></tr></tbody>'; return; }
-    var head = '<thead><tr><th>日期</th>'
-      + doc.services.map(function (s) {
-        return '<th>' + esc(s.short || s.name.replace(/^.*·\s*/, '')) + '</th>';
-      }).join('')
-      + '</tr></thead>';
-    var rows = keys.reverse().map(function (k) {
-      var d = days[k] || {};
-      var cells = doc.services.map(function (_, i) {
-        var rate = pct((d.ok && d.ok[i]) || 0, d.n || 0);
-        var cls = rate == null ? '' : (rate >= 99.5 ? 'ok' : (rate >= 95 ? 'mid' : 'bad'));
-        return '<td class="' + cls + '">' + fmtPct(rate) + '</td>';
-      }).join('');
-      return '<tr><td class="d">' + esc(k.slice(5)) + '</td>' + cells + '</tr>';
-    }).join('');
-    tbl.innerHTML = head + '<tbody>' + rows + '</tbody>';
   }
 
   /* ---------- 空态 ---------- */
   function renderEmpty(info) {
-    $('stBanner').setAttribute('data-state', 'unknown');
-    $('stBannerTitle').textContent = '暂时读不到状态数据';
     var map = {
-      'no-data': 'Worker 还没写过数据。确认 status-probe 已部署、cron 已触发。',
-      'no-upstash': '服务端没配 Upstash 环境变量，也没找到可用的上游接口。',
-      'read-failed': '读取存储时出错：' + (info.error || '未知错误'),
+      'no-data': '探测端还没写入数据（Worker 未部署或 cron 未触发）。',
+      'no-upstash': '服务端没有配置数据源。',
+      'read-failed': '读取数据出错：' + (info.error || '未知错误'),
     };
-    $('stBannerSub').textContent = map[info.reason] || (info.reason || '未知原因');
-    $('stList').innerHTML = '<li class="st-card" data-state="unknown"><div class="st-card-head">'
-      + '<span class="st-dot"></span><div class="st-card-title"><b class="st-name">没有可显示的服务</b>'
-      + '<span class="st-url">数据源为空</span></div></div></li>';
-    $('stWeek').innerHTML = '<tbody><tr><td class="muted">暂无数据。</td></tr></tbody>';
-    $('stUpdated').textContent = '最后检测：—';
+    $('summary').innerHTML = '<span class="tag down">读不到数据</span> '
+      + esc(map[info.reason] || info.reason || '未知原因');
+    $('list').innerHTML = '';
+    $('updated').textContent = '';
   }
 
   /* ---------- 拉取 ---------- */
   async function load() {
-    $('stRefresh').disabled = true;
     try {
       var res = await fetch(API + '?t=' + Date.now(), { cache: 'no-store' });
       var doc = await res.json();
@@ -193,15 +171,13 @@
         return;
       }
       state.doc = doc;
-      $('stInterval').textContent = '每 ' + Math.round((doc.intervalSec || 120) / 60) + ' 分钟探测';
-      renderBanner(doc);
+      renderSummary(doc);
       renderList(doc);
-      renderWeek(doc);
-      $('stUpdated').innerHTML = '最后检测：<span class="st-ago">' + ago(doc.updated) + '</span>';
+      $('updated').textContent = '最后检测 ' + ago(doc.updated)
+        + ' · 每 ' + Math.round((doc.intervalSec || 120) / 60) + ' 分钟探测一次 · 数据源 '
+        + (doc.servedBy === 'upstream' ? '主站接口' : 'Upstash');
     } catch (e) {
       renderEmpty({ reason: 'read-failed', error: String(e.message || e) });
-    } finally {
-      $('stRefresh').disabled = false;
     }
   }
 
@@ -211,7 +187,7 @@
     state.ticker = setInterval(function () {
       if (!state.doc) return;
       var a = ago(state.doc.updated);
-      var list = document.querySelectorAll('.st-ago');
+      var list = document.querySelectorAll('.ago');
       for (var i = 0; i < list.length; i++) list[i].textContent = a;
     }, 1000);
   }
@@ -221,26 +197,6 @@
     state.timer = state.ticker = null;
   }
 
-  /* ---------- 主题切换（与主站共用 localStorage 键） ---------- */
-  (function theme() {
-    var btn = $('stTheme');
-    if (!btn) return;
-    var root = document.documentElement;
-    function paint() {
-      var cur = root.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
-      btn.textContent = cur === 'dark' ? '☀' : '◐';
-      btn.setAttribute('aria-label', cur === 'dark' ? '切换到亮色主题' : '切换到暗色主题');
-    }
-    btn.addEventListener('click', function () {
-      var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
-      root.setAttribute('data-theme', next);
-      try { localStorage.setItem('gb-theme', next); } catch (e) {}
-      paint();
-    });
-    paint();
-  })();
-
-  $('stRefresh').addEventListener('click', load);
   document.addEventListener('visibilitychange', function () {
     if (document.hidden) stopPolling();
     else { load(); startPolling(); }
