@@ -57,11 +57,6 @@
     if (v == null) return '—';
     return (v >= 100 ? '100' : v.toFixed(1).replace(/\.0$/, '')) + '%';
   }
-  // 表格里只放数字，百分号统一写在标题上，窄屏才不会撑出横向滚动
-  function numPct(v) {
-    if (v == null) return '—';
-    return v >= 100 ? '100' : v.toFixed(1).replace(/\.0$/, '');
-  }
   function ago(ms) {
     if (!ms) return '—';
     var s = Math.max(0, Math.round((Date.now() - ms) / 1000));
@@ -299,8 +294,14 @@
         // 样本太少（< 5 次）不给百分比：1/1 的 100% 比留空更容易误导
         var rate = cnt >= 5 ? pct((d.ok && d.ok[i]) || 0, cnt) : null;
         var cls = rate == null ? 'none' : (rate >= 99.5 ? 'ok' : (rate >= 95 ? 'mid' : 'bad'));
-        var tip = s.name + ' · ' + k + ' · ' + (cnt ? cnt + ' 次样本' : '当天还没上线');
-        return '<td class="' + cls + '" data-tip="' + esc(tip) + '">' + numPct(rate) + '</td>';
+        var v = rate == null ? '—' : (rate >= 100 ? '100' : rate.toFixed(1).replace(/\.0$/, ''));
+        var tip = s.name + ' · ' + k + ' · 可用率 ' + (rate == null ? '—' : v + '%')
+          + ' · ' + (cnt ? cnt + ' 次样本' : '当天还没上线');
+        return '<td class="' + cls + '"><span class="st-cell" data-tip="' + esc(tip) + '">'
+          + (rate == null
+            ? '<span class="pv">—</span>'
+            : '<span class="pv">' + v + '</span><span class="pu">%</span>')
+          + '</span></td>';
       }).join('');
       var label = s.short || s.name.replace(/^.*·\s*/, '');
       return '<tr><td class="d" title="' + esc(s.name) + '">' + esc(label) + '</td>' + cells + '</tr>';

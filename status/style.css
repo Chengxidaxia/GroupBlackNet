@@ -118,7 +118,7 @@ a.st-url:hover{color:var(--accent)}
 
 /* 24 小时竖细条（宽屏 144 格 / 窄屏 72 格，格数由 app.js 的 barCount 经 --slices 给出） */
 .st-bars{--bar-gap:2px;--bar-h:24px;--slices:144;display:grid;grid-template-columns:repeat(var(--slices),1fr);gap:var(--bar-gap);margin-top:12px;height:var(--bar-h)}
-.st-bar{height:100%;border-radius:1px;background:var(--line-2)}
+.st-bar{height:100%;border-radius:999px;background:var(--line-2)}
 .st-bar.up{background:#16a34a;opacity:.9}
 .st-bar.down{background:var(--accent)}
 /* 新增监控项：历史还没攒够，前面留透明占位，只画已有点，避免一整排浅灰看着像故障 */
@@ -143,14 +143,35 @@ a.st-url:hover{color:var(--accent)}
 .st-h2{font-family:var(--serif);font-size:22px;font-weight:800;margin:0 0 14px;letter-spacing:-.01em}
 .st-table-wrap{border:1px solid var(--line);border-radius:var(--radius-sm);overflow:hidden}
 .st-table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:13.5px;font-variant-numeric:tabular-nums}
-.st-table th,.st-table td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.st-table th,.st-table td{padding:5px 4px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .st-table th{font-size:12px;font-weight:700;color:var(--muted);background:var(--paper)}
-.st-table th:first-child,.st-table td:first-child{text-align:left;width:30%}
+.st-table th:first-child,.st-table td:first-child{text-align:left;width:30%;padding-left:12px}
 .st-table tbody tr:last-child td{border-bottom:0}
-.st-table td.ok{color:#16a34a;font-weight:600}
-.st-table td.mid{color:#d97706;font-weight:600}
-.st-table td.bad{color:var(--accent);font-weight:700}
-.st-table td.none{color:var(--line-2)}
+
+/* 可用率色块（块表格）：块底色按档位，数值直接写在块里 */
+.st-cell{
+  display:flex;align-items:center;justify-content:center;gap:1px;
+  height:26px;border-radius:7px;font-size:12.5px;font-weight:650;
+  font-variant-numeric:tabular-nums;cursor:default;
+}
+.st-table td.ok .st-cell{background:rgba(22,163,74,.13);color:#15803d}
+.st-table td.mid .st-cell{background:rgba(217,119,6,.15);color:#b45309}
+.st-table td.bad .st-cell{background:rgba(200,16,46,.12);color:#b91c1c}
+.st-table td.none .st-cell{background:var(--paper-2);color:var(--muted);font-weight:500}
+.st-cell .pu{font-size:10.5px;font-weight:600;opacity:.75}
+@media (prefers-color-scheme: dark){
+  .st-table td.ok .st-cell{background:rgba(74,222,128,.14);color:#4ade80}
+  .st-table td.mid .st-cell{background:rgba(251,191,36,.15);color:#fbbf24}
+  .st-table td.bad .st-cell{background:rgba(248,113,113,.16);color:#f87171}
+}
+
+/* 图例 */
+.st-legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--muted);margin:-6px 0 14px}
+.st-legend i{display:inline-block;width:12px;height:12px;border-radius:4px;margin-right:5px;vertical-align:-1px}
+.st-legend .lg-ok{background:rgba(22,163,74,.35)}
+.st-legend .lg-mid{background:rgba(217,119,6,.4)}
+.st-legend .lg-bad{background:rgba(200,16,46,.35)}
+.st-legend .lg-none{background:var(--paper-2);border:1px solid var(--line)}
 .st-table td.d{color:var(--muted)}
 .st-table .d-mini{display:none}
 
@@ -172,10 +193,12 @@ a.st-url:hover{color:var(--accent)}
   .page-wrap{padding-left:16px;padding-right:16px}
   .page-wrap h1{font-size:30px}
   .st-head{margin-bottom:18px}
-  /* 窄屏：日期列只留「日」，服务名列让出空间；单元格只放数字，永远不会撑出横向滚动 */
+  /* 窄屏：日期列只留「日」，服务名列让出空间；块内隐藏 % 号（标题与悬浮窗里有单位），不会撑出横向滚动 */
   .st-table{font-size:11.5px}
-  .st-table th,.st-table td{padding:8px 3px}
-  .st-table th:first-child,.st-table td:first-child{width:30%}
+  .st-table th,.st-table td{padding:4px 3px}
+  .st-table th:first-child,.st-table td:first-child{width:30%;padding-left:8px}
+  .st-cell{height:22px;border-radius:6px;font-size:11px}
+  .st-cell .pu{display:none}
   .st-table .d-full{display:none}
   .st-table .d-mini{display:inline}
 }
