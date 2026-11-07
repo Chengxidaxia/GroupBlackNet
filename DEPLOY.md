@@ -318,6 +318,11 @@ wrangler secret put UPSTASH_REDIS_REST_TOKEN -c backend\wrangler.status.toml
 
 > 项目设置里 Root Directory 必须是 `status`。若被改成 `.`，push 时会把整个主站构建进这个项目，
 > `status.blacknet.cc.cd` 就变成主站首页了。
+>
+> `status/package.json` 的 `"type": "module"` **不能删**。Git 集成构建时整个仓库都在
+> `/var/task` 下，仓库根的 `package.json` 也是 `type: module`；Vercel 默认把 `api/*.js`
+> 编译成 CommonJS，运行时却按 ESM 解析，会直接 500 并报
+> `ReferenceError: exports is not defined in ES module scope`。声明 module 后 Vercel 不再做转换。
 
 想让它彻底不依赖主站：在 `groupblacknet-status` 项目里补 `UPSTASH_REDIS_REST_URL` /
 `UPSTASH_REDIS_REST_TOKEN`（与探活 Worker 用同一组值），`/api/status` 就会直连 Upstash，
