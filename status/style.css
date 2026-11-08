@@ -104,10 +104,11 @@ button{font-family:var(--sans)}
 .st-key i{display:inline-block;width:9px;height:12px;border-radius:2px}
 .st-key .k-up{background:#16a34a;opacity:.88}
 .st-key .k-slow{background:#d97706;opacity:.85}
+.st-key .k-minor{background:#eab308;opacity:.9}
 .st-key .k-down{background:var(--accent);opacity:.88}
 .st-key .k-gap{background:var(--line)}
 .st-key .st-key-note{color:var(--muted);opacity:.85}
-@media (prefers-color-scheme: dark){.st-key .k-slow{background:#fbbf24}}
+@media (prefers-color-scheme: dark){.st-key .k-slow{background:#fbbf24}.st-key .k-minor{background:#facc15}}
 
 /* 服务卡片 */
 .st-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
@@ -185,13 +186,14 @@ a.st-url:hover{color:var(--accent)}
 
 /* 24 小时竖细条：SVG 1:1 渲染（条 3px / 间隔 2px，全整数坐标，宽度由 app.js 按卡片实宽算出），
    间隔绝对均匀；卡片比条行宽一点点时居中，两侧余量对称 */
-.st-bars{--c-up:#16a34a;--c-slow:#d97706;--c-down:var(--accent);--c-gap:var(--line);display:block;height:24px;margin:12px auto 0}
+.st-bars{--c-up:#16a34a;--c-slow:#d97706;--c-minor:#eab308;--c-down:var(--accent);--c-gap:var(--line);display:block;height:24px;margin:12px auto 0}
 .st-bars rect{opacity:.92}
 .st-bars rect[fill="var(--c-up)"]{opacity:.88}
 .st-bars rect[fill="var(--c-slow)"]{opacity:.85}
+.st-bars rect[fill="var(--c-minor)"]{opacity:.9}
 .st-bars rect[fill="var(--c-gap)"]{opacity:.45}
 @media (prefers-color-scheme: dark){
-  .st-bars{--c-up:#4ade80;--c-slow:#fbbf24}
+  .st-bars{--c-up:#4ade80;--c-slow:#fbbf24;--c-minor:#facc15}
 }
 
 /* 即时浮窗（替代原生 title 的延迟提示） */

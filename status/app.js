@@ -184,9 +184,11 @@
   /* ---------- 把 hist 按「时间」切成 BARS 个桶 ---------- */
   // 数据可能还不满 24 小时。窗口取「实际数据跨度」与 24 小时中较小的那个，
   // 桶在整个窗口上均匀分布 —— 条形因此连续铺满整行，不会左半边一片空白。
-  // 桶值：2=正常 1=偏慢 0=异常 null=无数据；合并时取最差（数值最小）。
-  function chRank(ch) { return ch === '1' ? 2 : (ch === '2' ? 1 : 0); }
-  function rankName(r) { return r === 2 ? 'up' : (r === 1 ? 'slow' : 'down'); }
+  // 桶值：'up' 正常 / 'slow' 偏慢 / 'minor' 性能下降 / 'down' 异常 / null 无数据。
+  // 以前是「取最差」：一个桶里十几个槽只要掉 1 次，整桶就标红。
+  // 现在按失败占比分档 —— 失败 ≤ 一半算「性能下降」（黄），超过一半才算异常（红）。
+  var MINOR_RATIO = 0.5;
+  function chKind(ch) { return ch === '1' ? 'up' : (ch === '2' ? 'slow' : 'down'); }
 
   function bucketize(doc, BARS) {
     var n = doc.services.length;
@@ -196,10 +198,12 @@
     var buckets = [];
     var spans = [];                                  // 每个桶的时间范围（做 tooltip 用）
     var fails = [];                                  // 每个桶里的失败次数（做 tooltip 用）
+    var bags = [];                                   // [桶][项] = { up, slow, bad, tot }
     for (var b = 0; b < BARS; b++) {
-      var row = [];
-      for (var i = 0; i < n; i++) row.push(null);
+      var row = [], bagRow = [];
+      for (var i = 0; i < n; i++) { row.push(null); bagRow.push(null); }
       buckets.push(row);
+      bags.push(bagRow);
       spans.push(null);
       fails.push(0);
     }
@@ -224,9 +228,23 @@
         var ch = bitstr.charAt(s);
         // 新增探测项后，旧位串里没有这一位 → 跳过，桶保持 null
         if (ch !== '0' && ch !== '1' && ch !== '2') continue;
-        var r = chRank(ch);
-        if (r === 0) fails[bi]++;
-        buckets[bi][s] = buckets[bi][s] === null ? r : Math.min(buckets[bi][s], r);
+        var kind = chKind(ch);
+        var bag = bags[bi][s];
+        if (!bag) bag = bags[bi][s] = { up: 0, slow: 0, bad: 0, tot: 0 };
+        bag.tot++;
+        if (kind === 'down') { bag.bad++; fails[bi]++; }
+        else if (kind === 'slow') bag.slow++;
+        else bag.up++;
+      }
+    }
+    // 汇总成档位：一次没失败 → 正常/偏慢；有小比例失败 → 性能下降；失败过半 → 异常
+    for (var bb = 0; bb < BARS; bb++) {
+      for (var ss = 0; ss < n; ss++) {
+        var g = bags[bb][ss];
+        if (!g || !g.tot) continue;
+        var frac = g.bad / g.tot;
+        buckets[bb][ss] = frac === 0 ? (g.slow ? 'slow' : 'up')
+          : (frac > MINOR_RATIO ? 'down' : 'minor');
       }
     }
     return { buckets: buckets, hist: hist, spans: spans, fails: fails, spanMs: WINDOW_SLOTS * SLOT_MS };
@@ -427,8 +445,9 @@
         rects += '<rect ' + g2 + ' fill="var(--c-gap)" data-tip="'
           + esc((when ? when + ' · ' : '') + '无数据') + '"></rect>';
       } else {
-        var nm = rankName(v);
-        var tip = (when ? when + ' · ' : '') + (nm === 'up' ? '正常' : (nm === 'slow' ? '偏慢' : '异常'))
+        var nm = v;
+        var lvTxt = nm === 'up' ? '正常' : (nm === 'slow' ? '偏慢' : (nm === 'minor' ? '性能下降' : '异常'));
+        var tip = (when ? when + ' · ' : '') + lvTxt
           + (fl ? '（该时段 ' + fl + ' 次失败）' : '');
         rects += '<rect ' + g2 + ' fill="var(--c-' + nm + ')" data-tip="' + esc(tip) + '"></rect>';
       }
@@ -579,14 +598,14 @@
         // 样本太少（< 5 次）不给百分比：1/1 的 100% 比留空更容易误导
         var failed = cnt ? cnt - ((d.ok && d.ok[i]) || 0) : 0;
         var rate = cnt >= 5 ? pct((d.ok && d.ok[i]) || 0, cnt) : null;
-        // 四档：正常（一次没失败）→ 轻度故障（有失败但可用率仍达标，性能下降）
+        // 四档：正常（一次没失败）→ 性能下降（有失败但可用率仍达标）
         //       → 波动 → 异常。只要有 1 次失败就不给绿色，避免 99.9% 掩盖事故。
         var cls = rate == null ? 'none'
           : (failed > 0 && rate >= 99.5 ? 'minor'
             : (rate >= 99.5 ? 'ok' : (rate >= 95 ? 'mid' : 'bad')));
         var v = rate == null ? '—' : (rate >= 100 ? '100' : rate.toFixed(1).replace(/\.0$/, ''));
         var lvText = cls === 'ok' ? '正常'
-          : cls === 'minor' ? '轻度故障 · 性能下降'
+          : cls === 'minor' ? '性能下降'
             : cls === 'mid' ? '波动' : cls === 'bad' ? '异常' : '无数据';
         var tip = s.name + ' · ' + k + ' · ' + lvText + ' · 可用率 ' + (rate == null ? '—' : v + '%')
           + (cnt ? ' · 失败 ' + failed + ' / ' + cnt + ' 次样本' : ' · 当天还没上线');
