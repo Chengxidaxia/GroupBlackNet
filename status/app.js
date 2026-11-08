@@ -173,10 +173,11 @@
     var d = Math.floor(h / 24), hh = h % 24;
     return d + ' 天' + (hh ? ' ' + hh + ' 小时' : '');
   }
-  // 耗时：1 秒以上换成秒，别显示 10000 ms
+  // 耗时：1 秒以上换成秒（向下取整，避免 1495ms 显示成「1.5 秒」却判正常）；
+  // 别显示 10000 ms 这种一眼看不出量级的数
   function msText(ms) {
     var v = ms || 0;
-    if (v >= 1000) return (Math.round(v / 100) / 10) + ' 秒';
+    if (v >= 1000) return (Math.floor(v / 100) / 10) + ' 秒';
     return v + ' ms';
   }
 
