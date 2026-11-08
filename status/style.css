@@ -1,9 +1,9 @@
 /* ============================================================
    服务状态页样式
    ------------------------------------------------------------
-   全部沿用主站设计系统（assets/site.css）：设计令牌、基础排版、
-   按钮，以及第 10 节「服务状态页（.st-*）」整段，取值逐一一致，
-   没有另起一套视觉。
+   全部沿用主站设计令牌（assets/site.css 的配色 / 圆角 / 阴影 / 字体），
+   但 .st-* 这一套已独立演进：主站 §10 是早年托管状态页时的旧结构（div 网格），
+   这里换成 SVG 细条 + 状态徽章 + 详情块，**不要再按「两边一起改」处理**。
    差异只有两处：
      1. 深色改用 prefers-color-scheme 跟随系统（独立项目没有主题按钮）
      2. 末尾新增 .st-foot（原来用主站页脚，这里简化成一行小字）
@@ -87,6 +87,8 @@ button{font-family:var(--sans)}
 .st-banner[data-state="up"] .st-banner-dot{background:#16a34a;box-shadow:0 0 0 4px rgba(22,163,74,.16)}
 .st-banner[data-state="warn"]{border-left-color:#d97706;background:rgba(217,119,6,.08)}
 .st-banner[data-state="warn"] .st-banner-dot{background:#d97706;box-shadow:0 0 0 4px rgba(217,119,6,.16)}
+.st-banner[data-state="slow"]{border-left-color:#d97706;background:rgba(217,119,6,.08)}
+.st-banner[data-state="slow"] .st-banner-dot{background:#d97706;box-shadow:0 0 0 4px rgba(217,119,6,.16)}
 .st-banner[data-state="down"]{border-left-color:var(--accent);background:var(--accent-soft)}
 .st-banner[data-state="down"] .st-banner-dot{background:var(--accent);box-shadow:0 0 0 4px rgba(200,16,46,.16);animation:pulse 1.6s infinite}
 .st-banner[data-state="unknown"]{border-left-color:var(--line-2)}
@@ -96,34 +98,100 @@ button{font-family:var(--sans)}
 .st-toolbar .st-sep{opacity:.5}
 .st-refresh{margin-left:auto}
 
+/* 细条图例：把 4 种格子含义写在列表上方，不用去猜颜色 */
+.st-key{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;font-size:12px;color:var(--muted);margin:0 0 14px}
+.st-key span{display:inline-flex;align-items:center;gap:5px}
+.st-key i{display:inline-block;width:9px;height:12px;border-radius:2px}
+.st-key .k-up{background:#16a34a;opacity:.88}
+.st-key .k-slow{background:#d97706;opacity:.85}
+.st-key .k-down{background:var(--accent);opacity:.88}
+.st-key .k-gap{background:var(--line)}
+.st-key .st-key-note{color:var(--muted);opacity:.85}
+@media (prefers-color-scheme: dark){.st-key .k-slow{background:#fbbf24}}
+
 /* 服务卡片 */
 .st-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
 /* 分组小标题（主站页面 / 书阁页面 / 接口与数据 / 外部依赖） */
-.st-list > .st-group{font-size:12px;font-weight:700;letter-spacing:.12em;color:var(--muted);margin:8px 0 -4px;padding-left:2px}
+.st-list > .st-group{
+  display:flex;align-items:baseline;gap:10px;
+  font-size:12px;font-weight:700;letter-spacing:.12em;color:var(--muted);
+  margin:8px 0 -4px;padding-left:2px;
+}
 .st-list > .st-group:first-child{margin-top:0}
+.st-gcount{font-size:11.5px;font-weight:500;letter-spacing:0;color:var(--muted);opacity:.85}
+.st-gcount b{font-weight:700;color:var(--accent);opacity:1}
 .st-card{border:1px solid var(--line);border-radius:var(--radius);background:var(--bg);padding:16px 18px;transition:border-color .2s,box-shadow .2s}
 .st-card:hover{border-color:var(--line-2);box-shadow:var(--shadow-1)}
 .st-card-head{display:grid;grid-template-columns:12px minmax(0,1fr) auto;gap:12px;align-items:center}
 .st-dot{width:10px;height:10px;border-radius:50%;background:var(--line-2)}
 .st-card[data-state="up"] .st-dot{background:#16a34a;box-shadow:0 0 0 4px rgba(22,163,74,.12)}
+.st-card[data-state="slow"] .st-dot{background:#d97706;box-shadow:0 0 0 4px rgba(217,119,6,.14)}
 .st-card[data-state="down"] .st-dot{background:var(--accent);box-shadow:0 0 0 4px rgba(200,16,46,.12);animation:pulse 1.6s infinite}
 .st-card-title{display:flex;flex-direction:column;gap:2px;min-width:0}
 .st-name{font-size:15.5px;font-weight:700;color:var(--ink);line-height:1.4}
 .st-url{font-size:12.5px;color:var(--muted);font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 a.st-url:hover{color:var(--accent)}
-.st-card-stat{display:flex;flex-direction:column;align-items:flex-end;gap:2px;font-variant-numeric:tabular-nums;min-width:0}
-.st-ms{font-size:13.5px;font-weight:600;color:var(--ink-2);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.st-card-stat{display:flex;flex-direction:column;align-items:flex-end;gap:1px;font-variant-numeric:tabular-nums;min-width:0}
+.st-ms{font-size:13px;font-weight:600;color:var(--ink-2);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .st-card[data-state="down"] .st-ms{color:var(--accent)}
+.st-card[data-state="slow"] .st-ms{color:#b45309}
 .st-rate{font-size:12px;color:var(--muted)}
+
+/* 状态徽章：卡面上直接写「超时 / 5xx / 解析失败」，不靠颜色猜 */
+.st-lv{
+  display:inline-block;padding:1px 7px 2px;border-radius:6px;
+  font-size:11.5px;font-weight:700;letter-spacing:.02em;
+  background:var(--paper-2);color:var(--ink-2);
+}
+.st-lv[data-lv="up"]{background:rgba(22,163,74,.12);color:#15803d}
+.st-lv[data-lv="slow"]{background:rgba(217,119,6,.14);color:#b45309}
+.st-lv[data-lv="timeout"],.st-lv[data-lv="dns"],.st-lv[data-lv="tls"],
+.st-lv[data-lv="connect"],.st-lv[data-lv="http4"],.st-lv[data-lv="http5"],
+.st-lv[data-lv="error"],.st-lv[data-lv="down"]{background:rgba(200,16,46,.1);color:#b91c1c}
+
+/* 角色行：分类（页面/接口/资源/外部）+ 该状态的含义 */
+.st-role{display:flex;align-items:center;gap:8px;margin:7px 0 0;min-width:0}
+.st-role-tag{
+  flex:none;padding:0 6px;border:1px solid var(--line-2);border-radius:5px;
+  font-size:11px;font-weight:600;line-height:1.6;color:var(--muted);
+}
+.st-role-desc{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.st-card[data-state="down"] .st-role-desc{color:#b91c1c}
+.st-card[data-state="slow"] .st-role-desc{color:#b45309}
+
+/* 异常详情：默认就展开，不用点、不用悬停 */
+.st-detail{
+  margin:10px 0 0;padding:9px 11px;border-radius:9px;
+  border:1px solid var(--line);background:var(--paper);
+  display:flex;flex-direction:column;gap:3px;min-width:0;
+}
+.st-detail[data-lv="slow"]{border-color:rgba(217,119,6,.32);background:rgba(217,119,6,.06)}
+.st-detail[data-lv="timeout"],.st-detail[data-lv="dns"],.st-detail[data-lv="tls"],
+.st-detail[data-lv="connect"],.st-detail[data-lv="http4"],.st-detail[data-lv="http5"],
+.st-detail[data-lv="error"],.st-detail[data-lv="down"]{border-color:rgba(200,16,46,.24);background:rgba(200,16,46,.05)}
+.st-detail-main{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;font-size:12.5px;color:var(--ink-2)}
+.st-detail-main b{font-weight:700;color:var(--ink)}
+.st-detail[data-lv="slow"] .st-detail-main b{color:#b45309}
+.st-detail[data-lv="timeout"] .st-detail-main b,.st-detail[data-lv="dns"] .st-detail-main b,
+.st-detail[data-lv="tls"] .st-detail-main b,.st-detail[data-lv="connect"] .st-detail-main b,
+.st-detail[data-lv="http4"] .st-detail-main b,.st-detail[data-lv="http5"] .st-detail-main b,
+.st-detail[data-lv="error"] .st-detail-main b,.st-detail[data-lv="down"] .st-detail-main b{color:var(--accent)}
+.st-detail-meta{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.st-detail-err{
+  display:block;margin:1px 0 0;font-family:var(--mono);font-size:11.5px;line-height:1.5;
+  color:var(--ink-2);overflow-wrap:anywhere;word-break:break-word;
+  max-height:3em;overflow:hidden;
+}
 
 /* 24 小时竖细条：SVG 1:1 渲染（条 3px / 间隔 2px，全整数坐标，宽度由 app.js 按卡片实宽算出），
    间隔绝对均匀；卡片比条行宽一点点时居中，两侧余量对称 */
-.st-bars{--c-up:#16a34a;--c-down:var(--accent);--c-gap:var(--line);display:block;height:24px;margin:12px auto 0}
+.st-bars{--c-up:#16a34a;--c-slow:#d97706;--c-down:var(--accent);--c-gap:var(--line);display:block;height:24px;margin:12px auto 0}
 .st-bars rect{opacity:.92}
 .st-bars rect[fill="var(--c-up)"]{opacity:.88}
+.st-bars rect[fill="var(--c-slow)"]{opacity:.85}
 .st-bars rect[fill="var(--c-gap)"]{opacity:.45}
 @media (prefers-color-scheme: dark){
-  .st-bars{--c-up:#4ade80}
+  .st-bars{--c-up:#4ade80;--c-slow:#fbbf24}
 }
 
 /* 即时浮窗（替代原生 title 的延迟提示） */
@@ -139,6 +207,21 @@ a.st-url:hover{color:var(--accent)}
 @media (prefers-color-scheme: dark){
   .st-tip{background:#f3f4f6;color:#0f1216;border-color:rgba(0,0,0,.1);box-shadow:0 8px 24px rgba(0,0,0,.5)}
 }
+
+/* 近 24 小时故障记录 */
+.st-outages{margin:30px 0 0;border-top:1px solid var(--line);padding-top:24px}
+.st-olog{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg)}
+.st-olog-row{
+  display:grid;grid-template-columns:minmax(84px,140px) minmax(0,1fr) auto;
+  gap:12px;align-items:baseline;padding:8px 12px;font-size:12.5px;
+  border-top:1px solid var(--line);
+}
+.st-olog-row:first-child{border-top:0}
+.st-olog-name{font-weight:650;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.st-olog-time{font-family:var(--mono);font-size:12px;color:var(--ink-2);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.st-olog-dur{font-size:12px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.st-olog-empty,.st-olog-more{padding:10px 12px;font-size:12.5px;color:var(--muted)}
+.st-olog-more{border-top:1px solid var(--line)}
 
 /* 近 7 天可用率：每个服务一项，项内横排 7 天的色块 */
 .st-week{margin:34px 0 0;border-top:1px solid var(--line);padding-top:26px}
@@ -210,4 +293,12 @@ a.st-url:hover{color:var(--accent)}
   .st-wcell .d{font-size:8.5px}
   .st-wcell b{font-size:11px}
   .st-wcell b .pu{font-size:8.5px}
+  /* 故障记录：窄屏名字独占一行，时间与时长并排 */
+  .st-olog-row{grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;padding:8px 10px}
+  .st-olog-name{grid-column:1/-1}
+  .st-olog-time{font-size:11.5px}
+  .st-olog-dur{font-size:11.5px}
+  .st-key{font-size:11.5px;gap:4px 10px}
+  .st-key .st-key-note{display:none}
+  .st-role-desc{font-size:11.5px}
 }

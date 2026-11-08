@@ -36,11 +36,26 @@
     <button class="btn btn-ghost btn-sm st-refresh" id="stRefresh" type="button">刷新</button>
   </div>
 
+  <div class="st-key">
+    <span><i class="k-up"></i>正常</span>
+    <span><i class="k-slow"></i>偏慢（&gt; 1.5 秒）</span>
+    <span><i class="k-down"></i>异常</span>
+    <span><i class="k-gap"></i>无数据</span>
+    <span class="st-key-note">异常细分：超时 / 解析失败 / 证书错误 / 连接失败 / 4xx / 5xx</span>
+  </div>
+
   <ul class="st-list" id="stList" aria-live="polite">
     <li class="st-card" data-state="loading">
       <div class="st-card-head"><span class="st-dot"></span><b class="st-name">正在读取服务列表…</b></div>
     </li>
   </ul>
+
+  <section class="st-outages">
+    <h2 class="st-h2">近 24 小时故障记录</h2>
+    <ul class="st-olog" id="stOutageList">
+      <li class="st-olog-empty">正在读取…</li>
+    </ul>
+  </section>
 
   <section class="st-week">
     <h2 class="st-h2">近 7 天可用率（%）</h2>
@@ -56,7 +71,7 @@
   </section>
 
   <footer class="st-foot">
-    <span>2xx–3xx 记为正常，4xx/5xx 与超时记为异常</span>
+    <span>2xx–3xx 记为正常，慢于 1.5 秒记为偏慢，4xx/5xx 与超时、解析/连接/证书失败记为异常</span>
     <span class="st-sep">·</span>
     <a href="/api/status" target="_blank" rel="noopener">原始数据</a>
     <span class="st-sep">·</span>
