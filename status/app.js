@@ -577,11 +577,18 @@
         var d = days[k] || {};
         var cnt = sampleCount(d, i, sinceTs, k);
         // 样本太少（< 5 次）不给百分比：1/1 的 100% 比留空更容易误导
-        var rate = cnt >= 5 ? pct((d.ok && d.ok[i]) || 0, cnt) : null;
-        var cls = rate == null ? 'none' : (rate >= 99.5 ? 'ok' : (rate >= 95 ? 'mid' : 'bad'));
-        var v = rate == null ? '—' : (rate >= 100 ? '100' : rate.toFixed(1).replace(/\.0$/, ''));
         var failed = cnt ? cnt - ((d.ok && d.ok[i]) || 0) : 0;
-        var tip = s.name + ' · ' + k + ' · 可用率 ' + (rate == null ? '—' : v + '%')
+        var rate = cnt >= 5 ? pct((d.ok && d.ok[i]) || 0, cnt) : null;
+        // 四档：正常（一次没失败）→ 轻度故障（有失败但可用率仍达标，性能下降）
+        //       → 波动 → 异常。只要有 1 次失败就不给绿色，避免 99.9% 掩盖事故。
+        var cls = rate == null ? 'none'
+          : (failed > 0 && rate >= 99.5 ? 'minor'
+            : (rate >= 99.5 ? 'ok' : (rate >= 95 ? 'mid' : 'bad')));
+        var v = rate == null ? '—' : (rate >= 100 ? '100' : rate.toFixed(1).replace(/\.0$/, ''));
+        var lvText = cls === 'ok' ? '正常'
+          : cls === 'minor' ? '轻度故障 · 性能下降'
+            : cls === 'mid' ? '波动' : cls === 'bad' ? '异常' : '无数据';
+        var tip = s.name + ' · ' + k + ' · ' + lvText + ' · 可用率 ' + (rate == null ? '—' : v + '%')
           + (cnt ? ' · 失败 ' + failed + ' / ' + cnt + ' 次样本' : ' · 当天还没上线');
         return '<span class="st-wcell ' + cls + '" data-tip="' + esc(tip) + '">'
           + '<i class="d">' + esc(k.slice(8)) + '</i>'
