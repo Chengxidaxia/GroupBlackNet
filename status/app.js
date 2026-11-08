@@ -26,6 +26,8 @@
   var POLL_MS = 30000;
   var NEW_WINDOW = 12 * 3600 * 1000;   // 上线不足 12 小时按「数据累积中」处理
   var SLOW_MS = 1500;                  // 老数据没有 level 时按这个阈值判定偏慢
+  // 相邻两次故障之间空档不超过这个宽度，就算同一次故障（时间合并成一段）
+  var MERGE_GAP_MS = 10 * 60000;       // 10 分钟 = 5 个探测点
   var state = { doc: null, timer: null, ticker: null };
 
   /* ---------- 状态字典 ---------- */
@@ -547,6 +549,23 @@
   }
 
   /* ---------- 近 24 小时故障记录 ---------- */
+  // 同一项在短时间内反复掉几次（像 GH API 那样 06:18 / 06:24 / 06:32），
+  // 逐段列出来等于把一次抖动拆成好几行。这里按「相邻两段之间空档 ≤ MERGE_GAP_MS」
+  // 合并成一段，时间写成 起 ~ 止，并记下中间一共失败了几次。
+  function mergeSegs(segs) {
+    var out = [];
+    segs.forEach(function (sg) {
+      var p = out[out.length - 1];
+      if (p && sg.from - p.to - SLOT_MS <= MERGE_GAP_MS) {
+        p.to = sg.to;
+        p.count++;
+      } else {
+        out.push({ from: sg.from, to: sg.to, count: 1 });
+      }
+    });
+    return out;
+  }
+
   function renderOutages(doc) {
     var ul = $('stOutageList');
     if (!ul) return;
@@ -555,13 +574,15 @@
       var s = doc.services[i];
       var segs = segmentsOf(doc, i);
       var st = streakOf(doc, i);
-      segs.forEach(function (sg) {
+      var tail = segs.length ? segs[segs.length - 1] : null;
+      mergeSegs(segs).forEach(function (sg) {
         rows.push({
           s: s,
           from: sg.from,
           to: sg.to,
-          // 末尾那一段且当前仍在失败 → 未恢复
-          open: !!(st && st.bad && st.since === sg.from),
+          count: sg.count,
+          // 合并段的终点就是当前这段 → 仍未恢复
+          open: !!(st && st.bad && tail && sg.to === tail.to),
           ms: sg.to - sg.from + SLOT_MS
         });
       });
@@ -576,10 +597,11 @@
       return '<li class="st-olog-row">'
         + '<span class="st-olog-name">' + esc(r.s.short || r.s.name) + '</span>'
         + '<span class="st-olog-time">' + esc(fmtRange(r.from, r.to)) + '</span>'
-        + '<span class="st-olog-dur">' + (r.open ? '持续中 · 已 ' : '持续 ') + durText(r.ms) + '</span>'
+        + '<span class="st-olog-dur">' + (r.open ? '持续中 · 已 ' : '持续 ') + durText(r.ms)
+        + (r.count > 1 ? ' · ' + r.count + ' 次失败' : '') + '</span>'
         + '</li>';
     }).join('') + (rows.length > 60
-      ? '<li class="st-olog-more">仅显示最近 60 段，共 ' + rows.length + ' 段。</li>' : '');
+      ? '<li class="st-olog-more">仅显示最近 60 条，共 ' + rows.length + ' 条。</li>' : '');
   }
 
   /* ---------- 近 7 天可用率：每个服务一块，块内横排 7 天 ---------- */
