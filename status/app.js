@@ -28,7 +28,7 @@
   var SLOW_MS = 1500;                  // 老数据没有 level 时按这个阈值判定偏慢
   // 相邻两次故障之间空档不超过这个宽度，就算同一次故障（时间合并成一段）
   var MERGE_GAP_MS = 10 * 60000;       // 10 分钟 = 5 个探测点
-  var state = { doc: null, timer: null, ticker: null };
+  var state = { doc: null, timer: null, ticker: null, barsScroll: null, barSyncing: false };
 
   /* ---------- 状态字典 ---------- */
   var LEVELS = {
@@ -433,7 +433,7 @@
     bk.buckets.forEach(function (row) { if (row[i] !== null) filled++; });
     if (!isNew && filled > 0 && filled < 6) isNew = true;
 
-    // SVG 1:1 绘制：全整数坐标（条 3px / 间隔 2px），间隔绝对均匀
+    // SVG 1:1 绘制：全整数坐标（条宽 3/2px，间隔 1px），间隔绝对均匀
     var step = geom.w + geom.g;
     var rects = '';
     for (var bi = 0; bi < bk.buckets.length; bi++) {
@@ -454,8 +454,8 @@
         rects += '<rect ' + g2 + ' fill="var(--c-' + nm + ')" data-tip="' + esc(tip) + '"></rect>';
       }
     }
-    var bars = '<svg class="st-bars" width="' + geom.total + '" height="24" viewBox="0 0 '
-      + geom.total + ' 24" aria-hidden="true">' + rects + '</svg>';
+    var bars = '<div class="st-bars-wrap"><svg class="st-bars" width="' + geom.total + '" height="24" viewBox="0 0 '
+      + geom.total + ' 24" aria-hidden="true">' + rects + '</svg></div>';
 
     // 悬停汇总：把「哪一类故障、什么时候开始的、24h 内坏了几次」一次说清
     var tipLines = [];
@@ -532,18 +532,53 @@
     var granEl = $('stGran');
     if (granEl) {
       var granMin = Math.max(1, Math.round(WINDOW_SLOTS / geom.N * SLOT_MS / 60000));
-      granEl.textContent = '24 小时 · 每格 ' + granMin + ' 分钟';
+      granEl.textContent = '24 小时 · 每格 ' + granMin + ' 分钟 · 可左右滚动';
     }
+    applyBarScroll();
   }
 
-  // 条的几何：按卡片实际内容宽铺满整行，条宽整数、间隔恒定 2px → 间隔绝对均匀。
-  // 时间窗口固定 24 小时，早期还没有数据的格子由灰色条补齐（app.js 里 var(--c-gap)）。
+  /* ---------- 细条横向滚动：位置全局共享，重绘后还原 ---------- */
+  // 720 格放不进一屏，靠横向滚动查看。默认停在最右（最新数据），
+  // 任意一张卡片被拖动时其余卡片跟着动，保证上下时间轴对齐。
+  function applyBarScroll() {
+    var all = document.querySelectorAll('.st-bars-wrap');
+    if (!all.length) return;
+    var max = all[0].scrollWidth - all[0].clientWidth;
+    if (state.barsScroll === null) state.barsScroll = max;      // 首次：最右
+    var v = Math.max(0, Math.min(state.barsScroll, max));
+    state.barSyncing = true;
+    for (var i = 0; i < all.length; i++) {
+      all[i].scrollLeft = v;
+      if (!all[i].__barBound) {                                 // scroll 不冒泡，得逐个绑
+        all[i].__barBound = true;
+        all[i].addEventListener('scroll', onBarScroll, { passive: true });
+      }
+    }
+    state.barSyncing = false;
+  }
+
+  function onBarScroll(e) {
+    var el = e.currentTarget;
+    if (state.barSyncing || Math.abs(el.scrollLeft - (state.barsScroll || 0)) < 1) return;
+    state.barsScroll = el.scrollLeft;
+    var all = document.querySelectorAll('.st-bars-wrap');
+    state.barSyncing = true;
+    for (var i = 0; i < all.length; i++) {
+      if (all[i] !== el) all[i].scrollLeft = el.scrollLeft;
+    }
+    state.barSyncing = false;
+  }
+
+  // 条的几何：**一格 = 一个探测点（2 分钟）**，24 小时正好 720 格。
+  // 条宽保持 3px（小屏 2px）、间隔 2px，整条约 3.6k px，放不进卡片宽 → 横向滚动查看，
+  // 默认滚到最右（最新）。所有卡片共用同一个滚动位置，时间轴上下对齐。
   function barsGeom() {
     var list = $('stList');
     var pad = (window.innerWidth || 960) <= 760 ? 15 : 18;   // .st-card 的左右 padding
     var W = Math.max(120, (list.clientWidth || 810) - pad * 2);
-    var g = 2, w = window.innerWidth <= 760 ? 2 : 3;
-    var N = Math.max(12, Math.floor((W + g) / (w + g)));
+    var w = window.innerWidth <= 760 ? 2 : 3;
+    var g = 2;
+    var N = WINDOW_SLOTS;
     var total = N * (w + g) - g;
     return { W: W, w: w, g: g, N: N, total: total };
   }

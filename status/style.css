@@ -184,9 +184,17 @@ a.st-url:hover{color:var(--accent)}
   max-height:3em;overflow:hidden;
 }
 
-/* 24 小时竖细条：SVG 1:1 渲染（条 3px / 间隔 2px，全整数坐标，宽度由 app.js 按卡片实宽算出），
-   间隔绝对均匀；卡片比条行宽一点点时居中，两侧余量对称 */
-.st-bars{--c-up:#16a34a;--c-slow:#d97706;--c-minor:#eab308;--c-down:var(--accent);--c-gap:var(--line);display:block;height:24px;margin:12px auto 0}
+/* 24 小时竖细条：一格 = 一个探测点（2 分钟），24 小时正好 720 格，
+   条 3px / 间隔 2px，整条约 3.6k px 放不进卡片 → 外层横向滚动，默认停在最右（最新）。
+   所有卡片的滚动位置由 app.js 同步，时间轴上下对齐。 */
+.st-bars-wrap{
+  margin:12px 0 0;overflow-x:auto;overflow-y:hidden;padding-bottom:2px;
+  scrollbar-width:thin;scrollbar-color:var(--line-2) transparent;
+}
+.st-bars-wrap::-webkit-scrollbar{height:6px}
+.st-bars-wrap::-webkit-scrollbar-track{background:transparent}
+.st-bars-wrap::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:3px}
+.st-bars{--c-up:#16a34a;--c-slow:#d97706;--c-minor:#eab308;--c-down:var(--accent);--c-gap:var(--line);display:block;height:24px;margin:0}
 .st-bars rect{opacity:.92}
 .st-bars rect[fill="var(--c-up)"]{opacity:.88}
 .st-bars rect[fill="var(--c-slow)"]{opacity:.85}
