@@ -21,12 +21,12 @@ WHICH="${1:-}"
 DRY="${2:-}"
 
 case "$WHICH" in
-  grp)  REPO="GroupBlackNet" ;;
-  book) REPO="BookBlackNet" ;;
+  grp)  REPO="GroupBlackNet"; SRCNAME="grp" ;;
+  book) REPO="BookBlackNet";  SRCNAME="book-wiki" ;;   # 目录叫 book-wiki：.gitignore 里有 book/ 规则
   *) echo "用法：bash scripts/wiki-sync.sh <grp|book> [--dry]"; exit 1 ;;
 esac
 
-SRC="$ROOT/.github/wiki/$WHICH"
+SRC="$ROOT/.github/wiki/$SRCNAME"
 WORK="$ROOT/.workbuddy/tmp/wiki-$WHICH"
 URL="git@github.com:Chengxidaxia/$REPO.wiki.git"
 
@@ -71,6 +71,6 @@ if git -C "$WORK" diff --cached --quiet; then
 fi
 
 git -C "$WORK" -c user.name="Chengxidaxia" -c user.email="Chengxidaxia@users.noreply.github.com" \
-  commit --quiet -m "wiki: sync from .github/wiki/$WHICH"
+  commit --quiet -m "wiki: sync from .github/wiki/$SRCNAME"
 git -C "$WORK" push --quiet origin HEAD
 echo "✓ 已推送：https://github.com/Chengxidaxia/$REPO/wiki"
