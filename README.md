@@ -109,6 +109,7 @@ GroupBlackNet/
 ├─ vercel.json           Vercel 配置（cleanUrls / rewrites / headers）
 ├─ scripts/              构建、同步、迁移、单测脚本
 ├─ CLIENTApplication/    Swing 桌面客户端
+├─ cli/                  命令行客户端 bn（C++17，单 exe，管两站；见 cli/README.md）
 └─ book/                 群书阁工作副本（gitignore，真源在独立仓库）
 ```
 
@@ -197,6 +198,30 @@ python -m http.server 8123
 | [CDN.md](CDN.md) | 书籍数据源三层链路、版本戳与缓存、jsDelivr 限制、验收命令 |
 | [book/README.md](https://github.com/Chengxidaxia/BookBlackNet/blob/main/README.md) | 群书阁：页面、格式体系（`.book` / `.bookp` / `.zip` / `.epub`）、加密与账号 |
 | [CLIENTApplication/README.md](CLIENTApplication/README.md) | 桌面客户端的构建、启动器与功能对照 |
+
+---
+
+## 8. 命令行客户端 bn
+
+`cli/` 是一个 C++17 写的命令行客户端，一个 exe 同时管主站和书阁，面向人和 agent。
+
+```cmd
+cd /d K:\GroupBlackNet\cli
+build.bat                      :: 产出 build\bn.exe（约 1.7MB，静态链接，无外部依赖）
+
+bn login                       :: GitHub 令牌登录（DPAPI 加密存在 %USERPROFILE%\.blacknet）
+bn grp list -n 10              :: 主站：列表
+bn grp show 48 --comments 10   ::       详情 + 评论
+bn grp search 状态页            ::       搜索
+bn grp post -t "标题" -f a.md   ::       发稿（首行 JSON 自动生成）
+bn book list                   :: 书阁：书目
+bn book show bk_xxx --chapter 1::       读书（自动用站点密钥解密）
+bn book publish ./bookdir      ::       发书 / 更书（同名 id 再发即更新）
+bn book collections            ::       作品集
+```
+
+任何命令加 `--json` 就是机器可读输出，错误带语义化退出码（3=未登录、4=网络、5=不存在）。
+细节见 [cli/README.md](cli/README.md)。
 
 ---
 
