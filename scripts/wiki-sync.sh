@@ -10,7 +10,7 @@
 # 前提：对应仓库的 Wiki 已经**在网页上创建过首页**（Home 页）。
 #       GitHub 不会自动建 *.wiki.git，没建过的话 clone 会报 Repository not found。
 #
-# 源文件：.github/wiki/grp/ 与 .github/wiki/book/（随主仓库版本管理，不进构建产物）
+# 源文件：.github/wiki/grp/ 与 .github/wiki/book-wiki/（随主仓库版本管理，不进构建产物）
 # 目标：  git@github.com:Chengxidaxia/<Repo>.wiki.git
 # ============================================================
 
